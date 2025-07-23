@@ -25,6 +25,18 @@ body {
     padding: 20px;
 }
 
+.main-background{
+    background-color: #2D9596;
+    flex-shrink: 0;
+    padding: 20px;
+}
+
+.login-background{
+    background-color: #f4f4f4;
+    flex-shrink: 0;
+    padding: 20px;
+}
+
 .logo {
     width: 80px;
     height: auto;
@@ -46,6 +58,7 @@ html, body {
 .navigator .navbar-brand.fs-6 {
     font-size: 0.9rem !important;
 }
+
 @media (max-width: 767.98px) {
     .navigator .navbar-brand.fs-5 {
         font-size: 1rem !important;
@@ -123,7 +136,7 @@ html, body {
 }
 
 .card-text.small {
-    font-size: 0.8rem !important;
+    font-size: 10px !important;
     margin-bottom: 0.1rem !important;
 }
 @media (max-width: 575.98px) {
@@ -213,4 +226,64 @@ h1 {
 }
 .card .card-img-link:hover {
     transform: scale(1.02);
+}
+.details-text {
+    font-size: 15px;
+}
+
+.login-form-bg {
+    margin: auto;
+    padding: 20px;
+    background-color: #9AD0C2
+}
+
+.login-form-header{
+    font-size: 20px;
+    font-weight: 500;
+    color: #f4f4f4;
+    margin-bottom: 1rem;
+    text-align: center;
+    
+}
+
+.login-btn{
+    background-color: #265073;
+    color: #f4f4f4;
+    font-weight: 500;
+    font-size: 16px;
+    padding: 10px 0;
+    border-radius: 5px;
+    border: none;
+    text-align: center;
+}
+
+.profile-card {
+    background-color: #ffffff;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    padding: 30px;
+    text-align: center;
+}
+
+.profile-img {
+    width: 120px;
+    height: 120px;
+    object-fit: cover;
+    border-radius: 50%;
+    margin-bottom: 20px;
+    border: 3px solid #007bff;
+}
+
+.profile-info {
+    text-align: left;
+    margin-top: 20px;
+}
+
+.profile-info p {
+    margin-bottom: 8px;
+    font-size: 1.1rem;
+}
+
+.profile-info strong {
+    display: inline-block;
 }

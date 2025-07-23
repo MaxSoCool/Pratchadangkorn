@@ -1,184 +1,8 @@
 <?php
-session_start();
-
-// ตั้งค่าการเชื่อมต่อฐานข้อมูล
-$servername = "localhost";
-$username = "root";
-$password = "";
-$dbname = "ku_ftd_proto";
-
-// กำหนดโฟลเดอร์หลักสำหรับรูปภาพ
-$images_base_dir = 'images/';
-
-// กำหนดโฟลเดอร์ย่อยสำหรับอัปโหลดรูปภาพแต่ละประเภท
-$buildings_upload_dir = $images_base_dir . 'buildings/';
-$facilities_upload_dir = $images_base_dir . 'facilities/';
-$equipments_upload_dir = $images_base_dir . 'equipments/';
-
-// ตรวจสอบและสร้างโฟลเดอร์ถ้ายังไม่มี
-if (!is_dir($buildings_upload_dir)) {
-    mkdir($buildings_upload_dir, 0755, true);
-}
-if (!is_dir($facilities_upload_dir)) {
-    mkdir($facilities_upload_dir, 0755, true);
-}
-if (!is_dir($equipments_upload_dir)) {
-    mkdir($equipments_upload_dir, 0755, true);
-}
-
-// เชื่อมต่อฐานข้อมูล
-$conn = new mysqli($servername, $username, $password, $dbname);
-
-// ตรวจสอบการเชื่อมต่อ
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
-}
-
-$step = isset($_GET['step']) ? (int)$_GET['step'] : 1;
-$errors = [];
-$success_message = '';
-
-// ฟังก์ชันสำหรับอัปโหลดรูปภาพ (รับ $target_dir แทน $upload_dir)
-function uploadImage($file_input_name, $target_dir, &$errors) {
-    if (isset($_FILES[$file_input_name]) && $_FILES[$file_input_name]['error'] == UPLOAD_ERR_OK) {
-        $file_tmp_name = $_FILES[$file_input_name]['tmp_name'];
-        $file_name = basename($_FILES[$file_input_name]['name']);
-        $file_ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
-        $allowed_ext = ['jpg', 'jpeg', 'png', 'gif'];
-
-        if (!in_array($file_ext, $allowed_ext)) {
-            $errors[] = "ประเภทไฟล์รูปภาพสำหรับ " . $file_input_name . " ไม่ถูกต้อง อนุญาตเฉพาะ JPG, JPEG, PNG, GIF";
-            return false;
-        }
-
-        $new_file_name = uniqid() . '.' . $file_ext;
-        $upload_path = $target_dir . $new_file_name; // ใช้ $target_dir ที่ส่งเข้ามา
-
-        if (move_uploaded_file($file_tmp_name, $upload_path)) {
-            return $upload_path;
-        } else {
-            $errors[] = "เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ " . $file_input_name . ": Error Code " . $_FILES[$file_input_name]['error'];
-            return false;
-        }
-    } elseif (isset($_FILES[$file_input_name]) && $_FILES[$file_input_name]['error'] != UPLOAD_ERR_NO_FILE) {
-        $errors[] = "เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ " . $file_input_name . ": Error Code " . $_FILES[$file_input_name]['error'];
-        return false;
-    }
-    return null;
-}
-
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    if ($step == 1) {
-        $building_name = trim($_POST['building_name'] ?? '');
-        // เรียกใช้ uploadImage ด้วยโฟลเดอร์สำหรับ buildings
-        $building_pic_path = uploadImage('building_pic', $buildings_upload_dir, $errors);
-
-        if (empty($building_name)) {
-            $errors[] = "กรุณากรอกชื่ออาคาร (Building Name).";
-        }
-
-        if (empty($errors)) {
-            $stmt = $conn->prepare("INSERT INTO buildings (building_name, building_pic) VALUES (?, ?)");
-            if (!$stmt) {
-                $errors[] = "เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL: " . $conn->error;
-            } else {
-                $stmt->bind_param("ss", $building_name, $building_pic_path);
-                if ($stmt->execute()) {
-                    header("Location: ?step=1&status=success");
-                    exit();
-                } else {
-                    $errors[] = "เกิดข้อผิดพลาดในการบันทึกข้อมูลอาคาร: " . $stmt->error;
-                    if ($building_pic_path && file_exists($building_pic_path)) {
-                        unlink($building_pic_path);
-                    }
-                }
-                $stmt->close();
-            }
-        }
-    } elseif ($step == 2) {
-        $facility_name = trim($_POST['facility_name'] ?? '');
-        $facility_des = trim($_POST['facility_des'] ?? '');
-        $building_id = (int)($_POST['building_id'] ?? 0);
-        // เรียกใช้ uploadImage ด้วยโฟลเดอร์สำหรับ facilities
-        $facility_pic_path = uploadImage('facility_pic', $facilities_upload_dir, $errors);
-
-        if (empty($facility_name)) {
-            $errors[] = "กรุณากรอกชื่อสิ่งอำนวยความสะดวก (Facility Name).";
-        }
-        if ($building_id === 0) {
-            $errors[] = "กรุณาเลือกอาคาร (Building ID).";
-        }
-
-        if (empty($errors)) {
-            $stmt = $conn->prepare("INSERT INTO facilities (facility_name, facility_des, facility_pic, building_id) VALUES (?, ?, ?, ?)");
-            if (!$stmt) {
-                $errors[] = "เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL: " . $conn->error;
-            } else {
-                $stmt->bind_param("sssi", $facility_name, $facility_des, $facility_pic_path, $building_id);
-                if ($stmt->execute()) {
-                    header("Location: ?step=2&status=success");
-                    exit();
-                } else {
-                    $errors[] = "เกิดข้อผิดพลาดในการบันทึกข้อมูลสิ่งอำนวยความสะดวก: " . $stmt->error;
-                    if ($facility_pic_path && file_exists($facility_pic_path)) {
-                        unlink($facility_pic_path);
-                    }
-                }
-                $stmt->close();
-            }
-        }
-    } elseif ($step == 3) {
-        $equip_name = trim($_POST['equip_name'] ?? '');
-        $quantity = (int)($_POST['quantity'] ?? 0);
-        $measure = trim($_POST['measure'] ?? '');
-        $size = trim($_POST['size'] ?? '');
-        // เรียกใช้ uploadImage ด้วยโฟลเดอร์สำหรับ equipments
-        $equip_pic_path = uploadImage('equip_pic', $equipments_upload_dir, $errors);
-
-        if (empty($equip_name)) {
-            $errors[] = "กรุณากรอกชื่ออุปกรณ์ (Equipment Name).";
-        }
-        if ($quantity <= 0) {
-             $errors[] = "จำนวน (Quantity) ต้องเป็นตัวเลขบวก.";
-        }
-
-        if (empty($errors)) {
-            $stmt = $conn->prepare("INSERT INTO equipments (equip_name, quantity, measure, size, equip_pic) VALUES (?, ?, ?, ?, ?)");
-            if (!$stmt) {
-                $errors[] = "เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL: " . $conn->error;
-            } else {
-                $stmt->bind_param("sisss", $equip_name, $quantity, $measure, $size, $equip_pic_path);
-                if ($stmt->execute()) {
-                    header("Location: ?step=3&status=success");
-                    exit();
-                } else {
-                    $errors[] = "เกิดข้อผิดพลาดในการบันทึกข้อมูลอุปกรณ์: " . $stmt->error;
-                    if ($equip_pic_path && file_exists($equip_pic_path)) {
-                        unlink($equip_pic_path);
-                    }
-                }
-                $stmt->close();
-            }
-        }
-    }
-}
-
-// ดึงข้อมูลอาคารสำหรับ dropdown ในฟอร์ม Facilities
-$buildings = [];
-if ($conn->ping()) {
-    $result_buildings = $conn->query("SELECT building_id, building_name FROM buildings ORDER BY building_name");
-    if ($result_buildings) {
-        while ($row = $result_buildings->fetch_assoc()) {
-            $buildings[] = $row;
-        }
-    } else {
-        $errors[] = "ไม่สามารถดึงข้อมูลอาคารได้: " . $conn->error;
-    }
-}
-
-$conn->close();
-
+include 'database/database.php';
+include 'php/data_injection.php';
 ?>
+  
 <!DOCTYPE html>
 <html lang="th">
 <head>
@@ -201,12 +25,12 @@ $conn->close();
             </div>
             <div class="d-flex flex-wrap gap-3 mx-auto">
                 <a class="navbar-brand mb-0 fs-5 fs-md-4" href="#">ตรวจสอบอุปกรณ์และสถานที่</a>
-                <a class="navbar-brand mb-0 fs-5 fs-md-4" href="#">ข้อมูลคำร้อง</a>
+                <a class="navbar-brand mb-0 fs-5 fs-md-4" href="#">การจัดการอุปกรณ์และสถานที่</a>
             </div>
             <div class="d-flex align-items-center ms-auto gap-2">
                 <div class="d-flex flex-column text-end">
                     <span class="navbar-brand mb-0 fs-5 fs-md-4">ปรัชชฎางค์กรณ์ แก้วมณีโชติ</span>
-                    <span class="navbar-brand mb-0 fs-6 fs-md-5">นิสิต</span>
+                    <span class="navbar-brand mb-0 fs-6 fs-md-5">เจ้าหน้าที่</span>
                 </div>
                 <a href="index.php">
                     <img src="./images/user_button.png" class="img-fluid logo" style="width:40px; height:40px; object-fit:cover;" alt="User Button">

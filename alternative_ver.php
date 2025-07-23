@@ -185,6 +185,7 @@ $total_pages = ceil($total_items / $items_per_page);
             <?php endif; ?>
         <?php endif; ?>
 
+        <!-- Search Form and Navigation Tabs -->
         <div class="row mb-3 align-items-center">
             <div class="col-md-6">
                 <ul class="nav nav-tabs">
@@ -207,7 +208,7 @@ $total_pages = ceil($total_items / $items_per_page);
                         <input type="hidden" name="building_id" value="<?php echo htmlspecialchars($_GET['building_id']); ?>">
                     <?php endif; ?>
                     <input class="form-control me-2" type="search" placeholder="ค้นหา..." aria-label="Search" name="search" value="<?php echo htmlspecialchars($search_query); ?>">
-                        <button class="btn btn-outline-success" type="submit">ค้นหา</button>
+                    <button class="btn btn-outline-success" type="submit">ค้นหา</button>
                     <?php if (!empty($search_query)): ?>
                         <a href="?mode=<?php echo htmlspecialchars($mode); ?><?php echo ($mode == 'building_detail' && isset($_GET['building_id'])) ? '&building_id=' . htmlspecialchars($_GET['building_id']) : ''; ?>" class="btn btn-outline-secondary ms-2">ล้าง</a>
                     <?php endif; ?>
@@ -216,7 +217,9 @@ $total_pages = ceil($total_items / $items_per_page);
         </div>
 
         <?php
-
+        // ------------------------------------------------------------------
+        // ส่วนแสดงรายละเอียด (Detail View)
+        // ------------------------------------------------------------------
         if ($mode == 'facility_detail' && $detail_item):
             $back_link = '?mode=building_detail&building_id=' . htmlspecialchars($detail_item['building_id']);
         ?>
@@ -230,7 +233,7 @@ $total_pages = ceil($total_items / $items_per_page);
                             <img src="./images/placeholder.png" class="detail-img img-fluid" alt="No Image">
                         <?php endif; ?>
                     </div>
-                    <div class="col-12 col-md-8 details-text">
+                    <div class="col-12 col-md-8">
                         <p class="mb-1"><strong>ชื่อสถานที่:</strong> <?php echo htmlspecialchars($detail_item['facility_name']); ?></p>
                         <p class="mb-1"><strong>รายละเอียด:</strong> <?php echo nl2br(htmlspecialchars($detail_item['facility_des'])); ?></p>
                         <p class="mb-1"><strong>อาคาร:</strong> <?php echo htmlspecialchars($detail_item['building_id']); ?></p>
@@ -256,7 +259,7 @@ $total_pages = ceil($total_items / $items_per_page);
                             <img src="./images/placeholder.png" class="detail-img img-fluid" alt="No Image">
                         <?php endif; ?>
                     </div>
-                    <div class="col-12 col-md-8 details-text">
+                    <div class="col-12 col-md-8">
                         <p class="mb-1"><strong>ชื่ออุปกรณ์:</strong> <?php echo htmlspecialchars($detail_item['equip_name']); ?></p>
                         <p class="mb-1"><strong>จำนวน:</strong> <?php echo htmlspecialchars($detail_item['quantity']); ?></p>
                         <p class="mb-1"><strong>หน่วยวัด:</strong> <?php echo htmlspecialchars($detail_item['measure']); ?></p>
@@ -269,7 +272,9 @@ $total_pages = ceil($total_items / $items_per_page);
             </div>
 
         <?php
-
+        // ------------------------------------------------------------------
+        // ส่วนแสดงรายการหลัก (List View)
+        // ------------------------------------------------------------------
         else:
             if (empty($data)):
         ?>
@@ -347,6 +352,7 @@ $total_pages = ceil($total_items / $items_per_page);
                     <?php endforeach; ?>
                 </div>
 
+                <!-- Pagination -->
                 <nav aria-label="Page navigation" class="pagination-container mt-2 mb-0">
                     <ul class="pagination pagination-lg">
                         <?php if ($current_page > 1): ?>
