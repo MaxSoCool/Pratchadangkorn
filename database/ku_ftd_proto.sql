@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Jul 02, 2025 at 05:20 PM
+-- Generation Time: Jul 31, 2025 at 08:49 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -32,6 +32,14 @@ CREATE TABLE `activity_type` (
   `activity_type_NAME` varchar(100) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Dumping data for table `activity_type`
+--
+
+INSERT INTO `activity_type` (`activity_type_id`, `activity_type_NAME`) VALUES
+(1, 'การเรียนการสอน (นอกตาราง)'),
+(2, 'กิจกรรมพิเศษ');
+
 -- --------------------------------------------------------
 
 --
@@ -39,7 +47,7 @@ CREATE TABLE `activity_type` (
 --
 
 CREATE TABLE `buildings` (
-  `building_id` int(2) NOT NULL,
+  `building_id` varchar(2) NOT NULL,
   `building_name` varchar(255) NOT NULL,
   `building_pic` varchar(255) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -49,16 +57,16 @@ CREATE TABLE `buildings` (
 --
 
 INSERT INTO `buildings` (`building_id`, `building_name`, `building_pic`) VALUES
-(1, 'อาคารบริหาร', 'images/buildings/6853f0c538bd4.jpg'),
-(2, 'อาคารเรียนรวม', 'images/buildings/6853f0dc5836b.jpg'),
-(3, 'อาคารชุดพักอาศัย', 'images/buildings/6853f0ef3f18f.jpg'),
-(4, 'หอพักนิสิตชาย', 'images/buildings/6853f1062235d.jpg'),
-(5, 'หอพักนิสิตหญิง', 'images/buildings/6853f11611608.jpg'),
-(6, 'อาคารปฏิบัติการรวม', 'images/buildings/6853f1273f1ff.jpg'),
-(7, 'อาคารวิทยาศาสตร์และเทคโนโลยี', 'images/buildings/6853f13aef515.jpg'),
-(8, 'อาคารปฏิบัติการวิศวกรรมเครื่องกล/เทคโนโลยีอาหาร', 'images/buildings/6853f16679fe4.jpg'),
-(9, 'อาคารเทคโนโลยีสารสนเทศ', 'images/buildings/6853f176bf7b5.jpg'),
-(10, 'โรงอาหารกลาง', 'images/buildings/6853f8c5ac540.jpg');
+('1', 'อาคารบริหาร', 'images/buildings/6853f0c538bd4.jpg'),
+('10', 'โรงอาหารกลาง', 'images/buildings/6853f8c5ac540.jpg'),
+('2', 'อาคารเรียนรวม', 'images/buildings/6853f0dc5836b.jpg'),
+('3', 'อาคารชุดพักอาศัย', 'images/buildings/6853f0ef3f18f.jpg'),
+('4', 'หอพักนิสิตชาย', 'images/buildings/6853f1062235d.jpg'),
+('5', 'หอพักนิสิตหญิง', 'images/buildings/6853f11611608.jpg'),
+('6', 'อาคารปฏิบัติการรวม', 'images/buildings/6853f1273f1ff.jpg'),
+('7', 'อาคารวิทยาศาสตร์และเทคโนโลยี', 'images/buildings/6853f13aef515.jpg'),
+('8', 'อาคารปฏิบัติการวิศวกรรมเครื่องกล/เทคโนโลยีอาหาร', 'images/buildings/6853f16679fe4.jpg'),
+('9', 'อาคารเทคโนโลยีสารสนเทศ', 'images/buildings/6853f176bf7b5.jpg');
 
 -- --------------------------------------------------------
 
@@ -123,11 +131,11 @@ CREATE TABLE `equipments_requests` (
 --
 
 CREATE TABLE `facilities` (
-  `facility_id` int(2) NOT NULL,
+  `facility_id` int(4) NOT NULL,
   `facility_name` varchar(100) NOT NULL,
   `facility_des` varchar(255) NOT NULL,
   `facility_pic` varchar(255) NOT NULL,
-  `building_id` int(2) NOT NULL
+  `building_id` varchar(2) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
@@ -135,16 +143,16 @@ CREATE TABLE `facilities` (
 --
 
 INSERT INTO `facilities` (`facility_id`, `facility_name`, `facility_des`, `facility_pic`, `building_id`) VALUES
-(1, 'พื้นที่บริเวณอาคาร 1', 'พื้นที่ใช้สอยบริเวณอาคาร 1 ทั้งหมด', 'images/facilities/6853f749e11f6.jpg', 1),
-(2, 'พื้นที่บริเวณอาคาร 2', 'พื้นที่ใช้สอยบริเวณอาคาร 2 ทั้งหมด', 'images/facilities/6853f78fd213f.jpg', 2),
-(3, 'พื้นที่บริเวณอาคาร 3', 'พื้นที่ใช้สอยบริเวณอาคาร 3 ทั้งหมด', 'images/facilities/6853f7abc394b.jpg', 3),
-(4, 'พื้นที่บริเวณหอพักนิสิตชาย', 'พื้นที่ใช้สอยบริเวณหอพักนิสิตชายทั้งหมด', 'images/facilities/6853f7cd45a56.jpg', 4),
-(5, 'พื้นที่บริเวณหอพักนิสิตหญิง', 'พื้นที่ใช้สอยบริเวณหอพักนิสิตหญิงทั้งหมด', 'images/facilities/6853f81412605.jpg', 5),
-(6, 'พื้นที่บริเวณอาคาร 6', 'พื้นที่ใช้สอยบริเวณอาคาร 6 ทั้งหมด', 'images/facilities/6853f82942b52.jpg', 6),
-(7, 'พื้นที่บริเวณอาคาร 7', 'พื้นที่ใช้สอยบริเวณอาคาร 7 ทั้งหมด', 'images/facilities/6853f83ab919f.jpg', 7),
-(8, 'พื้นที่บริเวณอาคาร 8', 'พื้นที่ใช้สอยบริเวณอาคาร 8 ทั้งหมด', 'images/facilities/6853f85ccacd8.jpg', 8),
-(9, 'พื้นที่บริเวณอาคาร 9', 'พื้นที่ใช้สอยบริเวณอาคาร 9 ทั้งหมด', 'images/facilities/6853f86e87333.jpg', 9),
-(10, 'พื้นที่บริเวณโรงอาหารกลาง', 'พื้นที่ใช้สอยบริเวณโรงอาหารกลางทั้งหมด', 'images/facilities/6853f8e4480e9.jpg', 10);
+(1, 'พื้นที่บริเวณอาคาร 1', 'พื้นที่ใช้สอยบริเวณอาคาร 1 ทั้งหมด', 'images/facilities/6853f749e11f6.jpg', '1'),
+(2, 'พื้นที่บริเวณอาคาร 2', 'พื้นที่ใช้สอยบริเวณอาคาร 2 ทั้งหมด', 'images/facilities/6853f78fd213f.jpg', '2'),
+(3, 'พื้นที่บริเวณอาคาร 3', 'พื้นที่ใช้สอยบริเวณอาคาร 3 ทั้งหมด', 'images/facilities/6853f7abc394b.jpg', '3'),
+(4, 'พื้นที่บริเวณหอพักนิสิตชาย', 'พื้นที่ใช้สอยบริเวณหอพักนิสิตชายทั้งหมด', 'images/facilities/6853f7cd45a56.jpg', '4'),
+(5, 'พื้นที่บริเวณหอพักนิสิตหญิง', 'พื้นที่ใช้สอยบริเวณหอพักนิสิตหญิงทั้งหมด', 'images/facilities/6853f81412605.jpg', '5'),
+(6, 'พื้นที่บริเวณอาคาร 6', 'พื้นที่ใช้สอยบริเวณอาคาร 6 ทั้งหมด', 'images/facilities/6853f82942b52.jpg', '6'),
+(7, 'พื้นที่บริเวณอาคาร 7', 'พื้นที่ใช้สอยบริเวณอาคาร 7 ทั้งหมด', 'images/facilities/6853f83ab919f.jpg', '7'),
+(8, 'พื้นที่บริเวณอาคาร 8', 'พื้นที่ใช้สอยบริเวณอาคาร 8 ทั้งหมด', 'images/facilities/6853f85ccacd8.jpg', '8'),
+(9, 'พื้นที่บริเวณอาคาร 9', 'พื้นที่ใช้สอยบริเวณอาคาร 9 ทั้งหมด', 'images/facilities/6853f86e87333.jpg', '9'),
+(10, 'พื้นที่บริเวณโรงอาหารกลาง', 'พื้นที่ใช้สอยบริเวณโรงอาหารกลางทั้งหมด', 'images/facilities/6853f8e4480e9.jpg', '10');
 
 -- --------------------------------------------------------
 
@@ -226,15 +234,18 @@ CREATE TABLE `staff` (
   `staff_THname` varchar(100) NOT NULL,
   `staff_THsur` varchar(100) NOT NULL,
   `staff_ENname` varchar(100) NOT NULL,
-  `staff_ENsur` varchar(100) NOT NULL
+  `staff_ENsur` varchar(100) NOT NULL,
+  `user_id` varchar(11) NOT NULL,
+  `user_pass` varchar(100) NOT NULL,
+  `user_type_id` int(2) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `staff`
 --
 
-INSERT INTO `staff` (`staff_id`, `staff_THname`, `staff_THsur`, `staff_ENname`, `staff_ENsur`) VALUES
-(7651998, 'สมศักดิ์', 'รักสเมียณ', 'Somsuk', 'Raksameon');
+INSERT INTO `staff` (`staff_id`, `staff_THname`, `staff_THsur`, `staff_ENname`, `staff_ENsur`, `user_id`, `user_pass`, `user_type_id`) VALUES
+(1, 'สมศักดิ์', 'รักสเมียณ', 'Somsuk', 'Raksameon', 's5610003145', '12345678', 3);
 
 -- --------------------------------------------------------
 
@@ -243,12 +254,13 @@ INSERT INTO `staff` (`staff_id`, `staff_THname`, `staff_THsur`, `staff_ENname`, 
 --
 
 CREATE TABLE `user` (
-  `nontri_id` int(10) NOT NULL,
+  `nontri_id` int(11) NOT NULL,
   `user_THname` varchar(100) NOT NULL,
   `user_THsur` varchar(100) NOT NULL,
   `user_ENname` varchar(100) NOT NULL,
-  `user_ENsur` varchar(100) NOT NULL,
+  `user_Ensur` varchar(100) NOT NULL,
   `user_id` varchar(11) NOT NULL,
+  `user_pass` varchar(100) NOT NULL,
   `user_type_id` int(2) NOT NULL,
   `fa_de_id` int(2) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -257,11 +269,8 @@ CREATE TABLE `user` (
 -- Dumping data for table `user`
 --
 
-INSERT INTO `user` (`nontri_id`, `user_THname`, `user_THsur`, `user_ENname`, `user_ENsur`, `user_id`, `user_type_id`, `fa_de_id`) VALUES
-(1, 'ทิณวุฒิ', 'พลบำรุง', 'Thinnawut', 'Phonbumrung', 'b6540201180', 1, 2),
-(2, 'ทวีศักดิ์', 'สีอังรัตน์', 'Thaweesak', 'Seeangrat', 'b6540201149', 1, 2),
-(3, 'ปรัชชฎางค์กรณ์', 'แก้วมณีโชติ', 'Pratchadangkorn', 'Kaewmaneechot', 'b6540201909', 1, 2),
-(4, 'ศิริพร', 'ทับทิม', 'Siriporn', 'Tubtim', 'p4740204419', 2, 2);
+INSERT INTO `user` (`nontri_id`, `user_THname`, `user_THsur`, `user_ENname`, `user_Ensur`, `user_id`, `user_pass`, `user_type_id`, `fa_de_id`) VALUES
+(1, 'ทวีศักดิ์', 'สีอังรัตน์', 'Thaweesak', 'Sriangrat', 'b6540201149', '12345678', 1, 2);
 
 -- --------------------------------------------------------
 
@@ -280,7 +289,8 @@ CREATE TABLE `user_type` (
 
 INSERT INTO `user_type` (`user_type_id`, `user_type_name`) VALUES
 (1, 'นิสิต'),
-(2, 'อาจารย์และบุคลากร');
+(2, 'อาจารย์และบุคลากร'),
+(3, 'เจ้าหน้าที่');
 
 --
 -- Indexes for dumped tables
@@ -317,7 +327,7 @@ ALTER TABLE `equipments_requests`
 --
 ALTER TABLE `facilities`
   ADD PRIMARY KEY (`facility_id`),
-  ADD KEY `fk_building` (`building_id`);
+  ADD KEY `building_fa_fk` (`building_id`);
 
 --
 -- Indexes for table `facilities_requests`
@@ -345,15 +355,16 @@ ALTER TABLE `project`
 -- Indexes for table `staff`
 --
 ALTER TABLE `staff`
-  ADD PRIMARY KEY (`staff_id`);
+  ADD PRIMARY KEY (`staff_id`),
+  ADD KEY `fk_staff_user_type` (`user_type_id`);
 
 --
 -- Indexes for table `user`
 --
 ALTER TABLE `user`
   ADD PRIMARY KEY (`nontri_id`),
-  ADD KEY `user_type_id` (`user_type_id`),
-  ADD KEY `fa_de_id` (`fa_de_id`);
+  ADD KEY `user_type_foreign` (`user_type_id`),
+  ADD KEY `fa_de_foreign` (`fa_de_id`);
 
 --
 -- Indexes for table `user_type`
@@ -369,13 +380,7 @@ ALTER TABLE `user_type`
 -- AUTO_INCREMENT for table `activity_type`
 --
 ALTER TABLE `activity_type`
-  MODIFY `activity_type_id` int(2) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `buildings`
---
-ALTER TABLE `buildings`
-  MODIFY `building_id` int(2) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
+  MODIFY `activity_type_id` int(2) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `equipments`
@@ -393,7 +398,7 @@ ALTER TABLE `equipments_requests`
 -- AUTO_INCREMENT for table `facilities`
 --
 ALTER TABLE `facilities`
-  MODIFY `facility_id` int(2) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
+  MODIFY `facility_id` int(4) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
 
 --
 -- AUTO_INCREMENT for table `facilities_requests`
@@ -414,10 +419,16 @@ ALTER TABLE `project`
   MODIFY `project_id` int(10) NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT for table `user`
+--
+ALTER TABLE `user`
+  MODIFY `nontri_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2147483648;
+
+--
 -- AUTO_INCREMENT for table `user_type`
 --
 ALTER TABLE `user_type`
-  MODIFY `user_type_id` int(2) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `user_type_id` int(2) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- Constraints for dumped tables
@@ -434,7 +445,7 @@ ALTER TABLE `equipments_requests`
 -- Constraints for table `facilities`
 --
 ALTER TABLE `facilities`
-  ADD CONSTRAINT `fk_building` FOREIGN KEY (`building_id`) REFERENCES `buildings` (`building_id`) ON DELETE CASCADE ON UPDATE CASCADE;
+  ADD CONSTRAINT `building_fa_fk` FOREIGN KEY (`building_id`) REFERENCES `buildings` (`building_id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
 -- Constraints for table `facilities_requests`
@@ -451,11 +462,17 @@ ALTER TABLE `project`
   ADD CONSTRAINT `fk_user` FOREIGN KEY (`nontri_id`) REFERENCES `user` (`nontri_id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
+-- Constraints for table `staff`
+--
+ALTER TABLE `staff`
+  ADD CONSTRAINT `fk_staff_user_type` FOREIGN KEY (`user_type_id`) REFERENCES `user_type` (`user_type_id`);
+
+--
 -- Constraints for table `user`
 --
 ALTER TABLE `user`
-  ADD CONSTRAINT `fa_de_id` FOREIGN KEY (`fa_de_id`) REFERENCES `faculties_department` (`fa_de_id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  ADD CONSTRAINT `user_type_id` FOREIGN KEY (`user_type_id`) REFERENCES `user_type` (`user_type_id`) ON DELETE CASCADE ON UPDATE CASCADE;
+  ADD CONSTRAINT `fa_de_foreign` FOREIGN KEY (`fa_de_id`) REFERENCES `faculties_department` (`fa_de_id`),
+  ADD CONSTRAINT `user_type_foreign` FOREIGN KEY (`user_type_id`) REFERENCES `user_type` (`user_type_id`);
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

@@ -14,7 +14,6 @@ $staff_THsur = htmlspecialchars($_SESSION['staff_THsur'] ?? 'N/A');
 $staff_ENname = htmlspecialchars($_SESSION['staff_ENname'] ?? 'N/A');
 $staff_ENsur = htmlspecialchars($_SESSION['staff_ENsur'] ?? 'N/A');
 $user_role = htmlspecialchars($_SESSION['role'] ?? 'N/A');
-$fa_de_name = htmlspecialchars($_SESSION['fa_de_name'] ?? 'N/A');
 
 $items_per_page = 9;
 $current_page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
@@ -23,6 +22,11 @@ $search_query = isset($_GET['search']) ? trim($_GET['search']) : '';
 $search_param = '%' . $search_query . '%';
 
 $mode = isset($_GET['mode']) ? $_GET['mode'] : 'buildings';
+
+$show_add_card = ($mode == 'buildings' || $mode == 'equipment') && $current_page == 1;
+
+$limit = $show_add_card ? $items_per_page - 1 : $items_per_page;
+$offset = ($current_page - 1) * $items_per_page;
 
 $data = [];
 $total_items = 0;
@@ -40,7 +44,7 @@ try {
 
         $sql_data = "SELECT building_id, building_name, building_pic FROM buildings WHERE building_name LIKE ? ORDER BY building_id ASC LIMIT ? OFFSET ?";
         $stmt_data = $conn->prepare($sql_data);
-        $stmt_data->bind_param("sii", $search_param, $items_per_page, $offset);
+        $stmt_data->bind_param("sii", $search_param, $limit, $offset);
         $stmt_data->execute();
         $result_data = $stmt_data->get_result();
         while ($row = $result_data->fetch_assoc()) {
@@ -59,7 +63,7 @@ try {
 
         $sql_data = "SELECT equip_id, equip_name, quantity, measure, size, equip_pic FROM equipments WHERE equip_name LIKE ? ORDER BY equip_id ASC LIMIT ? OFFSET ?";
         $stmt_data = $conn->prepare($sql_data);
-        $stmt_data->bind_param("sii", $search_param, $items_per_page, $offset);
+        $stmt_data->bind_param("sii", $search_param, $limit, $offset);
         $stmt_data->execute();
         $result_data = $stmt_data->get_result();
         while ($row = $result_data->fetch_assoc()) {
@@ -156,7 +160,7 @@ $total_pages = ceil($total_items / $items_per_page);
     <nav class="navbar navbar-dark navigator">
         <div class="container-fluid">
             <div class="d-flex align-items-center gap-3">
-                <a href="user-main-page.php">
+                <a href="admin-data_view-page.php">
                     <img src="./images/logo.png" class="img-fluid logo" alt="Logo">
                 </a>
                 <div class="d-flex flex-column">
@@ -165,15 +169,15 @@ $total_pages = ceil($total_items / $items_per_page);
                 </div>
             </div>
             <div class="d-flex flex-wrap gap-3 mx-auto">
-                <a class="navbar-brand mb-0 fs-5 fs-md-4" href="user-main-page.php">ตรวจสอบอุปกรณ์และสถานที่</a>
-                <a class="navbar-brand mb-0 fs-5 fs-md-4" href="user-project-page.php">ข้อมูลคำร้อง</a>
+                <a class="navbar-brand mb-0 fs-5 fs-md-4" href="#">การจัดการระบบ</a>
+                <a class="navbar-brand mb-0 fs-5 fs-md-4" href="admin-data_view-page.php">ตรวจสอบอุปกรณ์และสถานที่</a>
             </div>
             <div class="d-flex align-items-center ms-auto gap-2">
                 <div class="d-flex flex-column text-end">
-                    <span class="navbar-brand mb-0 fs-5 fs-md-4"><?php echo $user_THname . ' ' . $user_THsur; ?></span>
+                    <span class="navbar-brand mb-0 fs-5 fs-md-4"><?php echo $staff_THname . ' ' . $staff_THsur; ?></span>
                     <span class="navbar-brand mb-0 fs-6 fs-md-5"><?php echo $user_role; ?></span>
                 </div>
-                <a href="user-profile-page.php">
+                <a href="admin-profile-page.php">
                     <img src="./images/user_button.png" class="img-fluid logo" style="width:40px; height:40px; object-fit:cover;" alt="User Button">
                 </a>
             </div>
@@ -181,7 +185,7 @@ $total_pages = ceil($total_items / $items_per_page);
     </nav>
 
     <div class="container mt-0">
-        <h1 class="mb-3 text-center">ข้อมูลอาคารและอุปกรณ์</h1>
+        <h1 class="mb-3 text-center">การจัดการอาคาร สถานที่และอุปกรณ์</h1>
 
         <?php if (!empty($errors)): ?>
             <div class="alert alert-danger" role="alert">
@@ -333,6 +337,40 @@ $total_pages = ceil($total_items / $items_per_page);
                 endif;
         ?>
                 <div class="row row-cols-1 row-cols-sm-2 row-cols-md-2 row-cols-lg-3 g-2 mt-0">
+                    <?php if ($mode == 'building_detail' && isset($_GET['building_id'])): ?>
+                        <div class="col">
+                            <a href="admin-injection-page.php?step=2&building_id=<?php echo htmlspecialchars($_GET['building_id']); ?>" class="text-decoration-none">
+                                <div class="card h-100 shadow-sm border-success border-2">
+                                    <div class="card-body d-flex flex-column justify-content-center align-items-center" style="height: 100%;">
+                                        <i class="bi bi-plus-circle display-4 text-success mb-2"></i>
+                                        <h5 class="card-title text-center text-success">
+                                            เพิ่มสถานที่
+                                        </h5>
+                                    </div>
+                                </div>
+                            </a>
+                        </div>
+                    <?php endif; ?>
+                    <?php if ($show_add_card): ?>
+                        <div class="col">
+                            <?php if ($mode == 'buildings'): ?>
+                                <a href="admin-injection-page.php?step=1" class="text-decoration-none">
+                            <?php elseif ($mode == 'equipment'): ?>
+                                <a href="admin-injection-page.php?step=3" class="text-decoration-none">
+                            <?php else: ?>
+                                <a href="admin-injection-page.php" class="text-decoration-none">
+                            <?php endif; ?>
+                                <div class="card h-100 shadow-sm border-primary border-2">
+                                    <div class="card-body d-flex flex-column justify-content-center align-items-center" style="height: 100%;">
+                                        <i class="bi bi-plus-circle display-4 text-primary mb-2"></i>
+                                        <h5 class="card-title text-center text-primary">
+                                            <?php echo $mode == 'buildings' ? 'เพิ่มอาคาร' : 'เพิ่มอุปกรณ์'; ?>
+                                        </h5>
+                                    </div>
+                                </div>
+                            </a>
+                        </div>
+                    <?php endif; ?>
                     <?php foreach ($data as $item): ?>
                         <div class="col">
                             <div class="card h-100 shadow-sm">
@@ -371,7 +409,6 @@ $total_pages = ceil($total_items / $items_per_page);
                         </div>
                     <?php endforeach; ?>
                 </div>
-
                 <nav aria-label="Page navigation" class="pagination-container mt-2 mb-0">
                     <ul class="pagination pagination-lg">
                         <?php if ($current_page > 1): ?>

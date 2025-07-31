@@ -15,7 +15,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $logged_in = false;
     $user_role = ''; 
 
-    $sql_user = "SELECT user.user_id, user.user_pass, user_THname, user_THsur, user_ENname, user_ENsur, user_type.user_type_name AS role, faculties_department.fa_de_name FROM user
+    $sql_user = "SELECT user.user_id, user.user_pass, user_THname, user_THsur, user_ENname, user_ENsur, nontri_id, user_type.user_type_name AS role, faculties_department.fa_de_name FROM user
                  JOIN user_type ON user.user_type_id = user_type.user_type_id
                  JOIN faculties_department ON user.fa_de_id = faculties_department.fa_de_id
                  WHERE user.user_id = ? AND user.user_pass = ?";
@@ -68,11 +68,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $_SESSION['user_THsur'] = $user_data['user_THsur'];
         $_SESSION['user_ENname'] = $user_data['user_ENname'];
         $_SESSION['user_ENsur'] = $user_data['user_ENsur'];
+        $_SESSION['staff_THname'] = $user_data['staff_THname'];
+        $_SESSION['staff_THsur'] = $user_data['staff_THsur'];
+        $_SESSION['staff_ENname'] = $user_data['staff_ENname'];
+        $_SESSION['staff_ENsur'] = $user_data['staff_ENsur'];
+        $_SESSION['nontri_id'] = $user_data['nontri_id'];
         $_SESSION['role'] = $user_data['role']; 
         $_SESSION['fa_de_name'] = $user_data['fa_de_name']; 
 
-        header("Location: ../user-main-page.php"); 
-        exit();
+        if (isset($user_data['role']) && $user_data['role'] == 'เจ้าหน้าที่') {
+            header("Location: ../admin-profile-page.php");
+            exit();
+        } else {
+            header("Location: ../user-profile-page.php");
+            exit();
+        }
+
     } else {
         $_SESSION['login_status'] = 'failed';
         $_SESSION['login_message'] = 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
