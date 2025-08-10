@@ -14,7 +14,6 @@ $staff_THsur = htmlspecialchars($_SESSION['staff_THsur'] ?? 'N/A');
 $staff_ENname = htmlspecialchars($_SESSION['staff_ENname'] ?? 'N/A');
 $staff_ENsur = htmlspecialchars($_SESSION['staff_ENsur'] ?? 'N/A');
 $user_role = htmlspecialchars($_SESSION['role'] ?? 'N/A');
-$fa_de_name = htmlspecialchars($_SESSION['fa_de_name'] ?? 'N/A');
 
 $items_per_page = 9;
 $current_page = isset($_GET['page']) ? (int)$_GET['page'] : 1;

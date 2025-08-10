@@ -8,7 +8,7 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
     exit();
 }
 
-$user_id = htmlspecialchars($_SESSION['user_id'] ?? 'N/A');
+$nontri_id = htmlspecialchars($_SESSION['nontri_id'] ?? 'N/A');
 $user_THname = htmlspecialchars($_SESSION['user_THname'] ?? 'N/A');
 $user_THsur = htmlspecialchars($_SESSION['user_THsur'] ?? 'N/A');
 $user_ENname = htmlspecialchars($_SESSION['user_ENname'] ?? 'N/A');

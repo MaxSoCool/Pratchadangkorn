@@ -6,7 +6,7 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
     exit();
 }
 
-$user_id = htmlspecialchars($_SESSION['user_id'] ?? 'N/A');
+$nontri_id = htmlspecialchars($_SESSION['nontri_id'] ?? 'N/A');
 $user_THname = htmlspecialchars($_SESSION['user_THname'] ?? 'N/A');
 $user_THsur = htmlspecialchars($_SESSION['user_THsur'] ?? 'N/A');
 $user_ENname = htmlspecialchars($_SESSION['user_ENname'] ?? 'N/A');
@@ -58,7 +58,7 @@ $fa_de_name = htmlspecialchars($_SESSION['fa_de_name'] ?? 'N/A');
                 <div class="profile-card">
                     <h2 class="mb-4">ข้อมูลผู้ใช้ KU-ALL</h2>
                     <div class="profile-info">
-                        <p><strong>ชื่อผู้ใช้:</strong> <?php echo $user_id; ?></p>
+                        <p><strong>ชื่อผู้ใช้:</strong> <?php echo $nontri_id; ?></p>
                         <p><strong>ชื่อ (ไทย):</strong> <?php echo $user_THname; ?></p>
                         <p><strong>นามสกุล (ไทย):</strong> <?php echo $user_THsur; ?></p>
                         <p><strong>ชื่อ (อังกฤษ):</strong> <?php echo $user_ENname; ?></p>
