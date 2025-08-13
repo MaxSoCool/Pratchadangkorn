@@ -169,7 +169,7 @@ $total_pages = ceil($total_items / $items_per_page);
                 </div>
             </div>
             <div class="d-flex flex-wrap gap-3 mx-auto">
-                <a class="navbar-brand mb-0 fs-5 fs-md-4" href="#">การจัดการระบบ</a>
+                <a class="navbar-brand mb-0 fs-5 fs-md-4" href="admin-main-page.php">การจัดการระบบ</a>
                 <a class="navbar-brand mb-0 fs-5 fs-md-4" href="admin-data_view-page.php">ตรวจสอบอุปกรณ์และสถานที่</a>
             </div>
             <div class="d-flex align-items-center ms-auto gap-2">

@@ -4,7 +4,7 @@ session_start();
 include 'database/database.php';
 include 'php/image_inject.php';
 
-$user_id = htmlspecialchars($_SESSION['user_id'] ?? 'N/A');
+$user_id = htmlspecialchars($_SESSION['staff_id'] ?? 'N/A');
 $staff_THname = htmlspecialchars($_SESSION['staff_THname'] ?? 'N/A');
 $staff_THsur = htmlspecialchars($_SESSION['staff_THsur'] ?? 'N/A');
 $staff_ENname = htmlspecialchars($_SESSION['staff_ENname'] ?? 'N/A');

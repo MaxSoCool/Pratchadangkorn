@@ -64,6 +64,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         $_SESSION['logged_in'] = true;
         $_SESSION['nontri_id'] = $user_data['nontri_id'];
+        $_SESSION['staff_id'] = $user_data['staff_id'] ?? '';
         $_SESSION['user_THname'] = $user_data['user_THname'];
         $_SESSION['user_THsur'] = $user_data['user_THsur'];
         $_SESSION['user_ENname'] = $user_data['user_ENname'];
@@ -76,10 +77,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $_SESSION['fa_de_name'] = $user_data['fa_de_name']; 
 
         if (isset($user_data['role']) && $user_data['role'] == 'เจ้าหน้าที่') {
-            header("Location: ../admin-profile-page.php");
+            header("Location: ../admin-main-page.php");
             exit();
         } else {
-            header("Location: ../user-profile-page.php");
+            header("Location: ../user-project-page.php");
             exit();
         }
 

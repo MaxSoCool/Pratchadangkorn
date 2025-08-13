@@ -6,7 +6,7 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
     exit();
 }
 
-$user_id = htmlspecialchars($_SESSION['user_id'] ?? 'N/A');
+$user_id = htmlspecialchars($_SESSION['staff_id'] ?? 'N/A');
 $staff_THname = htmlspecialchars($_SESSION['staff_THname'] ?? 'N/A');
 $staff_THsur = htmlspecialchars($_SESSION['staff_THsur'] ?? 'N/A');
 $staff_ENname = htmlspecialchars($_SESSION['staff_ENname'] ?? 'N/A');
@@ -38,7 +38,7 @@ $user_role = htmlspecialchars($_SESSION['role'] ?? 'N/A');
                 </div>
             </div>
             <div class="d-flex flex-wrap gap-3 mx-auto">
-                <a class="navbar-brand mb-0 fs-5 fs-md-4" href="#">การจัดการระบบ</a>
+                <a class="navbar-brand mb-0 fs-5 fs-md-4" href="admin-main-page.php">การจัดการระบบ</a>
                 <a class="navbar-brand mb-0 fs-5 fs-md-4" href="admin-data_view-page.php">ตรวจสอบอุปกรณ์และสถานที่</a>
             </div>
             <div class="d-flex align-items-center ms-auto gap-2">
