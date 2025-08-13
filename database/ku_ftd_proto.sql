@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Jul 31, 2025 at 08:49 PM
+-- Generation Time: Aug 13, 2025 at 06:17 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -110,19 +110,34 @@ CREATE TABLE `equipments_requests` (
   `start_date` date NOT NULL,
   `end_date` date NOT NULL,
   `status` varchar(20) NOT NULL,
-  `writed_status` varchar(20) NOT NULL,
+  `writed_status` varchar(20) NOT NULL DEFAULT 'ร่างคำร้องขอ',
   `agree` varchar(4) DEFAULT NULL,
   `transport` varchar(20) DEFAULT NULL,
-  `request_date` date NOT NULL,
-  `appprove` varchar(20) DEFAULT NULL,
+  `request_date` timestamp(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
+  `approve` varchar(20) DEFAULT NULL,
   `approve_date` date DEFAULT NULL,
   `quantity` int(3) NOT NULL,
   `approve_detail` varchar(255) DEFAULT NULL,
   `project_id` int(10) NOT NULL,
   `equip_id` int(10) NOT NULL,
   `facility_id` int(4) NOT NULL,
-  `staff_id` int(10) NOT NULL
+  `staff_id` varchar(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `equipments_requests`
+--
+
+INSERT INTO `equipments_requests` (`equip_re_id`, `start_date`, `end_date`, `status`, `writed_status`, `agree`, `transport`, `request_date`, `approve`, `approve_date`, `quantity`, `approve_detail`, `project_id`, `equip_id`, `facility_id`, `staff_id`) VALUES
+(1, '2025-08-29', '2025-08-30', '', 'ส่งคำร้องขอ', '1', '1', '2025-08-13 05:21:35.518576', NULL, NULL, 20, NULL, 5, 6, 7, NULL),
+(2, '2025-08-10', '2025-08-11', '', 'ส่งคำร้องขอ', '1', '1', '2025-08-10 11:01:59.297770', NULL, NULL, 100, NULL, 9, 8, 10, NULL),
+(3, '2025-08-10', '2025-08-11', '', 'ส่งคำร้องขอ', '1', '1', '2025-08-10 11:02:06.362208', NULL, NULL, 5, NULL, 9, 9, 10, NULL),
+(5, '2025-08-15', '2025-08-15', '', 'ส่งคำร้องขอ', '1', '1', '2025-08-13 10:22:58.197113', 'อนุมัติ', '2025-08-13', 10, NULL, 5, 5, 5, NULL),
+(6, '2025-08-14', '2025-08-15', '', 'ส่งคำร้องขอ', '1', '1', '2025-08-13 10:20:50.085087', 'อนุมัติ', '2025-08-13', 5, NULL, 5, 5, 3, NULL),
+(8, '2025-08-14', '2025-08-14', '', 'ส่งคำร้องขอ', '0', '1', '2025-08-10 11:02:38.173425', NULL, NULL, 10, NULL, 5, 6, 4, NULL),
+(9, '2025-08-30', '2025-08-31', '', 'ร่างคำร้องขอ', '0', '1', '2025-08-13 05:21:58.000000', NULL, NULL, 10, NULL, 5, 7, 5, NULL),
+(10, '2025-08-12', '2025-08-14', '', 'ส่งคำร้องขอ', '0', '0', '2025-08-13 09:21:10.607025', 'อนุมัติ', NULL, 10, NULL, 6, 6, 9, NULL),
+(11, '2025-08-20', '2025-08-20', '', 'ส่งคำร้องขอ', '1', '1', '2025-08-13 15:49:25.251205', 'ไม่อนุมัติ', '2025-08-13', 10, 'ของไม่พอ', 14, 7, 10, 's5610003145');
 
 -- --------------------------------------------------------
 
@@ -171,16 +186,36 @@ CREATE TABLE `facilities_requests` (
   `start_date` date NOT NULL,
   `end_date` date NOT NULL,
   `status` varchar(20) NOT NULL,
-  `writed_status` varchar(20) NOT NULL,
+  `writed_status` varchar(20) NOT NULL DEFAULT 'ร่างคำร้องขอ',
   `agree` varchar(20) DEFAULT NULL,
-  `request_date` date NOT NULL,
+  `request_date` timestamp(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
   `approve` varchar(20) DEFAULT NULL,
   `approve_date` date DEFAULT NULL,
   `approve_detail` varchar(20) DEFAULT NULL,
   `project_id` int(10) NOT NULL,
   `facility_id` int(4) NOT NULL,
-  `staff_id` int(10) NOT NULL
+  `staff_id` varchar(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `facilities_requests`
+--
+
+INSERT INTO `facilities_requests` (`facility_re_id`, `prepare_start_time`, `prepare_end_time`, `prepare_start_date`, `prepare_end_date`, `start_time`, `end_time`, `start_date`, `end_date`, `status`, `writed_status`, `agree`, `request_date`, `approve`, `approve_date`, `approve_detail`, `project_id`, `facility_id`, `staff_id`) VALUES
+(3, '10:30:00', '17:00:00', '2025-07-29', '2025-07-30', '17:00:00', '20:00:00', '2025-07-30', '0000-00-00', '', 'สิ้นสุดดำเนินการ', '1', '2025-08-13 08:55:06.494297', NULL, NULL, NULL, 5, 4, NULL),
+(5, '09:00:00', '17:00:00', '2025-08-19', '2025-08-19', '09:00:00', '17:00:00', '2025-08-20', '2025-08-20', '', 'ร่างคำร้องขอ', '1', '2025-08-13 07:08:13.071425', '', NULL, NULL, 5, 5, NULL),
+(6, '08:00:00', '17:00:00', '2025-08-21', '2025-08-22', '09:00:00', '17:00:00', '2025-08-23', '2025-08-24', '', 'ส่งคำร้องขอ', '1', '2025-08-13 11:48:40.117748', 'ไม่อนุมัติ', '2025-08-13', 'ไร้สาระเกินไป', 5, 8, 's5610003145'),
+(9, '09:00:00', '17:00:00', '2025-08-09', '2025-08-09', '09:00:00', '20:00:00', '2025-08-10', '2025-08-11', '', 'สิ้นสุดดำเนินการ', '1', '2025-08-13 08:55:06.494297', NULL, NULL, NULL, 9, 9, NULL),
+(10, '17:00:00', '20:00:00', '2025-08-09', '2025-08-09', '17:00:00', '20:00:00', '2025-08-10', '2025-08-11', '', 'สิ้นสุดดำเนินการ', '1', '2025-08-13 08:55:06.494297', '', NULL, NULL, 9, 10, NULL),
+(13, '09:00:00', '17:00:00', '2025-08-14', '2025-08-14', '09:00:00', '17:00:00', '2025-08-15', '2025-08-16', '', 'ส่งคำร้องขอ', '0', '2025-08-10 11:01:47.383845', NULL, NULL, NULL, 5, 5, NULL),
+(14, '15:00:00', '20:00:00', '2025-08-20', '2025-08-20', '09:00:00', '17:00:00', '2025-08-21', '2025-08-22', '', 'ร่างคำร้องขอ', '0', '2025-08-12 11:13:55.417163', NULL, NULL, NULL, 13, 5, NULL),
+(15, '09:00:00', '20:00:00', '2025-09-01', '2025-09-01', '12:00:00', '20:00:00', '2025-09-12', '2025-09-13', '', 'ร่างคำร้องขอ', '0', '2025-08-12 11:13:44.017834', NULL, NULL, NULL, 13, 2, NULL),
+(16, '12:00:00', '17:00:00', '2025-12-24', '2025-12-24', '17:00:00', '20:00:00', '2025-12-30', '2025-12-30', '', 'ร่างคำร้องขอ', '0', '2025-08-13 05:12:57.325501', NULL, NULL, NULL, 11, 10, NULL),
+(17, '09:00:00', '17:32:00', '2025-09-20', '2025-09-20', '17:33:00', '20:00:00', '2025-09-21', '2025-09-22', '', 'ส่งคำร้องขอ', '0', '2025-08-12 10:33:21.000000', NULL, NULL, NULL, 13, 5, NULL),
+(18, '09:00:00', '18:00:00', '2025-08-24', '2025-08-25', '09:00:00', '18:00:00', '2025-08-26', '2025-08-26', '', 'ร่างคำร้องขอ', '0', '2025-08-12 10:42:10.000000', NULL, NULL, NULL, 13, 9, NULL),
+(20, '16:11:00', '16:12:00', '2025-08-12', '2025-08-12', '16:12:00', '17:12:00', '2025-08-13', '2025-08-15', '', 'เริ่มดำเนินการ', '0', '2025-08-13 09:13:39.881760', 'อนุมัติ', NULL, NULL, 5, 4, NULL),
+(21, '09:00:00', '20:00:00', '2025-08-10', '2025-08-10', '09:00:00', '20:00:00', '2025-08-12', '2025-08-13', '', 'ส่งคำร้องขอ', '0', '2025-08-13 10:48:12.713689', 'อนุมัติ', '2025-08-13', NULL, 9, 10, 's5610003145'),
+(22, '15:00:00', '20:00:00', '2025-08-19', '2025-08-19', '12:00:00', '15:00:00', '2025-08-20', '2025-08-20', '', 'ส่งคำร้องขอ', '0', '2025-08-13 15:29:26.299849', 'อนุมัติ', '2025-08-13', 'ขอให้สนุกนะจ๊ะ', 14, 10, 's5610003145');
 
 -- --------------------------------------------------------
 
@@ -215,13 +250,30 @@ CREATE TABLE `project` (
   `start_date` date NOT NULL,
   `end_date` date NOT NULL,
   `project_des` varchar(255) NOT NULL,
-  `files` varchar(10) NOT NULL,
+  `files` varchar(255) DEFAULT NULL,
   `attendee` varchar(4) NOT NULL,
   `phone_num` varchar(10) NOT NULL,
   `advisor_name` varchar(255) DEFAULT NULL,
-  `nontri_id` int(10) NOT NULL,
+  `created_date` timestamp(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
+  `writed_status` varchar(20) NOT NULL DEFAULT 'ร่างโครงการ',
+  `nontri_id` varchar(11) NOT NULL,
   `activity_type_id` int(2) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `project`
+--
+
+INSERT INTO `project` (`project_id`, `project_name`, `start_date`, `end_date`, `project_des`, `files`, `attendee`, `phone_num`, `advisor_name`, `created_date`, `writed_status`, `nontri_id`, `activity_type_id`) VALUES
+(5, 'ทดสอบ', '2025-07-23', '2525-07-24', 'ฟหกฟหกหฟกฟหฟก', 'uploads/fi', '100', '0987654321', 'A.J. Jesus Christ', '2025-08-05 08:55:59.646405', 'เริ่มดำเนินการ', 'b6540201149', 1),
+(6, 'wow', '2025-08-10', '2025-08-12', 'asdsadsadasdsadas', 'uploads/fi', '100', '0987654321', 'A.J. Juan', '2025-08-13 09:36:51.496328', 'สิ้นสุดโครงการ', 'b6540201149', 1),
+(7, 'สัมนาเพื่อการสหกิจศึกษา', '2025-11-09', '2025-11-09', 'สัมนาพาเพลิน', 'uploads/fi', '54', '0912345678', '-', '2025-08-05 10:00:40.000000', 'ส่งโครงการ', 't4340200197', 1),
+(8, 'Deadby', '2025-08-05', '2025-08-06', 'jesus', 'uploads/fi', '1', '0987654321', 'อาจารย์ศิริพร ทับทิม', '2025-08-07 15:01:48.970335', 'สิ้นสุดโครงการ', 'b6540201180', 2),
+(9, 'บายเนียร์', '2025-08-18', '2025-08-18', 'บายเนียร์พี่ปี 4', 'uploads/fi', '200', '0987654321', 'อาจารย์ศิริพร ทับทิม', '2025-08-13 05:13:28.356658', 'ส่งโครงการ', 'b6540201149', 2),
+(11, 'ไหมไทย หัวใจเกินร้อย', '2025-08-20', '2025-08-21', 'เสียงอยู่ไสเสียง', 'uploads/files/689b05a3c5857.jpg', '1000', '0987654321', 'อาจารย์ไหม', '2025-08-12 09:13:07.000000', 'ส่งโครงการ', 'b6540201149', 2),
+(12, 'ช่องเจ็ดสี', '2025-08-17', '2025-08-18', 'ทีวีเพื่อคุณ', 'uploads/files/689b1364b140c.png', '10', '0987654321', 'giuhuiihokhjkjhkjhkjhjkh', '2025-08-12 10:11:48.000000', 'ร่างโครงการ', 'b6540201180', 2),
+(13, 'enzo เม็ดส้ม', '2025-08-17', '2025-08-18', 'asdasdsadasdasdas', 'uploads/files/689b138f4ed77.jpg', '10', '0987654321', 'asdasdasdasdsa', '2025-08-12 10:12:31.000000', 'ส่งโครงการ', 'b6540201180', 2),
+(14, 'แข่งกินวิบาก', '2025-08-20', '2025-08-20', 'การแข่งขันกินจุ ใครจะเป็นเจ้าแห่งการกินจุประจำ มก.ฉกส', 'uploads/files/689ca788c0dfa.jpg', '100', '0987654321', 'ผศ.ศิริพร ทับทิม', '2025-08-13 14:56:22.354789', 'ส่งโครงการ', 'b6540201909', 2);
 
 -- --------------------------------------------------------
 
@@ -230,12 +282,11 @@ CREATE TABLE `project` (
 --
 
 CREATE TABLE `staff` (
-  `staff_id` int(10) NOT NULL,
+  `staff_id` varchar(11) NOT NULL,
   `staff_THname` varchar(100) NOT NULL,
   `staff_THsur` varchar(100) NOT NULL,
   `staff_ENname` varchar(100) NOT NULL,
   `staff_ENsur` varchar(100) NOT NULL,
-  `user_id` varchar(11) NOT NULL,
   `user_pass` varchar(100) NOT NULL,
   `user_type_id` int(2) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -244,8 +295,8 @@ CREATE TABLE `staff` (
 -- Dumping data for table `staff`
 --
 
-INSERT INTO `staff` (`staff_id`, `staff_THname`, `staff_THsur`, `staff_ENname`, `staff_ENsur`, `user_id`, `user_pass`, `user_type_id`) VALUES
-(1, 'สมศักดิ์', 'รักสเมียณ', 'Somsuk', 'Raksameon', 's5610003145', '12345678', 3);
+INSERT INTO `staff` (`staff_id`, `staff_THname`, `staff_THsur`, `staff_ENname`, `staff_ENsur`, `user_pass`, `user_type_id`) VALUES
+('s5610003145', 'สมศักดิ์', 'รักสเมียณ', 'Somsuk', 'Raksameon', '12345678', 3);
 
 -- --------------------------------------------------------
 
@@ -254,12 +305,11 @@ INSERT INTO `staff` (`staff_id`, `staff_THname`, `staff_THsur`, `staff_ENname`, 
 --
 
 CREATE TABLE `user` (
-  `nontri_id` int(11) NOT NULL,
+  `nontri_id` varchar(11) NOT NULL,
   `user_THname` varchar(100) NOT NULL,
   `user_THsur` varchar(100) NOT NULL,
   `user_ENname` varchar(100) NOT NULL,
   `user_Ensur` varchar(100) NOT NULL,
-  `user_id` varchar(11) NOT NULL,
   `user_pass` varchar(100) NOT NULL,
   `user_type_id` int(2) NOT NULL,
   `fa_de_id` int(2) NOT NULL
@@ -269,8 +319,14 @@ CREATE TABLE `user` (
 -- Dumping data for table `user`
 --
 
-INSERT INTO `user` (`nontri_id`, `user_THname`, `user_THsur`, `user_ENname`, `user_Ensur`, `user_id`, `user_pass`, `user_type_id`, `fa_de_id`) VALUES
-(1, 'ทวีศักดิ์', 'สีอังรัตน์', 'Thaweesak', 'Sriangrat', 'b6540201149', '12345678', 1, 2);
+INSERT INTO `user` (`nontri_id`, `user_THname`, `user_THsur`, `user_ENname`, `user_Ensur`, `user_pass`, `user_type_id`, `fa_de_id`) VALUES
+('b6540200315', 'เกียรติสกุล', 'ไพยเสน', 'Kiatsakul', 'Paiyasen', '12345678', 1, 2),
+('b6540201149', 'ทวีศักดิ์', 'สีอังรัตน์', 'Thaweesak', 'Sriangrat', '12345678', 1, 2),
+('b6540201180', 'ทินวุฒิ', 'พลบำรุง', 'Thinnawut', 'Pholbumrung', '12345678', 1, 2),
+('b6540201909', 'ปรัชชฎางค์กรณ์', 'แก้วมณีโชติ', 'Pratchadangkorn', 'Kaewmaneechot', '12345678', 1, 2),
+('b6540202410', 'พีระพงษ์', 'เทพประสิทธิ์', 'Peeraphong', 'Thepprasit', '12345678', 1, 2),
+('b6540202964', 'วัชรากร', 'เครือเนตร', 'Wacharakorn', 'Kruenet', '12345678', 1, 2),
+('t4340200197', 'ศิริพร', 'ทับทิม', 'Siriporn', 'Thubtim', '12345678', 2, 2);
 
 -- --------------------------------------------------------
 
@@ -318,9 +374,11 @@ ALTER TABLE `equipments`
 -- Indexes for table `equipments_requests`
 --
 ALTER TABLE `equipments_requests`
-  ADD PRIMARY KEY (`equip_re_id`,`project_id`,`equip_id`,`start_date`),
+  ADD PRIMARY KEY (`equip_re_id`,`project_id`,`equip_id`) USING BTREE,
   ADD KEY `fk_equip_2` (`equip_id`),
-  ADD KEY `fk_project` (`project_id`);
+  ADD KEY `fk_project` (`project_id`),
+  ADD KEY `fk_faci` (`facility_id`),
+  ADD KEY `fk_staff_eqp` (`staff_id`);
 
 --
 -- Indexes for table `facilities`
@@ -334,8 +392,9 @@ ALTER TABLE `facilities`
 --
 ALTER TABLE `facilities_requests`
   ADD PRIMARY KEY (`facility_re_id`,`project_id`,`facility_id`),
+  ADD KEY `fk_facility_2` (`facility_id`),
   ADD KEY `fk_project_2` (`project_id`),
-  ADD KEY `fk_facility_2` (`facility_id`);
+  ADD KEY `fk_staff_faci` (`staff_id`);
 
 --
 -- Indexes for table `faculties_department`
@@ -348,8 +407,8 @@ ALTER TABLE `faculties_department`
 --
 ALTER TABLE `project`
   ADD PRIMARY KEY (`project_id`),
-  ADD KEY `fk_user` (`nontri_id`),
-  ADD KEY `fk_activity_type` (`activity_type_id`);
+  ADD KEY `fk_activity_type` (`activity_type_id`),
+  ADD KEY `fk_nontri_id` (`nontri_id`);
 
 --
 -- Indexes for table `staff`
@@ -392,7 +451,7 @@ ALTER TABLE `equipments`
 -- AUTO_INCREMENT for table `equipments_requests`
 --
 ALTER TABLE `equipments_requests`
-  MODIFY `equip_re_id` int(10) NOT NULL AUTO_INCREMENT;
+  MODIFY `equip_re_id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
 
 --
 -- AUTO_INCREMENT for table `facilities`
@@ -404,7 +463,7 @@ ALTER TABLE `facilities`
 -- AUTO_INCREMENT for table `facilities_requests`
 --
 ALTER TABLE `facilities_requests`
-  MODIFY `facility_re_id` int(10) NOT NULL AUTO_INCREMENT;
+  MODIFY `facility_re_id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=23;
 
 --
 -- AUTO_INCREMENT for table `faculties_department`
@@ -416,13 +475,7 @@ ALTER TABLE `faculties_department`
 -- AUTO_INCREMENT for table `project`
 --
 ALTER TABLE `project`
-  MODIFY `project_id` int(10) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `user`
---
-ALTER TABLE `user`
-  MODIFY `nontri_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2147483648;
+  MODIFY `project_id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
 
 --
 -- AUTO_INCREMENT for table `user_type`
@@ -438,8 +491,10 @@ ALTER TABLE `user_type`
 -- Constraints for table `equipments_requests`
 --
 ALTER TABLE `equipments_requests`
-  ADD CONSTRAINT `fk_equip_2` FOREIGN KEY (`equip_id`) REFERENCES `equipments` (`equip_id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  ADD CONSTRAINT `fk_project` FOREIGN KEY (`project_id`) REFERENCES `project` (`project_id`) ON DELETE CASCADE ON UPDATE CASCADE;
+  ADD CONSTRAINT `fk_equip_2` FOREIGN KEY (`equip_id`) REFERENCES `equipments` (`equip_id`),
+  ADD CONSTRAINT `fk_faci` FOREIGN KEY (`facility_id`) REFERENCES `facilities` (`facility_id`),
+  ADD CONSTRAINT `fk_project` FOREIGN KEY (`project_id`) REFERENCES `project` (`project_id`),
+  ADD CONSTRAINT `fk_staff_eqp` FOREIGN KEY (`staff_id`) REFERENCES `staff` (`staff_id`);
 
 --
 -- Constraints for table `facilities`
@@ -451,15 +506,16 @@ ALTER TABLE `facilities`
 -- Constraints for table `facilities_requests`
 --
 ALTER TABLE `facilities_requests`
-  ADD CONSTRAINT `fk_facility_2` FOREIGN KEY (`facility_id`) REFERENCES `facilities` (`facility_id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  ADD CONSTRAINT `fk_project_2` FOREIGN KEY (`project_id`) REFERENCES `project` (`project_id`) ON DELETE CASCADE ON UPDATE CASCADE;
+  ADD CONSTRAINT `fk_facility_2` FOREIGN KEY (`facility_id`) REFERENCES `facilities` (`facility_id`),
+  ADD CONSTRAINT `fk_project_2` FOREIGN KEY (`project_id`) REFERENCES `project` (`project_id`),
+  ADD CONSTRAINT `fk_staff_faci` FOREIGN KEY (`staff_id`) REFERENCES `staff` (`staff_id`);
 
 --
 -- Constraints for table `project`
 --
 ALTER TABLE `project`
-  ADD CONSTRAINT `fk_activity_type` FOREIGN KEY (`activity_type_id`) REFERENCES `activity_type` (`activity_type_id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  ADD CONSTRAINT `fk_user` FOREIGN KEY (`nontri_id`) REFERENCES `user` (`nontri_id`) ON DELETE CASCADE ON UPDATE CASCADE;
+  ADD CONSTRAINT `fk_activity_type` FOREIGN KEY (`activity_type_id`) REFERENCES `activity_type` (`activity_type_id`),
+  ADD CONSTRAINT `fk_nontri_id` FOREIGN KEY (`nontri_id`) REFERENCES `user` (`nontri_id`);
 
 --
 -- Constraints for table `staff`

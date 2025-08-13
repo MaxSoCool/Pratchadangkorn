@@ -1929,10 +1929,12 @@ $total_pages = ceil($total_items / $items_per_page);
                             <?php if ($detail_item['approve'] == 'อนุมัติ'): ?>
                                 <p><strong>วันที่อนุมัติ: </strong> <?php echo (new DateTime($detail_item['approve_date']))->format('d/m/Y'); ?></p>
                             <?php elseif ($detail_item['approve'] == 'ไม่อนุมัติ'): ?>
-                                <p><strong>วันที่ดำเนินการ: </strong> <?php echo htmlspecialchars($detail_item['approve_date']); ?></p>
+                                <p><strong>วันที่ดำเนินการ: </strong> <?php echo (new DateTime($detail_item['approve_date']))->format('d/m/Y'); ?></p>
                             <?php endif; ?>
-                            <?php if (!empty($detail_item['approve_detail'])): ?>
-                                <p><strong>รายละเอียดการอนุมัติ: </strong> <?php echo htmlspecialchars($detail_item['approve_detail']); ?></p>
+                            <?php if ($detail_item['approve'] == 'ไม่อนุมัติ'): ?>
+                                <p><strong>รายละเอียดการไม่อนุมัติ:</strong> <?php echo nl2br(htmlspecialchars(isset($detail_item['approve_detail']) ? ($detail_item['approve_detail'] ?? 'ไม่ระบุเหตุผล') : 'ไม่ระบุเหตุผล')); ?></p>
+                            <?php elseif ($detail_item['approve'] == 'อนุมัติ' && !empty($detail_item['approve_detail'])): ?>
+                                <p><strong>รายละเอียดการอนุมัติ:</strong> <?php echo nl2br(htmlspecialchars(isset($detail_item['approve_detail']) ? ($detail_item['approve_detail'] ?? 'ไม่ระบุเหตุผล') : 'ไม่ระบุเหตุผล')); ?></p>
                             <?php endif; ?>
                         <?php endif; ?>
                     </div>
@@ -2185,10 +2187,12 @@ $total_pages = ceil($total_items / $items_per_page);
                             <?php if ($detail_item['approve'] == 'อนุมัติ'): ?>
                                 <p><strong>วันที่อนุมัติ: </strong> <?php echo (new DateTime($detail_item['approve_date']))->format('d/m/Y'); ?></p>
                             <?php elseif ($detail_item['approve'] == 'ไม่อนุมัติ'): ?>
-                                <p><strong>วันที่ดำเนินการ: </strong> <?php echo htmlspecialchars($detail_item['approve_date']); ?></p>
+                                <p><strong>วันที่ดำเนินการ: </strong> <?php echo (new DateTime($detail_item['approve_date']))->format('d/m/Y'); ?></p>
                             <?php endif; ?>
-                            <?php if (!empty($detail_item['approve_detail'])): ?>
-                                <p><strong>รายละเอียดการอนุมัติ: </strong> <?php echo htmlspecialchars($detail_item['approve_detail']); ?></p>
+                            <?php if ($detail_item['approve'] == 'ไม่อนุมัติ'): ?>
+                                <p><strong>รายละเอียดการไม่อนุมัติ:</strong> <?php echo nl2br(htmlspecialchars(isset($detail_item['approve_detail']) ? ($detail_item['approve_detail'] ?? 'ไม่ระบุเหตุผล') : 'ไม่ระบุเหตุผล')); ?></p>
+                            <?php elseif ($detail_item['approve'] == 'อนุมัติ' && !empty($detail_item['approve_detail'])): ?>
+                                <p><strong>รายละเอียดการอนุมัติ:</strong> <?php echo nl2br(htmlspecialchars(isset($detail_item['approve_detail']) ? ($detail_item['approve_detail'] ?? 'ไม่ระบุเหตุผล') : 'ไม่ระบุเหตุผล')); ?></p>
                             <?php endif; ?>
                         <?php endif; ?>
                         </div>
