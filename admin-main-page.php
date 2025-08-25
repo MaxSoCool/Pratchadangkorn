@@ -2,14 +2,66 @@
 session_start();
 
 // ตรวจสอบสถานะการ Login และ Role
-if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true || $_SESSION['role'] !== 'เจ้าหน้าที่') { // กำหนด role ที่สามารถเข้าถึงได้
+if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true || $_SESSION['role'] !== 'เจ้าหน้าที่') {
     header("Location: login.php");
     exit();
 }
 
 include 'database/database.php'; // ไฟล์เชื่อมต่อฐานข้อมูล
 
-$staff_id_for_db = $_SESSION['staff_id'] ?? null; // ปล่อยให้เป็น VARCHAR หรือ null ถ้าไม่มี
+// --- Helper Functions (หากไม่ได้อยู่ใน header.php หรือไฟล์อื่นที่ include) ---
+if (!function_exists('formatThaiDate')) {
+    function formatThaiDate($date_str, $with_time = true) {
+        if (!$date_str || $date_str === '0000-00-00 00:00:00' || $date_str === '0000-00-00') {
+            return 'N/A';
+        }
+        $thai_months = [
+            '01' => 'ม.ค.', '02' => 'ก.พ.', '03' => 'มี.ค.', '04' => 'เม.ย.',
+            '05' => 'พ.ค.', '06' => 'มิ.ย.', '07' => 'ก.ค.', '08' => 'ส.ค.',
+            '09' => 'ก.ย.', '10' => 'ต.ค.', '11' => 'พ.ย.', '12' => 'ธ.ค.'
+        ];
+        $timestamp = strtotime($date_str);
+        $day = date('d', $timestamp);
+        $month = $thai_months[date('m', $timestamp)];
+        $year = date('Y', $timestamp) + 543; // Buddhist year
+        $time = date('H:i', $timestamp);
+
+        if ($with_time) {
+            return "{$day} {$month} {$year} เวลา {$time} น.";
+        } else {
+            return "{$day} {$month} {$year}";
+        }
+    }
+}
+
+if (!function_exists('getStatusBadgeClass')) {
+    function getStatusBadgeClass($writed_status, $approve_status = null) {
+        if ($approve_status === 'อนุมัติ') {
+            return 'bg-success';
+        } elseif ($approve_status === 'ไม่อนุมัติ') {
+            return 'bg-danger';
+        }
+
+        switch ($writed_status) {
+            case 'ร่างโครงการ':
+            case 'ร่างคำร้องขอ':
+                return 'bg-warning text-dark';
+            case 'ส่งโครงการ':
+            case 'ส่งคำร้องขอ':
+                return 'bg-primary';
+            case 'เริ่มดำเนินการ':
+                return 'bg-info text-dark';
+            case 'สิ้นสุดโครงการ':
+                return 'bg-secondary';
+            default:
+                return 'bg-light text-dark';
+        }
+    }
+}
+// --- สิ้นสุด Helper Functions ---
+
+
+$staff_id_for_db = $_SESSION['staff_id'] ?? null;
 $staff_THname = htmlspecialchars($_SESSION['staff_THname'] ?? 'N/A');
 $staff_THsur = htmlspecialchars($_SESSION['staff_THsur'] ?? 'N/A');
 $staff_ENname = htmlspecialchars($_SESSION['staff_ENname'] ?? 'N/A');
@@ -20,20 +72,20 @@ if (empty($staff_id_for_db) || $staff_id_for_db === 'N/A') {
     $errors[] = "ไม่สามารถดำเนินการได้: Staff ID ไม่ถูกต้องหรือไม่พบสำหรับผู้ดูแลระบบที่ล็อกอินอยู่ โปรดตรวจสอบการตั้งค่าผู้ใช้หรือติดต่อผู้ดูแลระบบ.";
 }
 
-$items_per_page = 10; 
+$items_per_page = 10;
 $current_page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $offset = ($current_page - 1) * $items_per_page;
 $search_query = isset($_GET['search']) ? trim($_GET['search']) : '';
 $search_param = '%' . $search_query . '%';
 
 $main_tab = isset($_GET['main_tab']) ? $_GET['main_tab'] : 'dashboard_admin';
-$mode = isset($_GET['mode']) ? $_GET['mode'] : 'list'; 
+$mode = isset($_GET['mode']) ? $_GET['mode'] : 'list'; // กำหนดค่าเริ่มต้นเป็น 'list' เสมอหากไม่มีการระบุ
 
-$data = []; 
-$detail_item = null; 
-$total_items = 0; 
-$errors = []; 
-$success_message = ''; 
+$data = [];
+$detail_item = null;
+$total_items = 0;
+$errors = [];
+$success_message = '';
 
 
 $activity_types = [];
@@ -44,7 +96,7 @@ if ($result_activity) {
     }
 }
 
-$facilities_dropdown = []; // สำหรับ dropdown สถานที่ทั้งหมด (หากต้องการในอนาคต)
+$facilities_dropdown = [];
 $result_facilities_dropdown = $conn->query("SELECT facility_id, facility_name FROM facilities ORDER BY facility_name ASC");
 if ($result_facilities_dropdown) {
     while ($row = $result_facilities_dropdown->fetch_assoc()) {
@@ -52,7 +104,7 @@ if ($result_facilities_dropdown) {
     }
 }
 
-$equipments_dropdown = []; // สำหรับ dropdown อุปกรณ์ทั้งหมด (หากต้องการในอนาคต)
+$equipments_dropdown = [];
 $result_equipments_dropdown = $conn->query("SELECT equip_id, equip_name, measure FROM equipments ORDER BY equip_name ASC");
 if ($result_equipments_dropdown) {
     while ($row = $result_equipments_dropdown->fetch_assoc()) {
@@ -60,19 +112,192 @@ if ($result_equipments_dropdown) {
     }
 }
 
-
-// PHP Logic for Data Fetching
-// --- Dashboard Counts (ดึงข้อมูลสำหรับหน้าภาพรวม) ---
 $total_projects_count = 0;
 $total_facilities_requests_count = 0;
 $total_equipments_requests_count = 0;
 
-$previous = $_SERVER['HTTP_REFERER'] ?? '';
-if (strpos($previous, 'main_tab=equipments_admin') !== false) {
-    $previous = '?main_tab=equipments_admin';
-} elseif (strpos($previous, 'main_tab=buildings_admin') !== false) {
-    $previous = '?main_tab=buildings_admin';
+
+$dashboard_data = [
+    'upcoming_requests' => [],
+    'recent_activity' => [],
+];
+
+
+// --- เริ่มตรรกะสำหรับการกำหนดค่า $previous (สำหรับปุ่มย้อนกลับ) ---
+$referrer = $_SERVER['HTTP_REFERER'] ?? '';
+$previous = 'admin-main-page.php?main_tab=dashboard_admin'; // ค่าเริ่มต้นปลอดภัย: กลับไป Dashboard เสมอ
+
+// ตรวจสอบว่า Referrer เป็นหน้า admin-main-page.php หรือไม่
+$is_admin_referrer = (strpos($referrer, 'admin-main-page.php') !== false);
+
+// Parse referrer query parameters
+$referrer_url_parts = parse_url($referrer);
+$referrer_query = [];
+if (isset($referrer_url_parts['query'])) {
+    parse_str($referrer_url_parts['query'], $referrer_query);
 }
+
+// ตรรกะหลัก: กำหนดค่า $previous
+if ($mode === 'detail') {
+    // 1. กำลังอยู่ในหน้า "รายละเอียดโครงการ" (projects_admin&mode=detail)
+    if ($main_tab === 'projects_admin') {
+        // หากมาจาก Dashboard ให้บันทึก Dashboard เป็นจุดเริ่มต้นใน session
+        if ($is_admin_referrer && ($referrer_query['main_tab'] ?? '') === 'dashboard_admin' && !isset($referrer_query['mode'])) {
+            $_SESSION['projects_detail_entry_referrer'] = 'admin-main-page.php?main_tab=dashboard_admin';
+            $previous = 'admin-main-page.php?main_tab=dashboard_admin'; // กลับไป Dashboard
+        }
+        // หากมาจาก Project List ให้บันทึก Project List เป็นจุดเริ่มต้น
+        elseif ($is_admin_referrer && ($referrer_query['main_tab'] ?? '') === 'projects_admin' && (!isset($referrer_query['mode']) || $referrer_query['mode'] === 'list')) {
+            $_SESSION['projects_detail_entry_referrer'] = 'admin-main-page.php?main_tab=projects_admin';
+            $previous = 'admin-main-page.php?main_tab=projects_admin'; // กลับไป Project List
+        }
+        // หากกลับมาจากหน้ารายละเอียดคำร้องขอ (buildings/equipments detail)
+        // หรือกรณีอื่นๆ ที่ session มีค่าอยู่แล้ว (หมายถึงเคยมาจาก Dashboard หรือ Project List)
+        elseif (isset($_SESSION['projects_detail_entry_referrer'])) {
+            $previous = $_SESSION['projects_detail_entry_referrer']; // ใช้ referrer ที่บันทึกไว้
+        }
+        // Fallback หากไม่มี session หรือ referrer ที่ชัดเจน ให้กลับไป Project List
+        else {
+            $previous = 'admin-main-page.php?main_tab=projects_admin';
+        }
+    }
+    // 2. กำลังอยู่ในหน้า "รายละเอียดคำร้องขอสถานที่/อุปกรณ์" (buildings_admin&mode=detail หรือ equipments_admin&mode=detail)
+    elseif ($main_tab === 'buildings_admin' || $main_tab === 'equipments_admin') {
+        // หากมาจากหน้า "รายละเอียดโครงการ"
+        if ($is_admin_referrer && ($referrer_query['main_tab'] ?? '') === 'projects_admin' && ($referrer_query['mode'] ?? '') === 'detail') {
+            $previous = $referrer; // กลับไปที่หน้า 'รายละเอียดโครงการ' นั้นๆ
+        }
+        // หากมาจาก Dashboard
+        elseif ($is_admin_referrer && ($referrer_query['main_tab'] ?? '') === 'dashboard_admin' && !isset($referrer_query['mode'])) {
+            $previous = 'admin-main-page.php?main_tab=dashboard_admin'; // กลับไปที่ Dashboard
+        }
+        // หากมาจากหน้า List ของแท็บนั้นๆ
+        elseif ($is_admin_referrer && ($referrer_query['main_tab'] ?? '') === $main_tab && (!isset($referrer_query['mode']) || $referrer_query['mode'] === 'list')) {
+            $previous = 'admin-main-page.php?main_tab=' . htmlspecialchars($main_tab); // กลับไปหน้า List ของแท็บนั้นๆ
+        }
+        // Fallback: กลับไปหน้า List ของแท็บนั้น (ถ้าไม่เข้าเงื่อนไขใดๆ ข้างต้น)
+        else {
+            $previous = 'admin-main-page.php?main_tab=' . htmlspecialchars($main_tab);
+        }
+    }
+}
+// 3. กำลังอยู่ในหน้า "List" หรือ "Dashboard" (mode !== 'detail')
+else {
+    // ล้าง session entry referrer เมื่อไม่ได้อยู่ใน project detail หรือ sub-detail
+    unset($_SESSION['projects_detail_entry_referrer']);
+
+    if ($is_admin_referrer) {
+        // หากมาจากหน้า login หรือไม่มี referrer (เริ่มต้น)
+        if (empty($referrer) || strpos($referrer, 'login.php') !== false) {
+             $previous = 'admin-main-page.php?main_tab=dashboard_admin';
+        }
+        // หากมาจากหน้า Admin อื่นๆ ที่ไม่ใช่ detail page ที่กำลังจะกลับไป (เช่น list ไป list)
+        // หรือมาจากหน้า detail ที่ต้องการให้กลับไป list
+        elseif (isset($referrer_query['mode']) && $referrer_query['mode'] === 'detail') {
+            // หาก referrer เป็นหน้ารายละเอียด (เช่นกดกลับจาก detail มา list) ให้กลับไปที่ list ของแท็บนั้น
+            $previous = 'admin-main-page.php?main_tab=' . htmlspecialchars($referrer_query['main_tab'] ?? 'dashboard_admin');
+        } else {
+            // หากเป็น Admin referrer ทั่วไป ให้ใช้ referrer นั้น
+            $previous = $referrer;
+        }
+    }
+    // หาก referrer ไม่ใช่ Admin page หรือว่างเปล่า ให้กลับไป Dashboard
+    else {
+        $previous = 'admin-main-page.php?main_tab=dashboard_admin';
+    }
+}
+// --- สิ้นสุดตรรกะสำหรับการกำหนดค่า $previous ---
+
+
+// 4. กิจกรรมที่กำลังจะมาถึง (เฉพาะโครงการ ภายใน 30 วันข้างหน้า)
+$upcoming_date_limit = date('Y-m-d', strtotime('+14 days'));
+$current_date_php = date('Y-m-d');
+
+// SQL สำหรับโครงการที่กำลังจะมาถึง (ยังคงกรองตามสถานะและวันที่)
+$sql_upcoming_projects = "SELECT project_id AS id, 'โครงการ' AS type, project_name AS name,
+                            start_date, end_date, NULL AS start_time, NULL AS end_time,
+                            project_name AS project_name_for_display, writed_status AS writed_status_for_display, NULL AS approve_for_display
+                    FROM project
+                    WHERE start_date BETWEEN ? AND ?
+                    AND (writed_status = 'ส่งโครงการ' OR writed_status = 'เริ่มดำเนินการ')
+                    ORDER BY start_date ASC";
+$stmt_upcoming_projects = $conn->prepare($sql_upcoming_projects);
+if ($stmt_upcoming_projects) {
+    $stmt_upcoming_projects->bind_param("ss", $current_date_php, $upcoming_date_limit);
+    $stmt_upcoming_projects->execute();
+    $result_upcoming_projects = $stmt_upcoming_projects->get_result();
+    while ($row = $result_upcoming_projects->fetch_assoc()) {
+        $dashboard_data['upcoming_requests'][] = [
+            'id' => $row['id'],
+            'type' => $row['type'],
+            'name' => $row['name'],
+            'start_date' => $row['start_date'],
+            'end_date' => $row['end_date'],
+            'start_time' => $row['start_time'],
+            'end_time' => $row['end_time'],
+            'project_name' => $row['name'],
+            'writed_status' => $row['writed_status_for_display'],
+            'approve' => $row['approve_for_display'],
+        ];
+    }
+    $stmt_upcoming_projects->close();
+} else {
+    error_log("Failed to prepare statement for upcoming projects: " . $conn->error);
+}
+
+// จัดเรียงกิจกรรมที่กำลังจะมาถึงและจำกัดจำนวน
+usort($dashboard_data['upcoming_requests'], function($a, $b) {
+    return strtotime($a['start_date']) - strtotime($b['start_date']);
+});
+$dashboard_data['upcoming_requests'] = array_slice($dashboard_data['upcoming_requests'], 0, 5);
+
+$all_recent_activity_raw = [];
+
+$sql_recent_fr = "SELECT fr.facility_re_id AS id, 'คำร้องขอสถานที่' AS item_type, f.facility_name AS item_name,
+                        fr.request_date AS activity_date, fr.writed_status AS status_text, fr.approve AS approve_status
+                FROM facilities_requests fr
+                JOIN project p ON fr.project_id = p.project_id
+                JOIN facilities f ON fr.facility_id = f.facility_id
+                WHERE fr.writed_status = 'ส่งคำร้องขอ' AND fr.approve IS NULL
+                ORDER BY fr.request_date DESC LIMIT 5";
+$stmt_recent_fr = $conn->prepare($sql_recent_fr);
+if ($stmt_recent_fr) {
+    $stmt_recent_fr->execute();
+    $result_recent_fr = $stmt_recent_fr->get_result();
+    while ($row = $result_recent_fr->fetch_assoc()) {
+        $all_recent_activity_raw[] = $row;
+    }
+    $stmt_recent_fr->close();
+} else {
+    error_log("Failed to prepare statement for recent facility requests: " . $conn->error);
+}
+
+// คำร้องขออุปกรณ์ล่าสุด
+$sql_recent_er = "SELECT er.equip_re_id AS id, 'คำร้องขออุปกรณ์' AS item_type, e.equip_name AS item_name,
+                        er.request_date AS activity_date, er.writed_status AS status_text, er.approve AS approve_status
+                FROM equipments_requests er
+                JOIN project p ON er.project_id = p.project_id
+                JOIN equipments e ON er.equip_id = e.equip_id
+                WHERE er.writed_status = 'ส่งคำร้องขอ' AND er.approve IS NULL
+                ORDER BY er.request_date DESC LIMIT 5";
+$stmt_recent_er = $conn->prepare($sql_recent_er);
+if ($stmt_recent_er) {
+    $stmt_recent_er->execute();
+    $result_recent_er = $stmt_recent_er->get_result();
+    while ($row = $result_recent_er->fetch_assoc()) {
+        $all_recent_activity_raw[] = $row;
+    }
+    $stmt_recent_er->close();
+} else {
+    error_log("Failed to prepare statement for recent equipment requests: " . $conn->error);
+}
+
+// จัดเรียงกิจกรรมล่าสุดทั้งหมดและจำกัดจำนวน
+usort($all_recent_activity_raw, function($a, $b) {
+    return strtotime($b['activity_date']) - strtotime($a['activity_date']); // เรียงจากใหม่ไปเก่า
+});
+$dashboard_data['recent_activity'] = array_slice($all_recent_activity_raw, 0, 5);
+
 
 try {
     // Projects count (excluding 'ร่างโครงการ')
@@ -133,9 +358,9 @@ try {
             $requestId = (int)($_POST['request_id'] ?? 0);
             $requestType = $_POST['request_type'] ?? '';
             $approveStatus = ($_POST['action'] == 'approve_request') ? 'อนุมัติ' : 'ไม่อนุมัติ';
-            $approveDetail = trim($_POST['approve_detail'] ?? ''); 
-            $staffIdToUse = $staff_id_for_db; 
-            $approveDate = date('Y-m-d H:i:s'); 
+            $approveDetail = trim($_POST['approve_detail'] ?? '');
+            $staffIdToUse = $staff_id_for_db;
+            $approveDate = date('Y-m-d H:i:s');
 
             if ($approveStatus == 'อนุมัติ' && empty($approveDetail)) {
                 $approveDetail = null;
@@ -152,7 +377,7 @@ try {
             }
 
 
-            if (empty($staffIdToUse) || $staffIdToUse === 'N/A') { 
+            if (empty($staffIdToUse) || $staffIdToUse === 'N/A') {
                 $errors[] = "ไม่สามารถดำเนินการได้: Staff ID ไม่ถูกต้องหรือไม่พบสำหรับผู้ดูแลระบบที่ล็อกอินอยู่. โปรดตรวจสอบการตั้งค่าผู้ใช้หรือติดต่อผู้ดูแลระบบ.";
             } elseif ($tableName && $requestId > 0) {
 
@@ -385,12 +610,7 @@ $total_pages = ceil($total_items / $items_per_page);
 <!DOCTYPE html>
 <html lang="th">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard KU FTD</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <link href="style.css" rel="stylesheet">
+    <?php include 'header.php'?>
 </head>
 <body class="admin-body">
     <nav class="navbar navbar-dark navigator">
@@ -454,7 +674,7 @@ $total_pages = ceil($total_items / $items_per_page);
                     <h4 class="alert-heading">เกิดข้อผิดพลาด!</h4>
                     <ul>
                         <?php foreach ($errors as $error): ?>
-                            <li><?php echo htmlspecialchars($error); ?></li> 
+                            <li><?php echo htmlspecialchars($error); ?></li>
                         <?php endforeach; ?>
                     </ul>
                 </div>
@@ -466,7 +686,7 @@ $total_pages = ceil($total_items / $items_per_page);
             if ($modal_status == 'success' && $modal_message != ''): ?>
                 <div class="alert alert-success" role="alert">
                     <h4 class="alert-heading">สำเร็จ!</h4>
-                    <p><?php echo htmlspecialchars($modal_message); ?></p> 
+                    <p><?php echo htmlspecialchars($modal_message); ?></p>
                 </div>
             <?php endif; ?>
             <?php
@@ -481,7 +701,7 @@ $total_pages = ceil($total_items / $items_per_page);
             ?>
 
             <?php if ($main_tab == 'dashboard_admin'): ?>
-                <h1 class="mb-4">หน้าหลัก</h1>
+                <h1 class="mb-4">ภาพรวมคำร้องขอทั้งหมด</h1>
                 <div class="row row-cols-1 row-cols-md-3 g-4 mb-4">
                     <div class="col">
                         <div class="card text-white bg-primary mb-3 h-100">
@@ -524,6 +744,94 @@ $total_pages = ceil($total_items / $items_per_page);
                     </div>
                 </div>
                 <hr>
+
+                <div class="row g-4 mb-4">
+                    <div class="col-md-6">
+                        <div class="card h-100 shadow-sm p-4">
+                            <h4 class="mb-3">โครงการที่กำลังจะมาถึง <span class="badge bg-secondary"><?php echo count($dashboard_data['upcoming_requests']); ?></span></h4>
+                            <?php if (empty($dashboard_data['upcoming_requests'])): ?>
+                                <div class="alert alert-info text-center py-3 mb-0">
+                                    ยังไม่มีโครงการที่กำลังจะมาถึงใน 14 วันนี้
+                                </div>
+                            <?php else: ?>
+                                <ul class="list-group list-group-flush">
+                                    <?php foreach ($dashboard_data['upcoming_requests'] as $req):
+                                        $detail_link = '';
+                                        if ($req['type'] == 'โครงการ') {
+                                            $detail_link = '?main_tab=projects_admin&mode=detail&id=' . $req['id'];
+                                        } elseif ($req['type'] == 'คำร้องขอสถานที่') {
+                                            $detail_link = '?main_tab=buildings_admin&mode=detail&id=' . $req['id'];
+                                        } elseif ($req['type'] == 'คำร้องขออุปกรณ์') {
+                                            $detail_link = '?main_tab=equipments_admin&mode=detail&id=' . $req['id'];
+                                        }
+                                    ?>
+                                    <li class="list-group-item activity-item">
+                                        <?php if ($detail_link): ?>
+                                            <a href="<?php echo $detail_link; ?>" class="d-flex w-100 justify-content-between align-items-center stretched-link text-decoration-none text-dark">
+                                        <?php else: ?>
+                                            <div class="d-flex w-100 justify-content-between align-items-center text-dark">
+                                        <?php endif; ?>
+                                                <div class="main-info">
+                                                    <span class="badge bg-primary me-2"><?php echo htmlspecialchars($req['type']); ?></span>
+                                                    <strong><?php echo htmlspecialchars($req['name']); ?></strong>
+                                                </div>
+                                                <div class="date-info">
+                                                    <span class="badge <?php echo getStatusBadgeClass($req['writed_status'], $req['approve']); ?>"><?php echo htmlspecialchars($req['writed_status']); ?></span><br>
+                                                    <small class="text-muted">
+                                                        <?php echo formatThaiDate($req['start_date'], false); ?>
+                                                        <?php if ($req['start_time'] && $req['end_time']): ?>
+                                                            (<?php echo (new DateTime($req['start_time']))->format('H:i'); ?>-<?php echo (new DateTime($req['end_time']))->format('H:i'); ?>)
+                                                        <?php endif; ?>
+                                                    </small>
+                                                </div>
+                                        <?php if ($detail_link): ?>
+                                            </a>
+                                        <?php else: ?>
+                                            </div>
+                                        <?php endif; ?>
+                                    </li>
+                                    <?php endforeach; ?>
+                                </ul>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="card h-100 shadow-sm p-4">
+                            <h4 class="mb-3">คำร้องขอใช้ล่าสุด <span class="badge bg-secondary"><?php echo count($dashboard_data['recent_activity']); ?></span></h4>
+                            <?php if (empty($dashboard_data['recent_activity'])): ?>
+                                <div class="alert alert-info text-center py-3 mb-0">
+                                    ยังไม่มีคำร้องขอใช้ใด ๆ จากผู้ใช้
+                                </div>
+                            <?php else: ?>
+                                <ul class="list-group list-group-flush">
+                                    <?php foreach ($dashboard_data['recent_activity'] as $activity):
+                                        $detail_link = '';
+                                        // สำหรับ Admin Dashboard, ควรจะลิงก์ไปที่หน้ารายละเอียดของ Admin เอง
+                                        if ($activity['item_type'] == 'คำร้องขอสถานที่') {
+                                            $detail_link = '?main_tab=buildings_admin&mode=detail&id=' . $activity['id'];
+                                        } elseif ($activity['item_type'] == 'คำร้องขออุปกรณ์') {
+                                            $detail_link = '?main_tab=equipments_admin&mode=detail&id=' . $activity['id'];
+                                        }
+                                    ?>
+                                        <li class="list-group-item activity-item">
+                                            <a href="<?php echo $detail_link; ?>" class="d-flex w-100 justify-content-between align-items-center stretched-link text-decoration-none text-dark ">
+                                                <div class="main-info">
+                                                    <span class="badge bg-secondary me-2"><?php echo htmlspecialchars($activity['item_type']); ?></span>
+                                                    <strong><?php echo htmlspecialchars($activity['item_name']); ?></strong>
+                                                </div>
+                                                <div class="date-info">
+                                                    <span class="badge <?php echo getStatusBadgeClass($activity['status_text'], $activity['approve_status'] ?? null); ?>"><?php echo htmlspecialchars($activity['approve_status'] ?? $activity['status_text']); ?></span><br>
+                                                    <small class="text-muted"><?php echo formatThaiDate($activity['activity_date']); ?></small>
+                                                </div>
+                                            </a>
+                                        </li>
+                                    <?php endforeach; ?>
+                                </ul>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+
             <?php elseif ($mode == 'list'): ?>
                 <h1 class="mb-4">
                     <?php
@@ -571,7 +879,7 @@ $total_pages = ceil($total_items / $items_per_page);
                                         <th>ผู้ยื่น</th>
                                         <th>ช่วงเวลาใช้งาน</th>
                                         <th>สถานะคำร้อง</th>
-                                        <th>การอนุมัติ</th> 
+                                        <th>การอนุมัติ</th>
                                     <?php elseif ($main_tab == 'equipments_admin'): ?>
                                         <th>วันที่ยื่นคำร้อง</th>
                                         <th>โครงการ</th>
@@ -580,7 +888,7 @@ $total_pages = ceil($total_items / $items_per_page);
                                         <th>ผู้ยื่น</th>
                                         <th>ช่วงเวลาใช้งาน</th>
                                         <th>สถานะคำร้อง</th>
-                                        <th>การอนุมัติ</th> 
+                                        <th>การอนุมัติ</th>
                                     <?php endif; ?>
                                     <th>ตรวจสอบรายละเอียด</th>
                                 </tr>
@@ -610,12 +918,12 @@ $total_pages = ceil($total_items / $items_per_page);
                                             <td><?php echo htmlspecialchars($item['writed_status']); ?></td>
                                             <td>
                                                 <?php
-                                                if (isset($item['approve']) && !empty($item['approve'])) { 
+                                                if (isset($item['approve']) && !empty($item['approve'])) {
                                                     if ($item['approve'] == 'อนุมัติ') {
                                                         echo '<span class="badge bg-success">อนุมัติแล้ว</span>';
                                                     } elseif ($item['approve'] == 'ไม่อนุมัติ') {
                                                         echo '<span class="badge bg-danger">ไม่อนุมัติ</span>';
-                                                    } else { 
+                                                    } else {
                                                         echo htmlspecialchars($item['approve']);
                                                     }
                                                 } else {
@@ -638,12 +946,12 @@ $total_pages = ceil($total_items / $items_per_page);
                                             <td><?php echo htmlspecialchars($item['writed_status']); ?></td>
                                             <td>
                                                 <?php
-                                                if (isset($item['approve']) && !empty($item['approve'])) { 
+                                                if (isset($item['approve']) && !empty($item['approve'])) {
                                                     if ($item['approve'] == 'อนุมัติ') {
                                                         echo '<span class="badge bg-success">อนุมัติแล้ว</span>';
                                                     } elseif ($item['approve'] == 'ไม่อนุมัติ') {
                                                         echo '<span class="badge bg-danger">ไม่อนุมัติ</span>';
-                                                    } else { 
+                                                    } else {
                                                         echo htmlspecialchars($item['approve']);
                                                     }
                                                 } else {
@@ -699,17 +1007,23 @@ $total_pages = ceil($total_items / $items_per_page);
                             <div class="col-md-6">
                                 <p><strong>ชื่อโครงการ:</strong> <?php echo htmlspecialchars($detail_item['project_name']); ?></p>
                                 <p><strong>สถานะโครงการ:</strong> <?php echo htmlspecialchars($detail_item['writed_status']); ?></p>
-                                <p><strong>ระยะเวลาโครงการ:</strong> ตั้งแต่วันที่ <?php echo (new DateTime($detail_item['start_date']))->format('d/m/Y'); ?> ถึง วันที่ <?php echo (new DateTime($detail_item['end_date']))->format('d/m/Y'); ?></p>
+                                <p><strong>ระยะเวลาโครงการ:</strong> 
+                                <?php if ($detail_item['start_date'] != $detail_item['end_date']) : ?>
+                                    ตั้งแต่วันที่ <?php echo formatThaiDate($detail_item['start_date'], false); ?> ถึง วันที่ <?php echo formatThaiDate($detail_item['end_date'], false); ?>
+                                <?php else: ?>
+                                    วันที่ <?php echo formatThaiDate($detail_item['start_date'], false); ?>
+                                <?php endif; ?>
+                                </p>
                                 <p><strong>จำนวนผู้เข้าร่วม:</strong> <?php echo htmlspecialchars($detail_item['attendee']); ?></p>
                                 <p><strong>หมายเลขโทรศัพท์:</strong> <?php echo htmlspecialchars($detail_item['phone_num']); ?></p>
                             </div>
                             <div class="col-md-6">
-                                <?php if (isset($detail_item['advisor_name']) && !empty($detail_item['advisor_name'])): // ตรวจสอบ isset ก่อน ?>
+                                <?php if (isset($detail_item['advisor_name']) && !empty($detail_item['advisor_name'])): ?>
                                     <p><strong>ชื่อที่ปรึกษาโครงการ:</strong> <?php echo htmlspecialchars($detail_item['advisor_name']); ?></p>
                                 <?php endif; ?>
                                 <p><strong>ประเภทกิจกรรม:</strong> <?php echo htmlspecialchars($detail_item['activity_type_name'] ?? 'ไม่ระบุ'); ?></p>
                                 <p><strong>ผู้ยื่นโครงการ:</strong> <?php echo htmlspecialchars($detail_item['user_name'] ?? 'ไม่ระบุ'); ?></p>
-                                <p><strong>วันที่สร้างโครงการ:</strong> <?php echo (new DateTime($detail_item['created_date']))->format('d/m/Y H:i'); ?></p>
+                                <p><strong>วันที่สร้างโครงการ:</strong> <?php echo formatThaiDate($detail_item['created_date']); ?></p>
                                 <p><strong>รายละเอียดโครงการ:</strong><br> <?php echo nl2br(htmlspecialchars($detail_item['project_des'])); ?></p>
                                 <?php if ($detail_item['files'] && file_exists($detail_item['files'])): ?>
                                     <a href="<?php echo htmlspecialchars($detail_item['files']); ?>" target="_blank" class="btn btn-secondary btn-sm mt-2"> ดูไฟล์แนบ</a>
@@ -726,8 +1040,8 @@ $total_pages = ceil($total_items / $items_per_page);
                                     <li class="list-group-item d-flex justify-content-between align-items-center">
                                         <div>
                                             <strong><?php echo htmlspecialchars($req['facility_name']); ?></strong>
-                                            (สถานะ: <?php echo htmlspecialchars($req['writed_status']); ?>)  
-                                            <?php if (isset($req['approve']) && !empty($req['approve'])): // ตรวจสอบ isset ก่อน ?>
+                                            (สถานะ: <?php echo htmlspecialchars($req['writed_status']); ?>)
+                                            <?php if (isset($req['approve']) && !empty($req['approve'])): ?>
                                                 (การอนุมัติคำร้อง: <?php echo ($req['approve'] == 'อนุมัติ') ? '<span class="badge bg-success ms-1">อนุมัติ</span>' : '<span class="badge bg-danger ms-1">ไม่อนุมัติ</span>'; ?>)
                                             <?php endif; ?>
                                             <br><small>ช่วงเวลา: <?php echo (new DateTime($req['start_date']))->format('d/m/Y'); ?> ถึง <?php echo (new DateTime($req['end_date']))->format('d/m/Y'); ?></small>
@@ -747,8 +1061,8 @@ $total_pages = ceil($total_items / $items_per_page);
                                     <li class="list-group-item d-flex justify-content-between align-items-center">
                                         <div>
                                             <strong><?php echo htmlspecialchars($req['equip_name']); ?></strong> (<?php echo htmlspecialchars($req['quantity'] . ' ' . $req['measure']); ?>)
-                                            (สถานะ: <?php echo htmlspecialchars($req['writed_status']); ?>)  
-                                            <?php if (isset($req['approve']) && !empty($req['approve'])): // ตรวจสอบ isset ก่อน ?>
+                                            (สถานะ: <?php echo htmlspecialchars($req['writed_status']); ?>)
+                                            <?php if (isset($req['approve']) && !empty($req['approve'])): ?>
                                                 (การอนุมัติคำร้อง: <?php echo ($req['approve'] == 'อนุมัติ') ? '<span class="badge bg-success ms-1">อนุมัติ</span>' : '<span class="badge bg-danger ms-1">ไม่อนุมัติ</span>'; ?>)
                                             <?php endif; ?>
                                             <br><small>ช่วงเวลา: <?php echo (new DateTime($req['start_date']))->format('d/m/Y'); ?> ถึง <?php echo (new DateTime($req['end_date']))->format('d/m/Y'); ?></small>
@@ -778,14 +1092,14 @@ $total_pages = ceil($total_items / $items_per_page);
                                 <p class="mt-3">
                                     <strong>สถานะการอนุมัติ:</strong>
                                     <?php
-                                    if (isset($detail_item['approve']) && !empty($detail_item['approve'])) { // ใช้ isset() เพื่อความปลอดภัย
+                                    if (isset($detail_item['approve']) && !empty($detail_item['approve'])) {
                                         echo htmlspecialchars($detail_item['approve']);
                                     } else {
                                         echo 'รอดำเนินการ';
                                     }
                                     ?>
                                 </p>
-                                <?php if (isset($detail_item['approve']) && !empty($detail_item['approve'])): // แสดงรายละเอียดเพิ่มเติมเฉพาะเมื่อมีการอนุมัติ/ไม่อนุมัติแล้ว ?>
+                                <?php if (isset($detail_item['approve']) && !empty($detail_item['approve'])): ?>
                                     <p><strong>วันที่ดำเนินการ:</strong> <?php echo htmlspecialchars(isset($detail_item['approve_date']) && $detail_item['approve_date'] ? (new DateTime($detail_item['approve_date']))->format('d/m/Y') : 'N/A'); ?></p>
                                     <p><strong>ผู้ดำเนินการ:</strong> <?php echo htmlspecialchars(isset($detail_item['staff_name']) ? ($detail_item['staff_name'] ?? 'N/A') : 'N/A'); ?></p>
                                     <?php if ($detail_item['approve'] == 'ไม่อนุมัติ'): ?>
@@ -815,19 +1129,18 @@ $total_pages = ceil($total_items / $items_per_page);
                                 <p class="mt-3">
                                     <strong>สถานะการอนุมัติ:</strong>
                                     <?php
-                                    // ตรวจสอบ approve column
-                                    if (isset($detail_item['approve']) && !empty($detail_item['approve'])) { // ใช้ isset() เพื่อความปลอดภัย
+                                    if (isset($detail_item['approve']) && !empty($detail_item['approve'])) {
                                         echo htmlspecialchars($detail_item['approve']);
                                     } else {
-                                        echo 'รอดำเนินการ'; // ถ้า approve เป็น NULL หรือว่างเปล่า
+                                        echo 'รอดำเนินการ';
                                     }
                                     ?>
                                 </p>
-                                <?php if (isset($detail_item['approve']) && !empty($detail_item['approve'])): // แสดงรายละเอียดเพิ่มเติมเฉพาะเมื่อมีการอนุมัติ/ไม่อนุมัติแล้ว ?>
+                                <?php if (isset($detail_item['approve']) && !empty($detail_item['approve'])): ?>
                                     <p><strong>วันที่ดำเนินการ:</strong> <?php echo htmlspecialchars(isset($detail_item['approve_date']) && $detail_item['approve_date'] ? (new DateTime($detail_item['approve_date']))->format('d/m/Y') : 'N/A'); ?></p>
                                     <p><strong>ผู้ดำเนินการ:</strong> <?php echo htmlspecialchars(isset($detail_item['staff_name']) ? ($detail_item['staff_name'] ?? 'N/A') : 'N/A'); ?></p>
                                     <?php if ($detail_item['approve'] == 'ไม่อนุมัติ'): ?>
-                                        <p><strong>เหตุผลการไม่อนุมัติ:</strong> <?php echo nl2br(htmlspecialchars(isset($detail_item['approve_detail']) ? ($detail_item['approve_detail'] ?? 'ไม่ระบุเหตุผล') : 'ไม่ระบุเหตุผล')); ?></p>
+                                        <p><strong>รายละเอียดการไม่อนุมัติ:</strong> <?php echo nl2br(htmlspecialchars(isset($detail_item['approve_detail']) ? ($detail_item['approve_detail'] ?? 'ไม่ระบุเหตุผล') : 'ไม่ระบุเหตุผล')); ?></p>
                                     <?php endif; ?>
                                     <?php if ($detail_item['approve'] == 'อนุมัติ' && !empty($detail_item['approve_detail'])): ?>
                                         <p><strong>รายละเอียดการอนุมัติ:</strong> <?php echo nl2br(htmlspecialchars(isset($detail_item['approve_detail']) ? ($detail_item['approve_detail'] ?? 'ไม่ระบุเหตุผล') : 'ไม่ระบุเหตุผล')); ?></p>
@@ -838,15 +1151,11 @@ $total_pages = ceil($total_items / $items_per_page);
                     <?php endif; ?>
 
                     <div class="d-flex justify-content-between mt-4">
-                        <?php if (strpos($previous, 'main_tab=projects_admin&mode=detail') !== false): ?>
-                            <a href='admin-main-page.php?main_tab=projects_admin' class="btn btn-secondary"> ย้อนกลับ</a>
-                        <?php else: ?>
-                            <a href="<?php echo $previous ?: '#'; ?>" 
-                                class="btn btn-secondary"
-                                onclick="if(this.getAttribute('href') === '#'){ history.back(); return false; }">
-                                    ย้อนกลับ
-                            </a>
-                        <?php endif; ?>
+                        <a href="<?php echo htmlspecialchars($previous) ?: '#'; ?>"
+                        class="btn btn-secondary"
+                        onclick="if(this.getAttribute('href') === '#'){ history.back(); return false; }">
+                            ย้อนกลับ
+                        </a>
                         <div>
                             <?php
                             if (($main_tab == 'buildings_admin' || $main_tab == 'equipments_admin') && ($detail_item['approve'] !== 'อนุมัติ')):

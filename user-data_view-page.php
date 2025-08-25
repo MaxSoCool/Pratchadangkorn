@@ -145,12 +145,7 @@ $total_pages = ceil($total_items / $items_per_page);
 <!DOCTYPE html>
 <html lang="th">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <link href="style.css" rel="stylesheet">
-    <title>ระบบขอใช้อุปกรณ์และสถานที่ KU FTD</title>
+    <?php include 'header.php'?>
 </head>
 <body>
     <nav class="navbar navbar-dark navigator">
@@ -165,8 +160,8 @@ $total_pages = ceil($total_items / $items_per_page);
                 </div>
             </div>
             <div class="d-flex flex-wrap gap-3 mx-auto">
-                <a class="navbar-brand mb-0 fs-5 fs-md-4" href="user-main-page.php">ตรวจสอบอุปกรณ์และสถานที่</a>
                 <a class="navbar-brand mb-0 fs-5 fs-md-4" href="user-project-page.php">ข้อมูลคำร้อง</a>
+                <a class="navbar-brand mb-0 fs-5 fs-md-4" href="user-data_view-page.php">ตรวจสอบอุปกรณ์และสถานที่</a>
             </div>
             <div class="d-flex align-items-center ms-auto gap-2">
                 <div class="d-flex flex-column text-end">
