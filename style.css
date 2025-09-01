@@ -159,6 +159,35 @@ html, body {
     margin-top: 1rem !important;
 }
 
+.pagination .page-item .page-link {
+    color: #265073;
+    background-color: #fff; 
+    border-color: #dee2e6; 
+    transition: all 0.2s ease-in-out;
+}
+
+.pagination .page-item .page-link:hover {
+    color: #fff; 
+    background-color: #2D9596; 
+    border-color: #2D9596;
+}
+
+.pagination .page-item.active .page-link {
+    color: #fff; 
+    background-color: #265073; 
+    border-color: #265073; 
+}
+
+.pagination .page-item.disabled .page-link {
+    color: #6c757d; 
+    background-color: #e9ecef; 
+    border-color: #dee2e6;
+}
+
+.pagination .page-item .page-link:focus {
+    box-shadow: none;
+}
+
 .row.g-2 {
     --bs-gutter-x: 0.75rem;
     --bs-gutter-y: 0.75rem;
@@ -229,6 +258,160 @@ h1 {
 }
 .details-text {
     font-size: 15px;
+}
+
+#bookingCalendar {
+    border-radius: 0.5rem;
+    padding: 1rem;
+    background-color: #f8f9fa; /* Light grey background */
+}
+
+#calendarModal .modal-header {
+    background-color: #2D9596; /* สีพื้นหลังตามที่คุณต้องการ */
+    color: white;
+    border-bottom: none; /* เอาเส้นขอบล่างออก */
+}
+
+#calendarModal .modal-header .modal-title {
+    color: white; /* ทำให้ Title เป็นสีขาว */
+}
+
+#calendarModal .modal-header .btn-close {
+    filter: invert(1) grayscale(100%) brightness(200%); /* ทำให้ปุ่มปิดเป็นสีขาว */
+}
+
+.calendar-pro{
+    color:#265073
+}
+
+.fc-header-toolbar.fc-toolbar {
+    background-color: #265073;   /* สีพื้นหลัง */
+    color: white;                /* สีตัวอักษร */
+    padding: 0.75rem;
+    border-radius: 8px 8px 0 0; /* ทำให้มุมโค้งเฉพาะด้านบน */
+    margin-bottom: 0 !important; /* ลบระยะห่างด้านล่าง */
+}
+
+/* ทำให้ Title (เช่น 'กันยายน 2568') เป็นสีขาว */
+.fc-header-toolbar .fc-toolbar-title {
+    color: white;
+    font-size: 1.25rem;
+}
+
+/* ปรับปุ่ม prev, next, today */
+.fc-header-toolbar .fc-button {
+    background-color: rgba(255, 255, 255, 0.2) !important; /* ทำให้ปุ่มโปร่งแสงเล็กน้อย */
+    color: white !important;
+    border: none !important;
+    box-shadow: none !important; /* เอาเงาออก */
+    transition: background-color 0.2s ease-in-out;
+}
+
+.fc-header-toolbar .fc-button:hover {
+    background-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+.fc-header-toolbar .fc-button:focus {
+    box-shadow: none !important; /* ลบเอฟเฟกต์ focus outline ออก */
+}
+
+/* ปรับปุ่ม Today เมื่อ active */
+.fc-button-primary.fc-today-button:not(:disabled) {
+    background-color: #ffffff !important;
+    color: #265073 !important; /* สีเดียวกับพื้นหลัง toolbar */
+    font-weight: bold;
+}
+
+/* Toolbar Buttons */
+.fc-button-primary {
+    background-color: #0d6efd !important; /* Bootstrap Primary */
+    border-color: #0d6efd !important;
+    transition: all 0.2s ease-in-out;
+}
+.fc-button-primary:hover {
+    background-color: #0b5ed7 !important;
+    border-color: #0a58ca !important;
+}
+
+/* Today Button Highlight */
+.fc-day-today {
+    background: #e9f5ff !important; /* Light blue for today */
+}
+
+/* Event Styling */
+.fc-event {
+    border: none !important;
+    border-radius: 5px;
+    padding: 4px 6px;
+    font-size: 0.8em;
+    cursor: pointer;
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.fc-event:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+/* Color definitions using classes */
+.event-approved { background-color: #198754 !important; }
+.event-rejected { background-color: #dc3545 !important; }
+.event-pending { background-color: #6c757d !important; }
+
+/* Bootstrap Popover Customization */
+.popover {
+    border-radius: 0.5rem;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+.popover-header {
+    background-color: #2D9596;
+    color: #fff;
+    font-weight: bold;
+    border-top-left-radius: 0.5rem;
+    border-top-right-radius: 0.5rem;
+}
+.popover-body p {
+    margin-bottom: 0.5rem;
+}
+.popover-body p:last-child {
+    margin-bottom: 0;
+}
+.popover-body strong {
+    color: #333;
+}
+
+.calendar-des{
+    font-size: 16px;
+    margin-bottom: 5px;
+}
+
+.fc .fc-col-header-cell-cushion {
+    text-decoration: none !important;
+    color: #333 !important; /* ทำให้เป็นสีเข้ม อ่านง่าย */
+    pointer-events: none;
+    cursor: default;
+}
+
+/* สำหรับตัวเลขวันที่ */
+.fc .fc-daygrid-day-number {
+    text-decoration: none !important;
+    color: #555 !important;
+}
+
+/* กำหนดเป้าหมายไปที่แท็ก <a> ที่ครอบตัวเลขวันที่โดยตรง เพื่อเอาขีดเส้นใต้และ pointer ออก */
+.fc .fc-col-header-cell-cushion {
+    text-decoration: none !important;
+    color: #333 !important;
+    pointer-events: none;
+    cursor: default;
+}
+
+/* กำหนดเป้าหมายไปที่ลิงก์ของ "วันที่" โดยตรง ไม่ใช่ทั้ง Frame */
+.fc .fc-daygrid-day-number {
+    text-decoration: none !important;
+    color: #555 !important;
+    pointer-events: none;
+    cursor: default;
 }
 
 .login-form-bg {

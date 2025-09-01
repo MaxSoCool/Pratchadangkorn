@@ -7,6 +7,7 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
 }
 
 include 'database/database.php';
+include 'php/sorting.php';
 
 if (isset($_GET['action']) && $_GET['action'] == 'get_facilities_by_project' && isset($_GET['project_id'])) {
     header('Content-Type: application/json'); 
@@ -359,20 +360,13 @@ if (!empty($user_id)) {
     });
     $dashboard_data['recent_activity'] = array_slice($all_recent_activity_raw, 0, 5);
 }
-// <<<<< END MODIFIED SECTION: PHP Logic for Dashboard >>>>>
 
-// <<<<< MODIFIED SECTION: Previous URL for redirects (adjust to use main_tab) >>>>>
 $previous = $_SERVER['HTTP_REFERER'] ?? '';
 $current_mode = $_GET['mode'] ?? '';
-$this_tab = $_GET['this_tab'] ?? ''; // ดึงค่า this_tab เพื่อการจัดการ session ที่แม่นยำขึ้น
+$this_tab = $_GET['this_tab'] ?? ''; 
 
-// --- ส่วนจัดการ Session สำหรับการจดจำหน้าที่แล้วที่แท้จริงของ projects_detail ---
-
-// 1. ถ้ากำลังเข้าสู่หน้า 'projects_detail'
 if ($current_mode === 'projects_detail') {
-    // และหน้าที่แล้ว (referrer) ไม่ใช่หน้ารายละเอียดอาคารหรืออุปกรณ์ (หมายถึงไม่ได้เพิ่งกลับมาจาก sub-detail)
-    // ให้บันทึกหน้าที่แล้วนี้ไว้เป็น "หน้าที่แล้วที่แท้จริง" สำหรับ projects_detail
-    // เพื่อใช้ในภายหลังเมื่อกลับมาจาก sub-detail
+
     if (strpos($previous, 'mode=buildings_detail') === false && 
         strpos($previous, 'mode=equipments_detail') === false) {
         $_SESSION['projects_detail_initial_referrer'] = $previous;
@@ -788,7 +782,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $errors[] = "เกิดข้อผิดพลาดในการตรวจสอบสถานะโครงการปัจจุบัน: " . $conn->error;
                 }
             } elseif (isset($_POST['action']) && $_POST['action'] == 'save_draft_edit') {
-                // Keep as draft if explicitly saving draft
+
                 $writed_status = 'ร่างโครงการ';
             }
 
@@ -809,18 +803,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $errors[] = "วันสุดท้ายของโครงการห้ามสิ้นสุดก่อนวันเริ่มต้นของโครงการ.";
             }
 
-            $file_path = $existing_file_path; // Assume existing path if no new file uploaded
+            $file_path = $existing_file_path; 
             if (isset($_FILES['files']) && $_FILES['files']['error'] == UPLOAD_ERR_OK) {
                 $new_file_path = uploadFile('files', $project_files_upload_dir, $errors);
                 if ($new_file_path) {
                     $file_path = $new_file_path;
-                    // If a new file is uploaded, delete the old one
+
                     if ($existing_file_path && file_exists($existing_file_path)) {
                         unlink($existing_file_path);
                     }
                 }
             } elseif (isset($_FILES['files']) && $_FILES['files']['error'] == UPLOAD_ERR_NO_FILE) {
-                // No new file, retain existing_file_path (already set to $file_path)
+
             } else if (isset($_FILES['files']) && $_FILES['files']['error'] != UPLOAD_ERR_NO_FILE) {
                 $errors[] = "เกิดข้อผิดพลาดในการอัปโหลดไฟล์ " . $_FILES['files']['name'] . ": Error Code " . $_FILES['files']['error'];
             }
@@ -1186,9 +1180,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 if ($main_tab == 'user_requests') {
     $search_query = isset($_GET['search']) ? trim($_GET['search']) : '';
     $search_param = '%' . $search_query . '%';
+    $sort_filter = $_GET['sort_filter'] ?? 'date_desc';
 
     // Initialize these for list views
-    $items_per_page = 9; // Default items per page
+    $items_per_page = 4; // Default items per page
     $current_page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
     $offset = ($current_page - 1) * $items_per_page;
     $total_items = 0; // Default total items
@@ -1196,30 +1191,46 @@ if ($main_tab == 'user_requests') {
 
     try {
         if ($mode == 'projects_list') {
-            // Pagination variables are already initialized above,
-            // but we ensure they are specific to this list context.
+            $sorting = getSortingClauses('projects_list', $sort_filter);
+            $base_where = " WHERE p.nontri_id = ? AND p.project_name LIKE ?";
 
-            $sql_count = "SELECT COUNT(*) FROM project WHERE nontri_id = ? AND project_name LIKE ?";
+            // --- COUNT QUERY ---
+            $sql_count = "SELECT COUNT(*) FROM project p" . $base_where . $sorting['where_sql'];
             $stmt_count = $conn->prepare($sql_count);
-            $stmt_count->bind_param("ss", $nontri_id, $search_param);
+
+            $count_params = [$nontri_id, $search_param];
+            $count_param_types = "ss";
+            if ($sorting['where_param_value'] !== null) {
+                $count_params[] = $sorting['where_param_value'];
+                $count_param_types .= $sorting['where_param_type'];
+            }
+            $stmt_count->bind_param($count_param_types, ...$count_params);
             $stmt_count->execute();
             $stmt_count->bind_result($total_items);
             $stmt_count->fetch();
             $stmt_count->close();
-
-            // Calculate total_pages *after* $total_items is known
+            
             $total_pages = ($items_per_page > 0) ? ceil($total_items / $items_per_page) : 1;
 
+            // --- DATA QUERY ---
             $sql_data = "SELECT
                             p.project_id, p.project_name, p.start_date, p.end_date, p.project_des, p.files, p.attendee, p.phone_num, p.advisor_name, p.writed_status, p.created_date,
                             at.activity_type_name AS activity_type_name
                          FROM project p
                          LEFT JOIN user u ON p.nontri_id = u.nontri_id
-                         LEFT JOIN activity_type at ON p.activity_type_id = at.activity_type_id
-                         WHERE p.nontri_id = ? AND p.project_name LIKE ?
-                         ORDER BY p.created_date DESC LIMIT ? OFFSET ?";
+                         LEFT JOIN activity_type at ON p.activity_type_id = at.activity_type_id"
+                         . $base_where . $sorting['where_sql']
+                         . $sorting['order_by_sql'] . " LIMIT ? OFFSET ?";
+            
             $stmt_data = $conn->prepare($sql_data);
-            $stmt_data->bind_param("ssii", $nontri_id, $search_param, $items_per_page, $offset);
+
+            $data_params = $count_params;
+            $data_param_types = $count_param_types;
+            $data_params[] = $items_per_page;
+            $data_params[] = $offset;
+            $data_param_types .= "ii";
+
+            $stmt_data->bind_param($data_param_types, ...$data_params);
             $stmt_data->execute();
             $result_data = $stmt_data->get_result();
             while ($row = $result_data->fetch_assoc()) {
@@ -1318,48 +1329,83 @@ if ($main_tab == 'user_requests') {
             }
 
         } elseif ($mode == 'buildings_list') {
-            // Pagination variables are already initialized above,
-            // but we ensure they are specific to this list context.
+            $sorting = getSortingClauses('buildings_list', $sort_filter);
+            
+            // สร้าง Subquery filter โดยใช้ EXISTS
+            $subquery_filter = '';
+            if ($sorting['where_param_value'] !== null) {
+                // แก้ไข: ใช้วิธีที่ถูกต้องในการลบ " AND " ที่นำหน้าออก
+                $condition = preg_replace('/^ AND /', '', $sorting['where_sql']);
+                $subquery_filter = " AND EXISTS (SELECT 1 FROM facilities_requests fr WHERE fr.project_id = p.project_id AND {$condition})";
+            }
 
-            // New logic: Fetch projects, then their associated facility requests
-            $sql_count_projects = "SELECT COUNT(*) FROM project WHERE nontri_id = ? AND project_name LIKE ?";
+            $base_where = " WHERE p.nontri_id = ? AND p.project_name LIKE ?";
+
+            // --- COUNT QUERY ---
+            $sql_count_projects = "SELECT COUNT(*) FROM project p" . $base_where . $subquery_filter;
             $stmt_count_projects = $conn->prepare($sql_count_projects);
-            $stmt_count_projects->bind_param("ss", $nontri_id, $search_param);
+
+            $count_params = [$nontri_id, $search_param];
+            $count_param_types = "ss";
+            if ($sorting['where_param_value'] !== null) {
+                 $count_params[] = $sorting['where_param_value'];
+                 $count_param_types .= $sorting['where_param_type'];
+            }
+            $stmt_count_projects->bind_param($count_param_types, ...$count_params);
             $stmt_count_projects->execute();
             $stmt_count_projects->bind_result($total_items);
             $stmt_count_projects->fetch();
             $stmt_count_projects->close();
 
-            // Calculate total_pages *after* $total_items is known
             $total_pages = ($items_per_page > 0) ? ceil($total_items / $items_per_page) : 1;
 
-            $sql_paginated_projects = "SELECT project_id, project_name, writed_status, created_date FROM project WHERE nontri_id = ? AND project_name LIKE ? ORDER BY created_date DESC LIMIT ? OFFSET ?";
+            // --- DATA QUERY ---
+            $sql_paginated_projects = "SELECT project_id, project_name, writed_status, created_date FROM project p"
+                                    . $base_where . $subquery_filter
+                                    . " ORDER BY p.created_date DESC LIMIT ? OFFSET ?";
+            
             $stmt_paginated_projects = $conn->prepare($sql_paginated_projects);
-            $stmt_paginated_projects->bind_param("ssii", $nontri_id, $search_param, $items_per_page, $offset);
+
+            $data_params = $count_params;
+            $data_param_types = $count_param_types;
+            $data_params[] = $items_per_page;
+            $data_params[] = $offset;
+            $data_param_types .= "ii";
+
+            $stmt_paginated_projects->bind_param($data_param_types, ...$data_params);
             $stmt_paginated_projects->execute();
             $result_paginated_projects = $stmt_paginated_projects->get_result();
 
-            $data = []; // This will hold projects for the current page
+            // ส่วนที่เหลือในการดึง requests ของแต่ละ project ไม่ต้องแก้ไข
+            $data = []; 
             while ($project_row = $result_paginated_projects->fetch_assoc()) {
                 $project_id = $project_row['project_id'];
-                $project_row['requests'] = []; // Initialize requests array for this project
+                $project_row['requests'] = [];
 
-                // Fetch facilities requests for each project
                 $sql_requests = "SELECT fr.facility_re_id, fr.request_date, fr.writed_status, fr.start_date, fr.end_date, fr.prepare_start_date, fr.prepare_end_date, fr.start_time, fr.end_time, fr.prepare_start_time, fr.prepare_end_time, f.facility_name, fr.approve
                                  FROM facilities_requests fr
                                  JOIN facilities f ON fr.facility_id = f.facility_id
-                                 WHERE fr.project_id = ?
-                                 ORDER BY fr.request_date DESC"; // Sort by latest request
+                                 WHERE fr.project_id = ?" . $sorting['where_sql'] . $sorting['order_by_sql'];
                 $stmt_requests = $conn->prepare($sql_requests);
-                $stmt_requests->bind_param("i", $project_id);
+                
+                $req_params = [$project_id];
+                $req_param_types = "i";
+                if ($sorting['where_param_value'] !== null) {
+                    $req_params[] = $sorting['where_param_value'];
+                    $req_param_types .= $sorting['where_param_type'];
+                }
+
+                $stmt_requests->bind_param($req_param_types, ...$req_params);
                 $stmt_requests->execute();
                 $result_requests = $stmt_requests->get_result();
                 while ($req_row = $result_requests->fetch_assoc()) {
                     $project_row['requests'][] = $req_row;
                 }
                 $stmt_requests->close();
-
-                $data[] = $project_row; // Add project with its requests to the main data array
+                
+                if (!empty($project_row['requests']) || empty($sorting['where_sql'])) {
+                    $data[] = $project_row;
+                }
             }
             $stmt_paginated_projects->close();
 
@@ -1427,41 +1473,72 @@ if ($main_tab == 'user_requests') {
             }
 
         } elseif ($mode == 'equipments_list') {
-            // Pagination variables are already initialized above,
-            // but we ensure they are specific to this list context.
+            $sorting = getSortingClauses('equipments_list', $sort_filter);
+            
+            $subquery_filter = '';
+            if ($sorting['where_param_value'] !== null) {
+                // แก้ไข: ใช้วิธีที่ถูกต้องในการลบ " AND " ที่นำหน้าออก
+                $condition = preg_replace('/^ AND /', '', $sorting['where_sql']);
+                $subquery_filter = " AND EXISTS (SELECT 1 FROM equipments_requests er WHERE er.project_id = p.project_id AND {$condition})";
+            }
 
-            // New logic: Fetch projects, then their associated equipment requests
-            $sql_count_projects = "SELECT COUNT(*) FROM project WHERE nontri_id = ? AND project_name LIKE ?";
+            $base_where = " WHERE p.nontri_id = ? AND p.project_name LIKE ?";
+
+            // --- COUNT QUERY ---
+            $sql_count_projects = "SELECT COUNT(*) FROM project p" . $base_where . $subquery_filter;
             $stmt_count_projects = $conn->prepare($sql_count_projects);
-            $stmt_count_projects->bind_param("ss", $nontri_id, $search_param);
+
+            $count_params = [$nontri_id, $search_param];
+            $count_param_types = "ss";
+            if ($sorting['where_param_value'] !== null) {
+                 $count_params[] = $sorting['where_param_value'];
+                 $count_param_types .= $sorting['where_param_type'];
+            }
+            $stmt_count_projects->bind_param($count_param_types, ...$count_params);
             $stmt_count_projects->execute();
             $stmt_count_projects->bind_result($total_items);
             $stmt_count_projects->fetch();
             $stmt_count_projects->close();
 
-            // Calculate total_pages *after* $total_items is known
             $total_pages = ($items_per_page > 0) ? ceil($total_items / $items_per_page) : 1;
-
-            $sql_paginated_projects = "SELECT project_id, project_name, writed_status, created_date FROM project WHERE nontri_id = ? AND project_name LIKE ? ORDER BY created_date DESC LIMIT ? OFFSET ?";
+            
+            // --- DATA QUERY ---
+            $sql_paginated_projects = "SELECT project_id, project_name, writed_status, created_date FROM project p"
+                                    . $base_where . $subquery_filter
+                                    . " ORDER BY p.created_date DESC LIMIT ? OFFSET ?";
             $stmt_paginated_projects = $conn->prepare($sql_paginated_projects);
-            $stmt_paginated_projects->bind_param("ssii", $nontri_id, $search_param, $items_per_page, $offset);
+
+            $data_params = $count_params;
+            $data_param_types = $count_param_types;
+            $data_params[] = $items_per_page;
+            $data_params[] = $offset;
+            $data_param_types .= "ii";
+            
+            $stmt_paginated_projects->bind_param($data_param_types, ...$data_params);
             $stmt_paginated_projects->execute();
             $result_paginated_projects = $stmt_paginated_projects->get_result();
 
-            $data = []; // This will hold projects for the current page
+            $data = [];
             while ($project_row = $result_paginated_projects->fetch_assoc()) {
                 $project_id = $project_row['project_id'];
-                $project_row['requests'] = []; // Initialize requests array for this project
+                $project_row['requests'] = [];
 
-                // Fetch equipments requests for each project
                 $sql_requests = "SELECT er.equip_re_id, er.request_date, er.writed_status, er.start_date, er.end_date, er.quantity, er.transport, e.equip_name, e.measure, f.facility_name, er.approve
                                  FROM equipments_requests er
                                  JOIN equipments e ON er.equip_id = e.equip_id
                                  LEFT JOIN facilities f ON er.facility_id = f.facility_id
-                                 WHERE er.project_id = ?
-                                 ORDER BY er.request_date DESC"; // Sort by latest request
+                                 WHERE er.project_id = ?" . $sorting['where_sql'] . $sorting['order_by_sql'];
+                
                 $stmt_requests = $conn->prepare($sql_requests);
-                $stmt_requests->bind_param("i", $project_id);
+
+                $req_params = [$project_id];
+                $req_param_types = "i";
+                if ($sorting['where_param_value'] !== null) {
+                    $req_params[] = $sorting['where_param_value'];
+                    $req_param_types .= $sorting['where_param_type'];
+                }
+                
+                $stmt_requests->bind_param($req_param_types, ...$req_params);
                 $stmt_requests->execute();
                 $result_requests = $stmt_requests->get_result();
                 while ($req_row = $result_requests->fetch_assoc()) {
@@ -1469,7 +1546,9 @@ if ($main_tab == 'user_requests') {
                 }
                 $stmt_requests->close();
 
-                $data[] = $project_row; // Add project with its requests to the main data array
+                if (!empty($project_row['requests']) || empty($sorting['where_sql'])) {
+                    $data[] = $project_row;
+                }
             }
             $stmt_paginated_projects->close();
 
@@ -1674,12 +1753,38 @@ $modal_message = $_GET['message'] ?? '';
             </div>
             <?php if ($main_tab == 'user_requests' && in_array($mode, ['projects_list', 'buildings_list', 'equipments_list'])): ?>
                 <div class="col-md-6">
-                    <form class="d-flex" action="" method="GET">
+                    <form class="d-flex align-items-center" action="" method="GET">
                         <input type="hidden" name="main_tab" value="user_requests">
                         <input type="hidden" name="mode" value="<?php echo htmlspecialchars($mode); ?>">
+
+                        <!-- Dropdown สำหรับการเรียงลำดับและกรอง -->
+                        <select name="sort_filter" class="form-select me-2" onchange="this.form.submit()" style="width: auto;">
+                            <optgroup label="เรียงตามวันที่">
+                                <option value="date_desc" <?php echo (($_GET['sort_filter'] ?? 'date_desc') == 'date_desc') ? 'selected' : ''; ?>>ใหม่สุดไปเก่าสุด</option>
+                                <option value="date_asc" <?php echo (($_GET['sort_filter'] ?? '') == 'date_asc') ? 'selected' : ''; ?>>เก่าสุดไปใหม่สุด</option>
+                            </optgroup>
+                            <optgroup label="กรองตามสถานะ">
+                                <option value="all" <?php echo (($_GET['sort_filter'] ?? '') == 'all') ? 'selected' : ''; ?>>แสดงทุกสถานะ</option>
+                                <?php if ($mode == 'projects_list'): ?>
+                                    <option value="ร่างโครงการ" <?php echo (($_GET['sort_filter'] ?? '') == 'ร่างโครงการ') ? 'selected' : ''; ?>>ร่างโครงการ</option>
+                                    <option value="ส่งโครงการ" <?php echo (($_GET['sort_filter'] ?? '') == 'ส่งโครงการ') ? 'selected' : ''; ?>>ส่งโครงการ</option>
+                                    <option value="เริ่มดำเนินการ" <?php echo (($_GET['sort_filter'] ?? '') == 'เริ่มดำเนินการ') ? 'selected' : ''; ?>>เริ่มดำเนินการ</option>
+                                    <option value="สิ้นสุดโครงการ" <?php echo (($_GET['sort_filter'] ?? '') == 'สิ้นสุดโครงการ') ? 'selected' : ''; ?>>สิ้นสุดโครงการ</option>
+                                <?php elseif ($mode == 'buildings_list' || $mode == 'equipments_list'): ?>
+                                    <option value="ร่างคำร้องขอ" <?php echo (($_GET['sort_filter'] ?? '') == 'ร่างคำร้องขอ') ? 'selected' : ''; ?>>ร่างคำร้องขอ</option>
+                                    <option value="ส่งคำร้องขอ" <?php echo (($_GET['sort_filter'] ?? '') == 'ส่งคำร้องขอ') ? 'selected' : ''; ?>>ส่งคำร้องขอ</option>
+                                    <option value="อนุมัติ" <?php echo (($_GET['sort_filter'] ?? '') == 'อนุมัติ') ? 'selected' : ''; ?>>อนุมัติ</option>
+                                    <option value="ไม่อนุมัติ" <?php echo (($_GET['sort_filter'] ?? '') == 'ไม่อนุมัติ') ? 'selected' : ''; ?>>ไม่อนุมัติ</option>
+                                    <option value="เริ่มดำเนินการ" <?php echo (($_GET['sort_filter'] ?? '') == 'เริ่มดำเนินการ') ? 'selected' : ''; ?>>เริ่มดำเนินการ</option>
+                                    <option value="สิ้นสุดดำเนินการ" <?php echo (($_GET['sort_filter'] ?? '') == 'สิ้นสุดดำเนินการ') ? 'selected' : ''; ?>>สิ้นสุดดำเนินการ</option>
+                                <?php endif; ?>
+                            </optgroup>
+                        </select>
+
+                        <!-- Search Input and Buttons -->
                         <input class="form-control me-2" type="search" placeholder="ค้นหา..." aria-label="Search" name="search" value="<?php echo htmlspecialchars($search_query); ?>">
                         <button class="btn btn-outline-success" type="submit">ค้นหา</button>
-                        <?php if (!empty($search_query)): ?>
+                        <?php if (!empty($search_query) || !empty($_GET['sort_filter'])): ?>
                             <a href="?main_tab=user_requests&mode=<?php echo htmlspecialchars($mode); ?>" class="btn btn-outline-secondary ms-2">ล้าง</a>
                         <?php endif; ?>
                     </form>
@@ -1904,23 +2009,27 @@ $modal_message = $_GET['message'] ?? '';
                     </div>
                     <nav aria-label="Page navigation" class="pagination-container mt-3 mb-0">
                         <ul class="pagination pagination-lg">
+                            <?php
+
+                            $search_param_url = !empty($search_query) ? '&search=' . urlencode($search_query) : '';
+                            $sort_param_url = !empty($_GET['sort_filter']) ? '&sort_filter=' . urlencode($_GET['sort_filter']) : '';
+                            ?>
+
                             <?php if ($current_page > 1): ?>
                                 <li class="page-item">
-                                    <a class="page-link" href="?main_tab=user_requests&mode=projects_list&page=<?php echo $current_page - 1; ?><?php echo !empty($search_query) ? '&search=' . htmlspecialchars($search_query) : ''; ?>">ก่อนหน้า</a>
+                                    <a class="page-link" href="?main_tab=user_requests&mode=<?php echo htmlspecialchars($mode); ?>&page=<?php echo $current_page - 1; ?><?php echo $search_param_url; ?><?php echo $sort_param_url; ?>">ก่อนหน้า</a>
                                 </li>
                             <?php endif; ?>
 
                             <?php for ($i = 1; $i <= $total_pages; $i++): ?>
                                 <li class="page-item <?php echo ($i == $current_page) ? 'active' : ''; ?>">
-                                    <a class="page-link" href="?main_tab=user_requests&mode=projects_list&page=<?php echo $i; ?><?php echo !empty($search_query) ? '&search=' . htmlspecialchars($search_query) : ''; ?>">
-                                        <?php echo $i; ?>
-                                    </a>
+                                    <a class="page-link" href="?main_tab=user_requests&mode=<?php echo htmlspecialchars($mode); ?>&page=<?php echo $i; ?><?php echo $search_param_url; ?><?php echo $sort_param_url; ?>"><?php echo $i; ?></a>
                                 </li>
-                                <?php endfor; ?>
+                            <?php endfor; ?>
 
                             <?php if ($current_page < $total_pages): ?>
                                 <li class="page-item">
-                                    <a class="page-link" href="?main_tab=user_requests&mode=projects_list&page=<?php echo $current_page + 1; ?><?php echo !empty($search_query) ? '&search=' . htmlspecialchars($search_query) : ''; ?>">ถัดไป</a>
+                                    <a class="page-link" href="?main_tab=user_requests&mode=<?php echo htmlspecialchars($mode); ?>&page=<?php echo $current_page + 1; ?><?php echo $search_param_url; ?><?php echo $sort_param_url; ?>">ถัดไป</a>
                                 </li>
                             <?php endif; ?>
                         </ul>
@@ -2398,23 +2507,27 @@ $modal_message = $_GET['message'] ?? '';
                     </div>
                     <nav aria-label="Page navigation" class="pagination-container mt-3 mb-0">
                         <ul class="pagination pagination-lg">
+                            <?php
+
+                            $search_param_url = !empty($search_query) ? '&search=' . urlencode($search_query) : '';
+                            $sort_param_url = !empty($_GET['sort_filter']) ? '&sort_filter=' . urlencode($_GET['sort_filter']) : '';
+                            ?>
+
                             <?php if ($current_page > 1): ?>
                                 <li class="page-item">
-                                    <a class="page-link" href="?main_tab=user_requests&mode=<?php echo htmlspecialchars($mode); ?>&page=<?php echo $current_page - 1; ?><?php echo !empty($search_query) ? '&search=' . htmlspecialchars($search_query) : ''; ?>">ก่อนหน้า</a>
+                                    <a class="page-link" href="?main_tab=user_requests&mode=<?php echo htmlspecialchars($mode); ?>&page=<?php echo $current_page - 1; ?><?php echo $search_param_url; ?><?php echo $sort_param_url; ?>">ก่อนหน้า</a>
                                 </li>
                             <?php endif; ?>
 
                             <?php for ($i = 1; $i <= $total_pages; $i++): ?>
                                 <li class="page-item <?php echo ($i == $current_page) ? 'active' : ''; ?>">
-                                    <a class="page-link" href="?main_tab=user_requests&mode=<?php echo htmlspecialchars($mode); ?>&page=<?php echo $i; ?><?php echo !empty($search_query) ? '&search=' . htmlspecialchars($search_query) : ''; ?>">
-                                        <?php echo $i; ?>
-                                    </a>
+                                    <a class="page-link" href="?main_tab=user_requests&mode=<?php echo htmlspecialchars($mode); ?>&page=<?php echo $i; ?><?php echo $search_param_url; ?><?php echo $sort_param_url; ?>"><?php echo $i; ?></a>
                                 </li>
                             <?php endfor; ?>
 
                             <?php if ($current_page < $total_pages): ?>
                                 <li class="page-item">
-                                    <a class="page-link" href="?main_tab=user_requests&mode=<?php echo htmlspecialchars($mode); ?>&page=<?php echo $current_page + 1; ?><?php echo !empty($search_query) ? '&search=' . htmlspecialchars($search_query) : ''; ?>">ถัดไป</a>
+                                    <a class="page-link" href="?main_tab=user_requests&mode=<?php echo htmlspecialchars($mode); ?>&page=<?php echo $current_page + 1; ?><?php echo $search_param_url; ?><?php echo $sort_param_url; ?>">ถัดไป</a>
                                 </li>
                             <?php endif; ?>
                         </ul>

@@ -8,6 +8,7 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true || $_SESSI
 }
 
 include 'database/database.php'; // ไฟล์เชื่อมต่อฐานข้อมูล
+include 'php/sorting.php';
 
 // --- Helper Functions (หากไม่ได้อยู่ใน header.php หรือไฟล์อื่นที่ include) ---
 if (!function_exists('formatThaiDate')) {
@@ -403,10 +404,21 @@ try {
 
     if ($main_tab == 'projects_admin') {
         if ($mode == 'list') {
+            $sort_filter = $_GET['sort_filter'] ?? 'date_desc';
+            $sorting = getSortingClauses('projects_admin', $sort_filter);
 
-            $sql_count = "SELECT COUNT(*) FROM project WHERE project_name LIKE ? AND writed_status != 'ร่างโครงการ'";
-            $stmt_count = $conn->prepare($sql_count);
-            $stmt_count->bind_param("s", $search_param);
+            $base_where = " WHERE p.project_name LIKE ? AND p.writed_status != 'ร่างโครงการ'";
+            
+            $count_sql = "SELECT COUNT(*) FROM project p" . $base_where . $sorting['where_sql'];
+            $stmt_count = $conn->prepare($count_sql);
+
+            $count_params = [$search_param];
+            $count_param_types = "s";
+            if ($sorting['where_param_value'] !== null) {
+                $count_params[] = $sorting['where_param_value'];
+                $count_param_types .= $sorting['where_param_type'];
+            }
+            $stmt_count->bind_param($count_param_types, ...$count_params);
             $stmt_count->execute();
             $stmt_count->bind_result($total_items);
             $stmt_count->fetch();
@@ -415,13 +427,21 @@ try {
             $sql_data = "SELECT
                             p.project_id, p.project_name, p.start_date, p.end_date, p.project_des, p.files, p.attendee, p.phone_num, p.advisor_name, p.writed_status, p.created_date,
                             at.activity_type_name, CONCAT(u.user_THname, ' ', u.user_THsur) AS user_name
-                         FROM project p
-                         LEFT JOIN user u ON p.nontri_id = u.nontri_id
-                         LEFT JOIN activity_type at ON p.activity_type_id = at.activity_type_id
-                         WHERE p.project_name LIKE ? AND p.writed_status != 'ร่างโครงการ'
-                         ORDER BY p.created_date DESC LIMIT ? OFFSET ?";
+                        FROM project p
+                        LEFT JOIN user u ON p.nontri_id = u.nontri_id
+                        LEFT JOIN activity_type at ON p.activity_type_id = at.activity_type_id"
+                        . $base_where . $sorting['where_sql']
+                        . $sorting['order_by_sql'] . " LIMIT ? OFFSET ?";
+            
             $stmt_data = $conn->prepare($sql_data);
-            $stmt_data->bind_param("sii", $search_param, $items_per_page, $offset);
+
+            $data_params = $count_params; // Start with the same params as count
+            $data_param_types = $count_param_types;
+            $data_params[] = $items_per_page;
+            $data_params[] = $offset;
+            $data_param_types .= "ii";
+
+            $stmt_data->bind_param($data_param_types, ...$data_params);
             $stmt_data->execute();
             $result_data = $stmt_data->get_result();
             while ($row = $result_data->fetch_assoc()) {
@@ -481,30 +501,47 @@ try {
         }
     } elseif ($main_tab == 'buildings_admin') {
         if ($mode == 'list') {
+            $sort_filter = $_GET['sort_filter'] ?? 'date_desc';
+            $sorting = getSortingClauses('buildings_admin', $sort_filter);
 
-            $sql_count = "SELECT COUNT(*)
-                          FROM facilities_requests fr
-                          JOIN project p ON fr.project_id = p.project_id
-                          JOIN facilities f ON fr.facility_id = f.facility_id
-                          WHERE fr.writed_status != 'ร่างคำร้องขอ' AND (p.project_name LIKE ? OR f.facility_name LIKE ?)";
-            $stmt_count = $conn->prepare($sql_count);
-            $stmt_count->bind_param("ss", $search_param, $search_param);
+            $base_where = " WHERE fr.writed_status != 'ร่างคำร้องขอ' AND (p.project_name LIKE ? OR f.facility_name LIKE ?)";
+            
+            // --- COUNT QUERY ---
+            $count_sql = "SELECT COUNT(*) FROM facilities_requests fr JOIN project p ON fr.project_id = p.project_id JOIN facilities f ON fr.facility_id = f.facility_id" . $base_where . $sorting['where_sql'];
+            $stmt_count = $conn->prepare($count_sql);
+
+            $count_params = [$search_param, $search_param];
+            $count_param_types = "ss";
+            if ($sorting['where_param_value'] !== null) {
+                $count_params[] = $sorting['where_param_value'];
+                $count_param_types .= $sorting['where_param_type'];
+            }
+            $stmt_count->bind_param($count_param_types, ...$count_params);
             $stmt_count->execute();
             $stmt_count->bind_result($total_items);
             $stmt_count->fetch();
             $stmt_count->close();
 
+            // --- DATA QUERY ---
             $sql_data = "SELECT
                             fr.facility_re_id, fr.request_date, fr.writed_status, fr.start_date, fr.end_date, fr.prepare_start_date, fr.prepare_end_date, fr.start_time, fr.end_time, fr.approve,
                             f.facility_name, p.project_name, CONCAT(u.user_THname, ' ', u.user_THsur) AS user_name
-                         FROM facilities_requests fr
-                         JOIN facilities f ON fr.facility_id = f.facility_id
-                         JOIN project p ON fr.project_id = p.project_id
-                         LEFT JOIN user u ON p.nontri_id = u.nontri_id
-                         WHERE fr.writed_status != 'ร่างคำร้องขอ' AND (p.project_name LIKE ? OR f.facility_name LIKE ?)
-                         ORDER BY fr.request_date DESC LIMIT ? OFFSET ?";
+                        FROM facilities_requests fr
+                        JOIN facilities f ON fr.facility_id = f.facility_id
+                        JOIN project p ON fr.project_id = p.project_id
+                        LEFT JOIN user u ON p.nontri_id = u.nontri_id"
+                        . $base_where . $sorting['where_sql']
+                        . $sorting['order_by_sql'] . " LIMIT ? OFFSET ?";
+            
             $stmt_data = $conn->prepare($sql_data);
-            $stmt_data->bind_param("ssii", $search_param, $search_param, $items_per_page, $offset);
+
+            $data_params = $count_params;
+            $data_param_types = $count_param_types;
+            $data_params[] = $items_per_page;
+            $data_params[] = $offset;
+            $data_param_types .= "ii";
+
+            $stmt_data->bind_param($data_param_types, ...$data_params);
             $stmt_data->execute();
             $result_data = $stmt_data->get_result();
             while ($row = $result_data->fetch_assoc()) {
@@ -539,31 +576,48 @@ try {
         }
     } elseif ($main_tab == 'equipments_admin') {
         if ($mode == 'list') {
+            $sort_filter = $_GET['sort_filter'] ?? 'date_desc';
+            $sorting = getSortingClauses('equipments_admin', $sort_filter);
 
-            $sql_count = "SELECT COUNT(*)
-                          FROM equipments_requests er
-                          JOIN project p ON er.project_id = p.project_id
-                          JOIN equipments e ON er.equip_id = e.equip_id
-                          WHERE er.writed_status != 'ร่างคำร้องขอ' AND (p.project_name LIKE ? OR e.equip_name LIKE ?)";
-            $stmt_count = $conn->prepare($sql_count);
-            $stmt_count->bind_param("ss", $search_param, $search_param);
+            $base_where = " WHERE er.writed_status != 'ร่างคำร้องขอ' AND (p.project_name LIKE ? OR e.equip_name LIKE ?)";
+
+            // --- COUNT QUERY ---
+            $count_sql = "SELECT COUNT(*) FROM equipments_requests er JOIN project p ON er.project_id = p.project_id JOIN equipments e ON er.equip_id = e.equip_id" . $base_where . $sorting['where_sql'];
+            $stmt_count = $conn->prepare($count_sql);
+
+            $count_params = [$search_param, $search_param];
+            $count_param_types = "ss";
+            if ($sorting['where_param_value'] !== null) {
+                $count_params[] = $sorting['where_param_value'];
+                $count_param_types .= $sorting['where_param_type'];
+            }
+            $stmt_count->bind_param($count_param_types, ...$count_params);
             $stmt_count->execute();
             $stmt_count->bind_result($total_items);
             $stmt_count->fetch();
             $stmt_count->close();
 
+            // --- DATA QUERY ---
             $sql_data = "SELECT
                             er.equip_re_id, er.request_date, er.writed_status, er.start_date, er.end_date, er.quantity, er.transport, er.approve,
                             e.equip_name, e.measure, f.facility_name, p.project_name, CONCAT(u.user_THname, ' ', u.user_THsur) AS user_name
-                         FROM equipments_requests er
-                         JOIN equipments e ON er.equip_id = e.equip_id
-                         JOIN project p ON er.project_id = p.project_id
-                         LEFT JOIN facilities f ON er.facility_id = f.facility_id
-                         LEFT JOIN user u ON p.nontri_id = u.nontri_id
-                         WHERE er.writed_status != 'ร่างคำร้องขอ' AND (p.project_name LIKE ? OR e.equip_name LIKE ?)
-                         ORDER BY er.request_date DESC LIMIT ? OFFSET ?";
+                        FROM equipments_requests er
+                        JOIN equipments e ON er.equip_id = e.equip_id
+                        JOIN project p ON er.project_id = p.project_id
+                        LEFT JOIN facilities f ON er.facility_id = f.facility_id
+                        LEFT JOIN user u ON p.nontri_id = u.nontri_id"
+                        . $base_where . $sorting['where_sql']
+                        . $sorting['order_by_sql'] . " LIMIT ? OFFSET ?";
+            
             $stmt_data = $conn->prepare($sql_data);
-            $stmt_data->bind_param("ssii", $search_param, $search_param, $items_per_page, $offset);
+
+            $data_params = $count_params;
+            $data_param_types = $count_param_types;
+            $data_params[] = $items_per_page;
+            $data_params[] = $offset;
+            $data_param_types .= "ii";
+
+            $stmt_data->bind_param($data_param_types, ...$data_params);
             $stmt_data->execute();
             $result_data = $stmt_data->get_result();
             while ($row = $result_data->fetch_assoc()) {
@@ -841,12 +895,35 @@ $total_pages = ceil($total_items / $items_per_page);
                     ?>
                 </h1>
                 <div class="d-flex justify-content-end mb-3">
-                    <form class="d-flex" action="" method="GET">
+                    <form class="d-flex align-items-center" action="" method="GET">
                         <input type="hidden" name="main_tab" value="<?php echo htmlspecialchars($main_tab); ?>">
                         <input type="hidden" name="mode" value="list">
+                        
+                        <!-- Dropdown สำหรับการเรียงลำดับและกรอง -->
+                        <select name="sort_filter" class="form-select me-2" onchange="this.form.submit()" style="width: auto;">
+                            <optgroup label="เรียงตามวันที่">
+                                <option value="date_desc" <?php echo (($_GET['sort_filter'] ?? 'date_desc') == 'date_desc') ? 'selected' : ''; ?>>ใหม่สุดไปเก่าสุด</option>
+                                <option value="date_asc" <?php echo (($_GET['sort_filter'] ?? '') == 'date_asc') ? 'selected' : ''; ?>>เก่าสุดไปใหม่สุด</option>
+                            </optgroup>
+                            <optgroup label="กรองตามสถานะ">
+                                <?php if ($main_tab == 'projects_admin'): ?>
+                                    <option value="ส่งโครงการ" <?php echo (($_GET['sort_filter'] ?? '') == 'ส่งโครงการ') ? 'selected' : ''; ?>>ส่งโครงการ</option>
+                                    <option value="เริ่มดำเนินการ" <?php echo (($_GET['sort_filter'] ?? '') == 'เริ่มดำเนินการ') ? 'selected' : ''; ?>>เริ่มดำเนินการ</option>
+                                    <option value="สิ้นสุดโครงการ" <?php echo (($_GET['sort_filter'] ?? '') == 'สิ้นสุดโครงการ') ? 'selected' : ''; ?>>สิ้นสุดโครงการ</option>
+                                <?php elseif (in_array($main_tab, ['buildings_admin', 'equipments_admin'])): ?>
+                                    <option value="ส่งคำร้องขอ" <?php echo (($_GET['sort_filter'] ?? '') == 'ส่งคำร้องขอ') ? 'selected' : ''; ?>>ส่งคำร้องขอ</option>
+                                    <option value="อนุมัติ" <?php echo (($_GET['sort_filter'] ?? '') == 'อนุมัติ') ? 'selected' : ''; ?>>อนุมัติ</option>
+                                    <option value="ไม่อนุมัติ" <?php echo (($_GET['sort_filter'] ?? '') == 'ไม่อนุมัติ') ? 'selected' : ''; ?>>ไม่อนุมัติ</option>
+                                    <!-- เพิ่ม 2 บรรทัดนี้ -->
+                                    <option value="เริ่มดำเนินการ" <?php echo (($_GET['sort_filter'] ?? '') == 'เริ่มดำเนินการ') ? 'selected' : ''; ?>>เริ่มดำเนินการ</option>
+                                    <option value="สิ้นสุดดำเนินการ" <?php echo (($_GET['sort_filter'] ?? '') == 'สิ้นสุดดำเนินการ') ? 'selected' : ''; ?>>สิ้นสุดดำเนินการ</option>
+                                <?php endif; ?>
+                            </optgroup>
+                        </select>
+                        
                         <input class="form-control me-2" type="search" placeholder="ค้นหา..." aria-label="Search" name="search" value="<?php echo htmlspecialchars($search_query); ?>">
                         <button class="btn btn-outline-success" type="submit">ค้นหา</button>
-                        <?php if (!empty($search_query)): ?>
+                        <?php if (!empty($search_query) || !empty($_GET['sort_filter'])): ?>
                             <a href="?main_tab=<?php echo htmlspecialchars($main_tab); ?>&mode=list" class="btn btn-outline-secondary ms-2">ล้าง</a>
                         <?php endif; ?>
                     </form>
@@ -973,23 +1050,32 @@ $total_pages = ceil($total_items / $items_per_page);
                     <!-- Pagination -->
                     <nav aria-label="Page navigation">
                         <ul class="pagination justify-content-center">
+                            <?php
+                            // สร้างตัวแปรสำหรับพารามิเตอร์เสริมให้เรียบร้อยก่อนใช้งาน
+                            // ใช้ urlencode() เพื่อความปลอดภัยในการส่งค่าผ่าน URL
+                            $search_param = !empty($search_query) ? '&search=' . urlencode($search_query) : '';
+                            $sort_param = !empty($_GET['sort_filter']) ? '&sort_filter=' . urlencode($_GET['sort_filter']) : '';
+                            ?>
+
                             <?php if ($current_page > 1): ?>
                                 <li class="page-item">
-                                    <a class="page-link" href="?main_tab=<?php echo htmlspecialchars($main_tab); ?>&mode=list&page=<?php echo $current_page - 1; ?><?php echo !empty($search_query) ? '&search=' . htmlspecialchars($search_query) : ''; ?>">ก่อนหน้า</a>
+                                    <a class="page-link" href="?main_tab=<?php echo htmlspecialchars($main_tab); ?>&mode=list&page=<?php echo $current_page - 1; ?><?php echo $search_param; ?><?php echo $sort_param; ?>">ก่อนหน้า</a>
                                 </li>
                             <?php endif; ?>
+
                             <?php for ($i = 1; $i <= $total_pages; $i++): ?>
                                 <li class="page-item <?php echo ($i == $current_page) ? 'active' : ''; ?>">
-                                    <a class="page-link" href="?main_tab=<?php echo htmlspecialchars($main_tab); ?>&mode=list&page=<?php echo $i; ?><?php echo !empty($search_query) ? '&search=' . htmlspecialchars($search_query) : ''; ?>"><?php echo $i; ?></a>
+                                    <a class="page-link" href="?main_tab=<?php echo htmlspecialchars($main_tab); ?>&mode=list&page=<?php echo $i; ?><?php echo $search_param; ?><?php echo $sort_param; ?>"><?php echo $i; ?></a>
                                 </li>
                             <?php endfor; ?>
+
                             <?php if ($current_page < $total_pages): ?>
                                 <li class="page-item">
-                                    <a class="page-link" href="?main_tab=<?php echo htmlspecialchars($main_tab); ?>&mode=list&page=<?php echo $current_page + 1; ?><?php echo !empty($search_query) ? '&search=' . htmlspecialchars($search_query) : ''; ?>">ถัดไป</a>
+                                    <a class="page-link" href="?main_tab=<?php echo htmlspecialchars($main_tab); ?>&mode=list&page=<?php echo $current_page + 1; ?><?php echo $search_param; ?><?php echo $sort_param; ?>">ถัดไป</a>
                                 </li>
                             <?php endif; ?>
                         </ul>
-                    </nav>
+                    </nav
                 <?php endif; ?>
 
             <?php elseif ($mode == 'detail' && $detail_item): ?>

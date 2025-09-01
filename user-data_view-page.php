@@ -1,5 +1,6 @@
 <?php
 include 'database/database.php';
+require_once 'php/user_data-view.php';
 
 session_start();
 
@@ -16,136 +17,15 @@ $user_ENsur = htmlspecialchars($_SESSION['user_ENsur'] ?? 'N/A');
 $user_role = htmlspecialchars($_SESSION['role'] ?? 'N/A');
 $fa_de_name = htmlspecialchars($_SESSION['fa_de_name'] ?? 'N/A');
 
-$items_per_page = 9;
-$current_page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-$offset = ($current_page - 1) * $items_per_page;
-$search_query = isset($_GET['search']) ? trim($_GET['search']) : '';
-$search_param = '%' . $search_query . '%';
-
-$mode = isset($_GET['mode']) ? $_GET['mode'] : 'buildings';
-
-$data = [];
-$total_items = 0;
-$detail_item = null; 
-
-try {
-    if ($mode == 'buildings') {
-        $sql_count = "SELECT COUNT(*) FROM buildings WHERE building_name LIKE ?";
-        $stmt_count = $conn->prepare($sql_count);
-        $stmt_count->bind_param("s", $search_param);
-        $stmt_count->execute();
-        $stmt_count->bind_result($total_items);
-        $stmt_count->fetch();
-        $stmt_count->close();
-
-        $sql_data = "SELECT building_id, building_name, building_pic FROM buildings WHERE building_name LIKE ? ORDER BY building_id ASC LIMIT ? OFFSET ?";
-        $stmt_data = $conn->prepare($sql_data);
-        $stmt_data->bind_param("sii", $search_param, $items_per_page, $offset);
-        $stmt_data->execute();
-        $result_data = $stmt_data->get_result();
-        while ($row = $result_data->fetch_assoc()) {
-            $data[] = $row;
-        }
-        $stmt_data->close();
-
-    } elseif ($mode == 'equipment') {
-        $sql_count = "SELECT COUNT(*) FROM equipments WHERE equip_name LIKE ?";
-        $stmt_count = $conn->prepare($sql_count);
-        $stmt_count->bind_param("s", $search_param);
-        $stmt_count->execute();
-        $stmt_count->bind_result($total_items);
-        $stmt_count->fetch();
-        $stmt_count->close();
-
-        $sql_data = "SELECT equip_id, equip_name, quantity, measure, size, equip_pic FROM equipments WHERE equip_name LIKE ? ORDER BY equip_id ASC LIMIT ? OFFSET ?";
-        $stmt_data = $conn->prepare($sql_data);
-        $stmt_data->bind_param("sii", $search_param, $items_per_page, $offset);
-        $stmt_data->execute();
-        $result_data = $stmt_data->get_result();
-        while ($row = $result_data->fetch_assoc()) {
-            $data[] = $row;
-        }
-        $stmt_data->close();
-
-    } elseif ($mode == 'building_detail' && isset($_GET['building_id'])) {
-
-        $building_id = (int)$_GET['building_id'];
-        $stmt_building = $conn->prepare("SELECT building_name, building_pic FROM buildings WHERE building_id = ?");
-        $stmt_building->bind_param("i", $building_id);
-        $stmt_building->execute();
-        $detail_item = $stmt_building->get_result()->fetch_assoc();
-        $stmt_building->close();
-
-        if ($detail_item) {
-
-            $sql_count = "SELECT COUNT(*) FROM facilities WHERE building_id = ? AND (facility_name LIKE ? OR facility_des LIKE ?)";
-            $stmt_count = $conn->prepare($sql_count);
-            $stmt_count->bind_param("iss", $building_id, $search_param, $search_param);
-            $stmt_count->execute();
-            $stmt_count->bind_result($total_items);
-            $stmt_count->fetch();
-            $stmt_count->close();
-
-            $sql_data = "SELECT facility_id, facility_name, facility_des, facility_pic FROM facilities WHERE building_id = ? AND (facility_name LIKE ? OR facility_des LIKE ?) ORDER BY facility_id ASC LIMIT ? OFFSET ?";
-            $stmt_data = $conn->prepare($sql_data);
-            $stmt_data->bind_param("issii", $building_id, $search_param, $search_param, $items_per_page, $offset);
-            $stmt_data->execute();
-            $result_data = $stmt_data->get_result();
-            while ($row = $result_data->fetch_assoc()) {
-                $data[] = $row;
-            }
-            $stmt_data->close();
-        } else {
-            header("Location: ?mode=buildings&status=building_not_found");
-            exit();
-        }
-
-    } elseif ($mode == 'facility_detail' && isset($_GET['facility_id'])) {
-
-        $facility_id = (int)$_GET['facility_id'];
-
-        $stmt = $conn->prepare("SELECT f.facility_name, f.facility_des, f.facility_pic, f.building_id, b.building_name
-                                FROM facilities f
-                                JOIN buildings b ON f.building_id = b.building_id
-                                WHERE f.facility_id = ?");
-        $stmt->bind_param("i", $facility_id);
-        $stmt->execute();
-        $detail_item = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-
-        if (!$detail_item) {
-            header("Location: ?mode=buildings&status=facility_not_found");
-            exit();
-        }
-
-    } elseif ($mode == 'equip_detail' && isset($_GET['equip_id'])) {
-
-        $equip_id = (int)$_GET['equip_id'];
-
-        $stmt = $conn->prepare("SELECT equip_name, quantity, measure, size, equip_pic FROM equipments WHERE equip_id = ?");
-        $stmt->bind_param("i", $equip_id);
-        $stmt->execute();
-        $detail_item = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-
-        if (!$detail_item) {
-            header("Location: ?mode=equipment&status=equip_not_found");
-            exit();
-        }
-    }
-} catch (Exception $e) {
-    error_log("Database Error: " . $e->getMessage());
-}
-
-$conn->close();
-
-$total_pages = ceil($total_items / $items_per_page);
 ?>
 
 <!DOCTYPE html>
 <html lang="th">
 <head>
     <?php include 'header.php'?>
+    <link href='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css' rel='stylesheet' />
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js'></script>
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/locales/th.js'></script>
 </head>
 <body>
     <nav class="navbar navbar-dark navigator">
@@ -221,17 +101,24 @@ $total_pages = ceil($total_items / $items_per_page);
                 </ul>
             </div>
             <div class="col-md-6">
-                <form class="d-flex" action="" method="GET">
-                    <input type="hidden" name="mode" value="<?php echo htmlspecialchars($mode); ?>">
-                    <?php if ($mode == 'building_detail' && isset($_GET['building_id'])): ?>
-                        <input type="hidden" name="building_id" value="<?php echo htmlspecialchars($_GET['building_id']); ?>">
+                <div class="d-flex justify-content-end">
+                    <?php if ($mode == 'buildings' || $mode == 'building_detail'): ?>
+                        <button type="button" class="btn btn-warning me-2" data-bs-toggle="modal" data-bs-target="#calendarModal">
+                            <i class="bi bi-calendar-event"></i> ดูปฏิทินการขอใช้อาคารสถานที่
+                        </button>
                     <?php endif; ?>
-                    <input class="form-control me-2" type="search" placeholder="ค้นหา..." aria-label="Search" name="search" value="<?php echo htmlspecialchars($search_query); ?>">
-                        <button class="btn btn-outline-success" type="submit">ค้นหา</button>
-                    <?php if (!empty($search_query)): ?>
-                        <a href="?mode=<?php echo htmlspecialchars($mode); ?><?php echo ($mode == 'building_detail' && isset($_GET['building_id'])) ? '&building_id=' . htmlspecialchars($_GET['building_id']) : ''; ?>" class="btn btn-outline-secondary ms-2">ล้าง</a>
-                    <?php endif; ?>
-                </form>
+                    <form class="d-flex" action="" method="GET">
+                        <input type="hidden" name="mode" value="<?php echo htmlspecialchars($mode); ?>">
+                        <?php if ($mode == 'building_detail' && isset($_GET['building_id'])): ?>
+                            <input type="hidden" name="building_id" value="<?php echo htmlspecialchars($_GET['building_id']); ?>">
+                        <?php endif; ?>
+                        <input class="form-control me-2" type="search" placeholder="ค้นหา..." aria-label="Search" name="search" value="<?php echo htmlspecialchars($search_query); ?>">
+                            <button class="btn btn-outline-success" type="submit">ค้นหา</button>
+                        <?php if (!empty($search_query)): ?>
+                            <a href="?mode=<?php echo htmlspecialchars($mode); ?><?php echo ($mode == 'building_detail' && isset($_GET['building_id'])) ? '&building_id=' . htmlspecialchars($_GET['building_id']) : ''; ?>" class="btn btn-outline-secondary ms-2">ล้าง</a>
+                        <?php endif; ?>
+                    </form>
+                </div>
             </div>
         </div>
 
@@ -354,7 +241,20 @@ $total_pages = ceil($total_items / $items_per_page);
                                     <img src="<?php echo $img_src; ?>" class="card-img-top" alt="<?php echo $item_name; ?>">
                                 </a>
                                 <div class="card-body d-flex flex-column">
-                                    <h5 class="card-title text-center"><?php echo $item_name; ?></h5>
+                                    <?php if ($mode == 'buildings'): ?>
+                                        <h5 class="card-title text-center">
+                                            อาคาร <?php echo htmlspecialchars($item['building_id']); ?>: <?php echo htmlspecialchars($item['building_name']); ?>
+                                        </h5>
+                                        <?php if (!empty($search_query) && !empty($item['matched_facilities'])): ?>
+                                            <p class="card-text text-success mb-0 small text-center">
+                                                <i class="bi bi-search"></i> : <?php echo htmlspecialchars($item['matched_facilities']); ?>
+                                            </p>
+                                        <?php endif; ?>
+
+                                    <?php else: // สำหรับ mode อื่นๆ ใช้ h5 เดิม ?>
+                                        <h5 class="card-title text-center"><?php echo $item_name; ?></h5>
+                                    <?php endif; ?>
+                                    
                                     <?php if ($mode == 'equipment'): ?>
                                         <p class="card-text text-muted mb-0 small text-center">จำนวน: <?php echo htmlspecialchars($item['quantity'] . ' ' . $item['measure']); ?></p>
                                         <p class="card-text text-muted mb-0 small text-center">ขนาด: <?php echo htmlspecialchars($item['size']); ?></p>
@@ -395,7 +295,15 @@ $total_pages = ceil($total_items / $items_per_page);
         endif;
         ?>
     </div>
-
+    <?php 
+        if ($mode == 'buildings' || $mode == 'building_detail') {
+            include 'php/calendar.php';
+        }
+    ?>
+    <?php
+        $conn->close();
+    ?>
+    
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
 </body>
 </html>
