@@ -42,7 +42,7 @@ try {
                     LEFT JOIN facilities f ON b.building_id = f.building_id
                     WHERE b.building_name LIKE ? OR f.facility_name LIKE ?
                     GROUP BY b.building_id, b.building_name, b.building_pic
-                    ORDER BY b.building_id ASC
+                    ORDER BY CAST(b.building_id AS UNSIGNED) ASC
                     LIMIT ? OFFSET ?";
         
         $stmt_data = $conn->prepare($sql_data);

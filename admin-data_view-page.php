@@ -7,22 +7,149 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
 }
 
 include 'database/database.php';
-include 'php/admin_data-view.php';
+// Include ไฟล์ที่มี Logic การเพิ่มข้อมูลจริง ๆ
+include_once 'php/admin-injection.php'; // ใช้ admin-injection.php ที่มีฟังก์ชันการอัปโหลดและบันทึกข้อมูล
 
 // --- Session Data ---
 $staff_THname = htmlspecialchars($_SESSION['staff_THname'] ?? 'N/A');
 $staff_THsur = htmlspecialchars($_SESSION['staff_THsur'] ?? 'N/A');
 $user_role = htmlspecialchars($_SESSION['role'] ?? 'N/A');
 
-?>
+// --- Page Logic Configuration ---
+$mode = $_GET['mode'] ?? 'buildings';
+$errors = []; // เก็บข้อผิดพลาดจากการประมวลผลฟอร์ม (จาก admin-injection.php)
+$success_message = $_GET['message'] ?? ''; // ข้อความสำเร็จจากการ redirect
 
+// --- DATA FETCHING LOGIC (GET REQUESTS) ---
+$items_per_page = 9;
+$current_page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+$search_query = isset($_GET['search']) ? trim($_GET['search']) : '';
+$search_param = '%' . $search_query . '%';
+
+$data = [];
+$total_items = 0;
+$detail_item = null;
+
+// --- คำนวณ OFFSET และการ์ด "เพิ่ม" ที่ถูกต้อง ---
+$show_add_card = false;
+$items_to_fetch = $items_per_page;
+$offset = ($current_page - 1) * $items_per_page;
+
+if (empty($search_query) && ($mode == 'buildings' || $mode == 'equipment')) {
+    if ($current_page == 1) {
+        $show_add_card = true;
+        $items_to_fetch = $items_per_page - 1;
+        $offset = 0;
+    } else {
+        $offset = (($current_page - 1) * $items_per_page) - 1;
+    }
+}
+
+// --- ดึงข้อมูลหลักสำหรับแสดงรายการ (จะดึงข้อมูลก็ต่อเมื่อไม่ใช่โหมด Add/Edit) ---
+if (!in_array($mode, ['add_building', 'add_facility', 'add_equipment'])) {
+    try {
+        if ($mode == 'buildings') {
+            $sql_count = "SELECT COUNT(DISTINCT b.building_id) FROM buildings b LEFT JOIN facilities f ON b.building_id = f.building_id WHERE b.building_name LIKE ? OR f.facility_name LIKE ?";
+            $stmt_count = $conn->prepare($sql_count);
+            $stmt_count->bind_param("ss", $search_param, $search_param);
+            $stmt_count->execute();
+            $stmt_count->bind_result($total_items);
+            $stmt_count->fetch();
+            $stmt_count->close();
+            $sql_data = "SELECT b.building_id, b.building_name, b.building_pic, GROUP_CONCAT(CASE WHEN f.facility_name LIKE ? THEN f.facility_name ELSE NULL END SEPARATOR ', ') AS matched_facilities FROM buildings b LEFT JOIN facilities f ON b.building_id = f.building_id WHERE b.building_name LIKE ? OR f.facility_name LIKE ? GROUP BY b.building_id ORDER BY CAST(b.building_id AS UNSIGNED) ASC LIMIT ? OFFSET ?";
+            $stmt_data = $conn->prepare($sql_data);
+            $stmt_data->bind_param("sssii", $search_param, $search_param, $search_param, $items_to_fetch, $offset);
+            $stmt_data->execute();
+            $result_data = $stmt_data->get_result();
+            while ($row = $result_data->fetch_assoc()) { $data[] = $row; }
+            $stmt_data->close();
+        } elseif ($mode == 'equipment') {
+            $sql_count = "SELECT COUNT(*) FROM equipments WHERE equip_name LIKE ?";
+            $stmt_count = $conn->prepare($sql_count);
+            $stmt_count->bind_param("s", $search_param);
+            $stmt_count->execute();
+            $stmt_count->bind_result($total_items);
+            $stmt_count->fetch();
+            $stmt_count->close();
+            $sql_data = "SELECT equip_id, equip_name, quantity, measure, size, equip_pic FROM equipments WHERE equip_name LIKE ? ORDER BY equip_id ASC LIMIT ? OFFSET ?";
+            $stmt_data = $conn->prepare($sql_data);
+            $stmt_data->bind_param("sii", $search_param, $items_to_fetch, $offset);
+            $stmt_data->execute();
+            $result_data = $stmt_data->get_result();
+            while ($row = $result_data->fetch_assoc()) { $data[] = $row; }
+            $stmt_data->close();
+        } elseif ($mode == 'building_detail' && isset($_GET['building_id'])) {
+            $building_id = (int)$_GET['building_id'];
+            $stmt_building = $conn->prepare("SELECT building_id, building_name, building_pic FROM buildings WHERE building_id = ?");
+            $stmt_building->bind_param("i", $building_id);
+            $stmt_building->execute();
+            $detail_item = $stmt_building->get_result()->fetch_assoc();
+            $stmt_building->close();
+
+            if ($detail_item) {
+                $sql_count = "SELECT COUNT(*) FROM facilities WHERE building_id = ? AND (facility_name LIKE ? OR facility_des LIKE ?)";
+                $stmt_count = $conn->prepare($sql_count);
+                $stmt_count->bind_param("iss", $building_id, $search_param, $search_param);
+                $stmt_count->execute();
+                $stmt_count->bind_result($total_items);
+                $stmt_count->fetch();
+                $stmt_count->close();
+                $sql_data = "SELECT facility_id, facility_name, facility_des, facility_pic FROM facilities WHERE building_id = ? AND (facility_name LIKE ? OR facility_des LIKE ?) ORDER BY facility_id ASC LIMIT ? OFFSET ?";
+                $stmt_data = $conn->prepare($sql_data);
+                $stmt_data->bind_param("issii", $building_id, $search_param, $search_param, $items_per_page, $offset);
+                $stmt_data->execute();
+                $result_data = $stmt_data->get_result();
+                while ($row = $result_data->fetch_assoc()) { $data[] = $row; }
+                $stmt_data->close();
+            } else {
+                header("Location: admin-data_view-page.php?mode=buildings&status=building_not_found");
+                exit();
+            }
+        } elseif ($mode == 'facility_detail' && isset($_GET['facility_id'])) {
+            $facility_id = (int)$_GET['facility_id'];
+            $stmt = $conn->prepare("SELECT f.facility_name, f.facility_des, f.facility_pic, f.building_id, b.building_name FROM facilities f JOIN buildings b ON f.building_id = b.building_id WHERE f.facility_id = ?");
+            $stmt->bind_param("i", $facility_id);
+            $stmt->execute();
+            $detail_item = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            if (!$detail_item) {
+                header("Location: admin-data_view-page.php?mode=buildings&status=facility_not_found");
+                exit();
+            }
+        } elseif ($mode == 'equip_detail' && isset($_GET['equip_id'])) {
+            $equip_id = (int)$_GET['equip_id'];
+            $stmt = $conn->prepare("SELECT equip_id, equip_name, quantity, measure, size, equip_pic FROM equipments WHERE equip_id = ?");
+            $stmt->bind_param("i", $equip_id);
+            $stmt->execute();
+            $detail_item = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            if (!$detail_item) {
+                header("Location: admin-data_view-page.php?mode=equipment&status=equip_not_found");
+                exit();
+            }
+        }
+    } catch (Exception $e) {
+        error_log("Database Error: " . $e->getMessage());
+        $errors[] = "เกิดข้อผิดพลาดในการดึงข้อมูล: " . $e->getMessage();
+    }
+    $total_pages_items = $show_add_card ? $total_items + 1 : $total_items;
+    $total_pages = ceil($total_pages_items / $items_per_page);
+}
+
+$buildings = []; // สำหรับฟอร์มเพิ่มสถานที่ (ถ้าอยู่ในโหมด add_facility)
+if ($mode == 'add_facility') {
+    $result_buildings = $conn->query("SELECT building_id, building_name FROM buildings ORDER BY building_name");
+    if ($result_buildings) {
+        while ($row = $result_buildings->fetch_assoc()) {
+            $buildings[] = $row;
+        }
+    }
+}
+?>
 <!DOCTYPE html>
 <html lang="th">
 <head>
-    <?php include 'header.php'?>
-    <link href='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css' rel='stylesheet' />
-    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js'></script>
-    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/locales/th.js'></script>
+    <?php include 'header.php'; ?>
 </head>
 <body>
     <nav class="navbar navbar-dark navigator">
@@ -53,9 +180,80 @@ $user_role = htmlspecialchars($_SESSION['role'] ?? 'N/A');
     </nav>
 
     <div class="container mt-0">
-        <?php if ($mode !== 'add_building' && $mode !== 'add_facility' && $mode !== 'add_equipment') : ?>
+        <?php // === ส่วนแสดงฟอร์มเพิ่มข้อมูล (เมื่อ $mode เป็น add_building, add_facility, add_equipment) === ?>
+        <?php if (in_array($mode, ['add_building', 'add_facility', 'add_equipment'])) : ?>
+            <div class="card shadow-sm p-4 mt-3">
+                <?php if (!empty($errors)): // แสดง error เหนือฟอร์ม ?>
+                    <div class="alert alert-danger" role="alert">
+                        <h4 class="alert-heading">เกิดข้อผิดพลาด!</h4>
+                        <ul>
+                            <?php foreach ($errors as $error): ?>
+                                <li><?php echo htmlspecialchars($error); ?></li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
+                <?php endif; ?>
+
+                <?php if ($mode == 'add_building'): ?>
+                    <h2 class="mb-4 text-center fw-bold fs-5">สร้างอาคารใหม่</h2>
+                    <form action="admin-data_view-page.php?mode=add_building" method="POST" enctype="multipart/form-data">
+                        <input type="hidden" name="inject_type" value="building">
+                        <div class="mb-3"><label for="building_id" class="form-label fw-bold">หมายเลขอาคาร:</label><input type="text" id="building_id" name="building_id" class="form-control" value="<?php echo htmlspecialchars($_POST['building_id'] ?? ''); ?>" required></div>
+                        <div class="mb-3"><label for="building_name" class="form-label fw-bold">ชื่ออาคาร:</label><input type="text" id="building_name" name="building_name" class="form-control" value="<?php echo htmlspecialchars($_POST['building_name'] ?? ''); ?>" required></div>
+                        <div class="mb-3"><label for="building_pic" class="form-label fw-bold">รูปภาพ:</label><input type="file" id="building_pic" name="building_pic" class="form-control" accept="image/*"></div>
+                        <div class="d-flex gap-2 mt-4"><button type="submit" class="btn btn-primary btn-lg flex-fill">บันทึก</button><a href="admin-data_view-page.php?mode=buildings" class="btn btn-secondary btn-lg flex-fill">ยกเลิก</a></div>
+                    </form>
+                <?php elseif ($mode == 'add_facility'): ?>
+                    <h2 class="mb-4 text-center fw-bold fs-5">สร้างสถานที่ใหม่</h2>
+                    <form action="admin-data_view-page.php?mode=add_facility&building_id=<?php echo htmlspecialchars($_GET['building_id'] ?? ''); ?>" method="POST" enctype="multipart/form-data">
+                        <input type="hidden" name="inject_type" value="facility">
+                        <input type="hidden" name="building_id" value="<?php echo htmlspecialchars($_GET['building_id'] ?? ''); ?>">
+                        <div class="mb-3">
+                            <label for="facility_name" class="form-label fw-bold">ชื่อสถานที่ (Facility Name):</label>
+                            <input type="text" id="facility_name" name="facility_name" class="form-control" value="<?php echo htmlspecialchars($_POST['facility_name'] ?? ''); ?>" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="facility_des" class="form-label fw-bold">รายละเอียดสถานที่ (Description):</label>
+                            <textarea id="facility_des" name="facility_des" rows="4" class="form-control"><?php echo htmlspecialchars($_POST['facility_des'] ?? ''); ?></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="facility_pic" class="form-label fw-bold">รูปภาพ (Image):</label>
+                            <input type="file" id="facility_pic" name="facility_pic" class="form-control" accept="image/*">
+                        </div>
+                        <?php
+                        $selected_building_name = '';
+                        if (isset($_GET['building_id'])) {
+                            foreach ($buildings as $building) {
+                                if ($building['building_id'] == $_GET['building_id']) {
+                                    $selected_building_name = $building['building_name'];
+                                    break;
+                                }
+                            }
+                        }
+                        ?>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">อาคาร:</label>
+                            <input type="text" class="form-control" value="<?php echo htmlspecialchars($selected_building_name); ?>" readonly>
+                        </div>
+                        <div class="d-flex gap-2 mt-4"><button type="submit" class="btn btn-primary btn-lg flex-fill">บันทึก</button><a href="admin-data_view-page.php?mode=building_detail&building_id=<?php echo htmlspecialchars($_GET['building_id'] ?? ''); ?>" class="btn btn-secondary btn-lg flex-fill">ยกเลิก</a></div>
+                    </form>
+                <?php elseif ($mode == 'add_equipment'): ?>
+                    <h2 class="mb-4 text-center fw-bold fs-5">เพิ่มอุปกรณ์ใหม่</h2>
+                    <form action="admin-data_view-page.php?mode=add_equipment" method="POST" enctype="multipart/form-data">
+                        <input type="hidden" name="inject_type" value="equipment">
+                        <div class="mb-3"><label for="equip_name" class="form-label fw-bold">ชื่ออุปกรณ์:</label><input type="text" id="equip_name" name="equip_name" class="form-control" value="<?php echo htmlspecialchars($_POST['equip_name'] ?? ''); ?>" required></div>
+                        <div class="mb-3"><label for="quantity" class="form-label fw-bold">จำนวน:</label><input type="number" id="quantity" name="quantity" class="form-control" value="<?php echo htmlspecialchars($_POST['quantity'] ?? '1'); ?>" min="1" required></div>
+                        <div class="mb-3"><label for="measure" class="form-label fw-bold">หน่วยวัด:</label><input type="text" id="measure" name="measure" class="form-control" value="<?php echo htmlspecialchars($_POST['measure'] ?? ''); ?>"></div>
+                        <div class="mb-3"><label for="size" class="form-label fw-bold">ขนาด:</label><input type="text" id="size" name="size" class="form-control" value="<?php echo htmlspecialchars($_POST['size'] ?? ''); ?>"></div>
+                        <div class="mb-3"><label for="equip_pic" class="form-label fw-bold">รูปภาพอุปกรณ์:</label><input type="file" id="equip_pic" name="equip_pic" class="form-control" accept="image/*"></div>
+                        <div class="d-flex gap-2 mt-4"><button type="submit" class="btn btn-primary btn-lg flex-fill">บันทึก</button><a href="admin-data_view-page.php?mode=equipment" class="btn btn-secondary btn-lg flex-fill">ยกเลิก</a></div>
+                    </form>
+                <?php endif; ?>
+            </div>
+
+        <?php else: // === ส่วนแสดงรายการข้อมูลปกติ (เมื่อ $mode ไม่ใช่ add_...) === ?>
             <h1 class="mb-3 text-center">การจัดการอาคาร สถานที่และอุปกรณ์</h1>
-            <?php if (!empty($errors)): ?>
+            <?php if (!empty($errors)): // แสดง error ที่เกิดจากการดึงข้อมูล ?>
                 <div class="alert alert-danger" role="alert">
                     <h4 class="alert-heading">เกิดข้อผิดพลาด!</h4>
                     <ul>
@@ -66,32 +264,33 @@ $user_role = htmlspecialchars($_SESSION['role'] ?? 'N/A');
                 </div>
             <?php endif; ?>
 
-            <?php if (isset($_GET['status'])): ?>
-                <?php if ($_GET['status'] == 'building_not_found'): ?>
-                    <div class="alert alert-warning" role="alert">
+            <?php if (isset($_GET['status']) && $_GET['status'] == 'success'): // แสดงข้อความสำเร็จจากการเพิ่มข้อมูล ?>
+                <div class="alert alert-success" role="alert">
+                    <h4 class="alert-heading">สำเร็จ!</h4>
+                    <p><?php echo htmlspecialchars($_GET['message'] ?? 'บันทึกข้อมูลสำเร็จแล้ว!'); ?></p>
+                </div>
+            <?php elseif (isset($_GET['status'])): // แสดงสถานะอื่นๆ ?>
+                <div class="alert alert-warning" role="alert">
+                    <?php if ($_GET['status'] == 'building_not_found'): ?>
                         ไม่พบข้อมูลอาคารที่คุณร้องขอ
-                    </div>
-                <?php elseif ($_GET['status'] == 'facility_not_found'): ?>
-                    <div class="alert alert-warning" role="alert">
+                    <?php elseif ($_GET['status'] == 'facility_not_found'): ?>
                         ไม่พบข้อมูลสิ่งอำนวยความสะดวกที่คุณร้องขอ
-                    </div>
-                <?php elseif ($_GET['status'] == 'equip_not_found'): ?>
-                    <div class="alert alert-warning" role="alert">
+                    <?php elseif ($_GET['status'] == 'equip_not_found'): ?>
                         ไม่พบข้อมูลอุปกรณ์ที่คุณร้องขอ
-                    </div>
-                <?php endif; ?>
+                    <?php endif; ?>
+                </div>
             <?php endif; ?>
 
             <div class="row mb-3 align-items-center">
                 <div class="col-md-6">
                     <ul class="nav nav-tabs">
                         <li class="nav-item">
-                            <a class="nav-link <?php echo ($mode == 'buildings' || $mode == 'building_detail' || $mode == 'facility_detail') ? 'active' : ''; ?>" aria-current="page" href="?mode=buildings">
+                            <a class="nav-link <?php echo ($mode == 'buildings' || $mode == 'building_detail' || $mode == 'facility_detail') ? 'active' : ''; ?>" aria-current="page" href="admin-data_view-page.php?mode=buildings">
                                 <i class="bi bi-building"></i> อาคารทั้งหมด
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link <?php echo ($mode == 'equipment' || $mode == 'equip_detail') ? 'active' : ''; ?>" href="?mode=equipment">
+                            <a class="nav-link <?php echo ($mode == 'equipment' || $mode == 'equip_detail') ? 'active' : ''; ?>" href="admin-data_view-page.php?mode=equipment">
                                 <i class="bi bi-tools"></i> อุปกรณ์ทั้งหมด
                             </a>
                         </li>
@@ -105,7 +304,7 @@ $user_role = htmlspecialchars($_SESSION['role'] ?? 'N/A');
                             </button>
                         <?php endif; ?>
 
-                        <form class="d-flex" action="" method="GET">
+                        <form class="d-flex" action="admin-data_view-page.php" method="GET">
                             <input type="hidden" name="mode" value="<?php echo htmlspecialchars($mode); ?>">
                             <?php if ($mode == 'building_detail' && isset($_GET['building_id'])): ?>
                                 <input type="hidden" name="building_id" value="<?php echo htmlspecialchars($_GET['building_id']); ?>">
@@ -113,133 +312,17 @@ $user_role = htmlspecialchars($_SESSION['role'] ?? 'N/A');
                             <input class="form-control me-2" type="search" placeholder="ค้นหา..." aria-label="Search" name="search" value="<?php echo htmlspecialchars($search_query); ?>">
                                 <button class="btn btn-outline-success" type="submit">ค้นหา</button>
                             <?php if (!empty($search_query)): ?>
-                                <a href="?mode=<?php echo htmlspecialchars($mode); ?><?php echo ($mode == 'building_detail' && isset($_GET['building_id'])) ? '&building_id=' . htmlspecialchars($_GET['building_id']) : ''; ?>" class="btn btn-outline-secondary ms-2">ล้าง</a>
+                                <a href="admin-data_view-page.php?mode=<?php echo htmlspecialchars($mode); ?><?php echo ($mode == 'building_detail' && isset($_GET['building_id'])) ? '&building_id=' . htmlspecialchars($_GET['building_id']) : ''; ?>" class="btn btn-secondary ms-2">ล้าง</a>
                             <?php endif; ?>
                         </form>
                     </div>
                 </div>
-            <?php endif; ?>
-
-            <?php if (in_array($mode, ['add_building', 'add_facility', 'add_equipment'])): ?>
-            
-            <div class="card shadow-sm p-4">
-                <?php if ($mode == 'add_building'): ?>
-                    <div class="form-section">
-                        <h2 class="mb-4 text-center fw-bold fs-5">สร้างอาคารใหม่</h2>
-                        <form action="admin-data_view-page.php?mode=add_building" method="POST" enctype="multipart/form-data">
-                            <input type="hidden" name="action" value="add_building">
-                            <div class="mb-3">
-                                <label for="building_id" class="form-label fs-6 fw-bold">หมายเลขอาคาร (Building Number):</label>
-                                <input type="text" id="building_id" name="building_id"
-                                    class="form-control fs-6"
-                                    value="<?php echo htmlspecialchars($_POST['building_id'] ?? ''); ?>" required>
-                            </div>
-                            <div class="mb-3">
-                                <label for="building_name" class="form-label fs-6 fw-bold">ชื่ออาคาร (Building Name):</label>
-                                <input type="text" id="building_name" name="building_name"
-                                    class="form-control fs-6"
-                                    value="<?php echo htmlspecialchars($_POST['building_name'] ?? ''); ?>" required>
-                            </div>
-                            <div class="mb-3">
-                                <label for="building_pic" class="form-label fs-6 fw-bold">รูปภาพ (Image):</label>
-                                <input type="file" id="building_pic" name="building_pic" accept="image/*" class="form-control fs-6">
-                            </div>
-                            <div class="d-flex gap-2">
-                                <button type="submit" class="btn btn-primary btn-lg fw-bold flex-fill">บันทึกข้อมูลอาคาร</button>
-                                <a href="admin-data_view-page.php?mode=buildings" class="btn btn-secondary btn-lg fw-bold flex-fill">ยกเลิก</a>
-                            </div>
-                        </form>
-                    </div>
-                <?php elseif ($mode == 'add_facility'): ?>
-                    <div class="form-section">
-                        <h2 class="mb-4 text-center fw-bold fs-5">สร้างสถานที่ใหม่</h2>
-                        <form action="admin-data_view-page.php?mode=add_facility" method="POST" enctype="multipart/form-data">
-                            <input type="hidden" name="action" value="add_facility">
-                            <div class="mb-3">
-                                <label for="facility_name" class="form-label fs-6 fw-bold">ชื่อสถานที่ (Facility Name):</label>
-                                <input type="text" id="facility_name" name="facility_name"
-                                    class="form-control fs-6"
-                                    value="<?php echo htmlspecialchars($_POST['facility_name'] ?? ''); ?>" required>
-                            </div>
-                            <div class="mb-3">
-                                <label for="facility_des" class="form-label fs-6 fw-bold">รายละเอียดสถานที่ (Description):</label>
-                                <textarea id="facility_des" name="facility_des" rows="4" class="form-control fs-6"><?php echo htmlspecialchars($_POST['facility_des'] ?? ''); ?></textarea>
-                            </div>
-                            <div class="mb-3">
-                                <label for="facility_pic" class="form-label fs-6 fw-bold">รูปภาพ (Image):</label>
-                                <input type="file" id="facility_pic" name="facility_pic" accept="image/*" class="form-control fs-6">
-                            </div>
-                            <?php
-
-                            $selected_building_name = '';
-                            if (isset($_GET['building_id'])) {
-                                foreach ($buildings as $building) {
-                                    if ($building['building_id'] == $_GET['building_id']) {
-                                        $selected_building_name = $building['building_name'];
-                                        break;
-                                    }
-                                }
-                            }
-                            ?>
-                            <div class="mb-3">
-                                <label class="form-label fs-6 fw-bold">อาคาร:</label>
-                                <input type="text" class="form-control fs-6" value="<?php echo htmlspecialchars($selected_building_name); ?>" readonly>
-                                <input type="hidden" name="building_id" value="<?php echo htmlspecialchars($_GET['building_id'] ?? ''); ?>">
-                            </div>
-                            <div class="d-flex gap-2">
-                                <button type="submit" class="btn btn-primary btn-lg fw-bold flex-fill">บันทึกข้อมูลสถานที่</button>
-                                <a href="admin-data_view-page.php?mode=building_detail&building_id=<?php echo htmlspecialchars($_GET['building_id'] ?? ''); ?>" class="btn btn-secondary btn-lg fw-bold flex-fill">ยกเลิก</a>
-                            </div>
-                        </form>
-                    </div>
-                <?php elseif ($mode == 'add_equipment'): ?>
-                    <div class="form-section">
-                        <h2 class="mb-4 text-center fw-bold fs-5">สร้างอุปกรณ์ใหม่</h2>
-                        <form action="admin-data_view-page.php?mode=add_equipment" method="POST" enctype="multipart/form-data">
-                            <input type="hidden" name="action" value="add_equipment">
-                            <div class="mb-3">
-                                <label for="equip_name" class="form-label fs-6 fw-bold">ชื่ออุปกรณ์ (Equip Name):</label>
-                                <input type="text" id="equip_name" name="equip_name"
-                                    class="form-control fs-6"
-                                    value="<?php echo htmlspecialchars($_POST['equip_name'] ?? ''); ?>" required>
-                            </div>
-                            <div class="mb-3">
-                                <label for="quantity" class="form-label fs-6 fw-bold">จำนวน (Quantity):</label>
-                                <input type="number" id="quantity" name="quantity" min="1"
-                                    class="form-control fs-6"
-                                    value="<?php echo htmlspecialchars($_POST['quantity'] ?? '1'); ?>" required>
-                            </div>
-                            <div class="mb-3">
-                                <label for="measure" class="form-label fs-6 fw-bold">หน่วยวัด (Measure):</label>
-                                <input type="text" id="measure" name="measure"
-                                    class="form-control fs-6"
-                                    value="<?php echo htmlspecialchars($_POST['measure'] ?? ''); ?>">
-                            </div>
-                            <div class="mb-3">
-                                <label for="size" class="form-label fs-6 fw-bold">ขนาด (size):</label>
-                                <input type="text" id="size" name="size"
-                                    class="form-control fs-6"
-                                    value="<?php echo htmlspecialchars($_POST['size'] ?? ''); ?>">
-                            </div>
-                            <div class="mb-3">
-                                <label for="equip_pic" class="form-label fs-6 fw-bold">รูปภาพอุปกรณ์ (equip_pic):</label>
-                                <input type="file" id="equip_pic" name="equip_pic" accept="image/*" class="form-control fs-6">
-                            </div>
-                            <div class="d-flex gap-2">
-                                <button type="submit" class="btn btn-primary btn-lg fw-bold flex-fill">บันทึกข้อมูลอุปกรณ์</button>
-                                <a href="admin-data_view-page.php?mode=equipment" class="btn btn-secondary btn-lg fw-bold flex-fill">ยกเลิก</a>
-                            </div>
-                        </form>
-                    </div>
-                <?php endif; ?>
             </div>
 
-        <?php else: ?>
-            
+            <?php // ส่วนแสดงผลรายละเอียด Facility/Equipment (เมื่อ $mode เป็น facility_detail หรือ equip_detail) ?>
             <?php
-
             if ($mode == 'facility_detail' && $detail_item):
-                $back_link = '?mode=building_detail&building_id=' . htmlspecialchars($detail_item['building_id']);
+                $back_link = 'admin-data_view-page.php?mode=building_detail&building_id=' . htmlspecialchars($detail_item['building_id']);
             ?>
                 <div class="card p-3 my-3">
                     <h2 class="card-title mb-3">รายละเอียดสถานที่: <?php echo htmlspecialchars($detail_item['facility_name']); ?></h2>
@@ -265,7 +348,7 @@ $user_role = htmlspecialchars($_SESSION['role'] ?? 'N/A');
 
             <?php
             elseif ($mode == 'equip_detail' && $detail_item):
-                $back_link = '?mode=equipment';
+                $back_link = 'admin-data_view-page.php?mode=equipment';
             ?>
                 <div class="card p-3 my-3">
                     <h2 class="card-title mb-3">รายละเอียดอุปกรณ์: <?php echo htmlspecialchars($detail_item['equip_name']); ?></h2>
@@ -290,9 +373,8 @@ $user_role = htmlspecialchars($_SESSION['role'] ?? 'N/A');
                 </div>
 
             <?php
-
-            else:
-                if (empty($data)):
+            else: // สำหรับโหมด buildings, equipment, building_detail (แสดงรายการ)
+                if (empty($data) && !$show_add_card && ($mode != 'building_detail' || ($mode == 'building_detail' && $total_items == 0))):
             ?>
                     <div class="alert alert-info text-center mt-4">
                         <?php if (!empty($search_query)): ?>
@@ -308,7 +390,7 @@ $user_role = htmlspecialchars($_SESSION['role'] ?? 'N/A');
                         <?php endif; ?>
                     </div>
             <?php
-                else:
+                else: // มีข้อมูลให้แสดง
                     if ($mode == 'building_detail' && $detail_item):
             ?>
                         <div class="card p-3 my-3 bg-light">
@@ -322,119 +404,109 @@ $user_role = htmlspecialchars($_SESSION['role'] ?? 'N/A');
                                 </div>
                             </div>
                             <div class="d-flex justify-content-start mt-3">
-                                <a href="?mode=buildings" class="btn btn-secondary">ย้อนกลับไปดูอาคารทั้งหมด</a>
+                                <a href="admin-data_view-page.php?mode=buildings" class="btn btn-secondary">ย้อนกลับไปดูอาคารทั้งหมด</a>
                             </div>
                         </div>
             <?php
                     endif;
             ?>
-            <div class="row row-cols-1 row-cols-sm-2 row-cols-md-2 row-cols-lg-3 g-2 mt-0">
-                
-                <?php if ($mode == 'building_detail' && isset($_GET['building_id']) && empty($search_query)): ?>
-                    <div class="col">
-                        <a href="admin-data_view-page.php?mode=add_facility&building_id=<?php echo htmlspecialchars($_GET['building_id']); ?>" class="text-decoration-none">
-                            <div class="card h-100 shadow-sm border-success border-2 d-flex">
-                                <div class="card-body d-flex flex-column justify-content-center align-items-center my-auto">
-                                    <i class="bi bi-plus-circle display-4 text-success mb-2"></i>
-                                    <h5 class="card-title text-success">เพิ่มสถานที่</h5>
-                                </div>
-                            </div>
-                        </a>
-                    </div>
-                <?php endif; ?>
-
-                <?php if ($show_add_card): ?>
-                    <div class="col">
-                        <a href="admin-data_view-page.php?mode=<?php echo ($mode == 'buildings' ? 'add_building' : 'add_equipment'); ?>" class="text-decoration-none">
-                            <div class="card h-100 shadow-sm border-primary border-2 d-flex">
-                                <div class="card-body d-flex flex-column justify-content-center align-items-center my-auto">
-                                    <i class="bi bi-plus-circle display-4 text-primary mb-2"></i>
-                                    <h5 class="card-title text-primary"><?php echo $mode == 'buildings' ? 'เพิ่มอาคาร' : 'เพิ่มอุปกรณ์'; ?></h5>
-                                </div>
-                            </div>
-                        </a>
-                    </div>
-                <?php endif; ?>
-                <?php foreach ($data as $item): ?>
-                        <div class="col">
-                            <div class="card h-100 shadow-sm">
-                                <?php
-                                $img_src = './images/placeholder.png';
-                                $item_name = '';
-                                $link_href = '#';
-
-                                if ($mode == 'buildings') {
-                                    $img_src = ($item['building_pic'] && file_exists($item['building_pic'])) ? htmlspecialchars($item['building_pic']) : $img_src;
-                                    $item_name = htmlspecialchars($item['building_name']);
-                                    $link_href = '?mode=building_detail&building_id=' . htmlspecialchars($item['building_id']);
-                                } elseif ($mode == 'equipment') {
-                                    $img_src = ($item['equip_pic'] && file_exists($item['equip_pic'])) ? htmlspecialchars($item['equip_pic']) : $img_src;
-                                    $item_name = htmlspecialchars($item['equip_name']);
-                                    $link_href = '?mode=equip_detail&equip_id=' . htmlspecialchars($item['equip_id']);
-                                } elseif ($mode == 'building_detail') {
-                                    $img_src = ($item['facility_pic'] && file_exists($item['facility_pic'])) ? htmlspecialchars($item['facility_pic']) : $img_src;
-                                    $item_name = htmlspecialchars($item['facility_name']);
-                                    $link_href = '?mode=facility_detail&facility_id=' . htmlspecialchars($item['facility_id']);
-                                }
-                                ?>
-                                <a href="<?php echo $link_href; ?>" class="card-img-link">
-                                    <img src="<?php echo $img_src; ?>" class="card-img-top" alt="<?php echo $item_name; ?>">
+                    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-2 row-cols-lg-3 g-2 mt-0">
+                        <?php if ($mode == 'building_detail' && empty($search_query)): ?>
+                            <div class="col">
+                                <a href="admin-data_view-page.php?mode=add_facility&building_id=<?php echo htmlspecialchars($_GET['building_id']); ?>" class="text-decoration-none">
+                                    <div class="card h-100 shadow-sm border-success border-2 d-flex">
+                                        <div class="card-body d-flex flex-column justify-content-center align-items-center my-auto">
+                                            <i class="bi bi-plus-circle display-4 text-success mb-2"></i>
+                                            <h5 class="card-title text-success">เพิ่มสถานที่</h5>
+                                        </div>
+                                    </div>
                                 </a>
-                                <div class="card-body d-flex flex-column">
-                                    <?php if ($mode == 'buildings'): ?>
-                                        <h5 class="card-title text-center">
-                                            อาคาร <?php echo htmlspecialchars($item['building_id']); ?>: <?php echo htmlspecialchars($item['building_name']); ?>
-                                        </h5>
-                                        <?php if (!empty($search_query) && !empty($item['matched_facilities'])): ?>
-                                            <p class="card-text text-success mb-0 small text-center">
-                                                <i class="bi bi-search"></i> : <?php echo htmlspecialchars($item['matched_facilities']); ?>
-                                            </p>
-                                        <?php endif; ?>
-                                    <?php else: // สำหรับ mode อื่นๆ ใช้ h5 เดิม ?>
-                                        <h5 class="card-title text-center"><?php echo $item_name; ?></h5>
-                                    <?php endif; ?>
-                                    <?php if ($mode == 'equipment'): ?>
-                                        <p class="card-text text-muted mb-0 small text-center">จำนวน: <?php echo htmlspecialchars($item['quantity'] . ' ' . $item['measure']); ?></p>
-                                        <p class="card-text text-muted mb-0 small text-center">ขนาด: <?php echo htmlspecialchars($item['size']); ?></p>
-                                    <?php elseif ($mode == 'building_detail'): ?>
-                                        <p class="card-text text-muted mb-0 small text-center">รายละเอียด: <?php echo htmlspecialchars(mb_strimwidth($item['facility_des'], 0, 40, "...")); ?></p>
-                                    <?php endif; ?>
-                                </div>
                             </div>
-                        </div>
-                    <?php endforeach; ?>
-            </div>
-            <nav aria-label="Page navigation" class="pagination-container mt-2 mb-0">
-            <ul class="pagination pagination-lg">
-                <?php if ($current_page > 1): ?>
-                    <li class="page-item">
-                        <a class="page-link" href="?mode=<?php echo htmlspecialchars($mode); ?>&page=<?php echo $current_page - 1; ?><?php echo !empty($search_query) ? '&search=' . htmlspecialchars($search_query) : ''; ?><?php echo ($mode == 'building_detail' && isset($_GET['building_id'])) ? '&building_id=' . htmlspecialchars($_GET['building_id']) : ''; ?>">ก่อนหน้า</a>
-                    </li>
-                <?php endif; ?>
+                        <?php endif; ?>
 
-                <?php for ($i = 1; $i <= $total_pages; $i++): ?>
-                    <li class="page-item <?php echo ($i == $current_page) ? 'active' : ''; ?>">
-                        <a class="page-link" href="?mode=<?php echo htmlspecialchars($mode); ?>&page=<?php echo $i; ?><?php echo !empty($search_query) ? '&search=' . htmlspecialchars($search_query) : ''; ?><?php echo ($mode == 'building_detail' && isset($_GET['building_id'])) ? '&building_id=' . htmlspecialchars($_GET['building_id']) : ''; ?>">
-                            <?php echo $i; ?>
-                        </a>
-                    </li>
-                <?php endfor; ?>
+                        <?php if ($show_add_card): ?>
+                            <div class="col">
+                                <a href="admin-data_view-page.php?mode=<?php echo ($mode == 'buildings' ? 'add_building' : 'add_equipment'); ?>" class="text-decoration-none">
+                                    <div class="card h-100 shadow-sm border-primary border-2 d-flex">
+                                        <div class="card-body d-flex flex-column justify-content-center align-items-center my-auto">
+                                            <i class="bi bi-plus-circle display-4 text-primary mb-2"></i>
+                                            <h5 class="card-title text-primary"><?php echo $mode == 'buildings' ? 'เพิ่มอาคาร' : 'เพิ่มอุปกรณ์'; ?></h5>
+                                        </div>
+                                    </div>
+                                </a>
+                            </div>
+                        <?php endif; ?>
 
-                <?php if ($current_page < $total_pages): ?>
-                    <li class="page-item">
-                        <a class="page-link" href="?mode=<?php echo htmlspecialchars($mode); ?>&page=<?php echo $current_page + 1; ?><?php echo !empty($search_query) ? '&search=' . htmlspecialchars($search_query) : ''; ?><?php echo ($mode == 'building_detail' && isset($_GET['building_id'])) ? '&building_id=' . htmlspecialchars($_GET['building_id']) : ''; ?>">ถัดไป</a>
-                    </li>
-                <?php endif; ?>
-            </ul>
-            </nav>
-        <?php
-            endif; // ปิด if (empty($data))
-        endif; // <<<<< เพิ่ม endif; ตัวนี้เพื่อปิด else นอกสุด
-        ?>
-        <?php
-            endif; // ปิด if (empty($data))
+                        <?php foreach ($data as $item): ?>
+                                <div class="col">
+                                    <div class="card h-100 shadow-sm">
+                                        <?php
+                                        $img_src = './images/placeholder.png';
+                                        $item_name = '';
+                                        $link_href = '#';
+
+                                        if ($mode == 'buildings') {
+                                            $img_src = ($item['building_pic'] && file_exists($item['building_pic'])) ? htmlspecialchars($item['building_pic']) : $img_src;
+                                            $item_name = 'อาคาร ' . htmlspecialchars($item['building_id']) . ': ' . htmlspecialchars($item['building_name']);
+                                            $link_href = 'admin-data_view-page.php?mode=building_detail&building_id=' . htmlspecialchars($item['building_id']);
+                                        } elseif ($mode == 'equipment') {
+                                            $img_src = ($item['equip_pic'] && file_exists($item['equip_pic'])) ? htmlspecialchars($item['equip_pic']) : $img_src;
+                                            $item_name = htmlspecialchars($item['equip_name']);
+                                            $link_href = 'admin-data_view-page.php?mode=equip_detail&equip_id=' . htmlspecialchars($item['equip_id']);
+                                        } elseif ($mode == 'building_detail') {
+                                            $img_src = ($item['facility_pic'] && file_exists($item['facility_pic'])) ? htmlspecialchars($item['facility_pic']) : $img_src;
+                                            $item_name = htmlspecialchars($item['facility_name']);
+                                            $link_href = 'admin-data_view-page.php?mode=facility_detail&facility_id=' . htmlspecialchars($item['facility_id']);
+                                        }
+                                        ?>
+                                        <a href="<?php echo $link_href; ?>" class="card-img-link">
+                                            <img src="<?php echo $img_src; ?>" class="card-img-top" alt="<?php echo $item_name; ?>">
+                                        </a>
+                                        <div class="card-body d-flex flex-column">
+                                            <?php if ($mode == 'buildings'): ?>
+                                                <h5 class="card-title text-center">
+                                                    <?php echo $item_name; ?>
+                                                </h5>
+                                                <?php if (!empty($search_query) && !empty($item['matched_facilities'])): ?>
+                                                    <p class="card-text text-success mb-0 small text-center">
+                                                        <i class="bi bi-search"></i> พบ: <?php echo htmlspecialchars($item['matched_facilities']); ?>
+                                                    </p>
+                                                <?php endif; ?>
+                                            <?php else: ?>
+                                                <h5 class="card-title text-center"><?php echo $item_name; ?></h5>
+                                            <?php endif; ?>
+                                            <?php if ($mode == 'equipment'): ?>
+                                                <p class="card-text text-muted mb-0 small text-center">จำนวน: <?php echo htmlspecialchars($item['quantity'] . ' ' . $item['measure']); ?></p>
+                                                <p class="card-text text-muted mb-0 small text-center">ขนาด: <?php echo htmlspecialchars($item['size']); ?></p>
+                                            <?php elseif ($mode == 'building_detail'): ?>
+                                                <p class="card-text text-muted mb-0 small text-center">รายละเอียด: <?php echo htmlspecialchars(mb_strimwidth($item['facility_des'], 0, 40, "...")); ?></p>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                </div>
+                        <?php endforeach; ?>
+                    </div>
+
+                    <nav aria-label="Page navigation" class="pagination-container mt-2 mb-0">
+                        <ul class="pagination pagination-lg">
+                            <?php if ($current_page > 1): ?>
+                                <li class="page-item"><a class="page-link" href="admin-data_view-page.php?mode=<?php echo htmlspecialchars($mode); ?>&page=<?php echo $current_page - 1; ?>&search=<?php echo urlencode($search_query); ?><?php echo isset($_GET['building_id']) ? '&building_id='.$_GET['building_id'] : ''; ?>">ก่อนหน้า</a></li>
+                            <?php endif; ?>
+                            <?php for ($i = 1; $i <= $total_pages; $i++): ?>
+                                <li class="page-item <?php echo ($i == $current_page) ? 'active' : ''; ?>"><a class="page-link" href="admin-data_view-page.php?mode=<?php echo htmlspecialchars($mode); ?>&page=<?php echo $i; ?>&search=<?php echo urlencode($search_query); ?><?php echo isset($_GET['building_id']) ? '&building_id='.$_GET['building_id'] : ''; ?>"><?php echo $i; ?></a></li>
+                            <?php endfor; ?>
+                            <?php if ($current_page < $total_pages): ?>
+                                <li class="page-item"><a class="page-link" href="admin-data_view-page.php?mode=<?php echo htmlspecialchars($mode); ?>&page=<?php echo $current_page + 1; ?>&search=<?php echo urlencode($search_query); ?><?php echo isset($_GET['building_id']) ? '&building_id='.$_GET['building_id'] : ''; ?>">ถัดไป</a></li>
+                            <?php endif; ?>
+                        </ul>
+                    </nav>
+            <?php
+                endif; // ปิด else (มีข้อมูลให้แสดง)
+            endif; // ปิด else (สำหรับโหมดแสดงรายการ)
+        endif; // ปิด if (!in_array($mode, ['add_building', ...]))
         ?>
     </div>
+
     <?php 
         if ($mode == 'buildings' || $mode == 'building_detail') {
             include 'php/calendar.php';
