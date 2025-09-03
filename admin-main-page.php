@@ -54,12 +54,13 @@ if (!function_exists('getStatusBadgeClass')) {
                 return 'bg-info text-dark';
             case 'สิ้นสุดโครงการ':
                 return 'bg-secondary';
+            case 'ยกเลิกคำร้องขอ':
+                return 'bg-dark';
             default:
                 return 'bg-light text-dark';
         }
     }
 }
-// --- สิ้นสุด Helper Functions ---
 
 
 $staff_id_for_db = $_SESSION['staff_id'] ?? null;
@@ -80,7 +81,7 @@ $search_query = isset($_GET['search']) ? trim($_GET['search']) : '';
 $search_param = '%' . $search_query . '%';
 
 $main_tab = isset($_GET['main_tab']) ? $_GET['main_tab'] : 'dashboard_admin';
-$mode = isset($_GET['mode']) ? $_GET['mode'] : 'list'; // กำหนดค่าเริ่มต้นเป็น 'list' เสมอหากไม่มีการระบุ
+$mode = isset($_GET['mode']) ? $_GET['mode'] : 'list'; 
 
 $data = [];
 $detail_item = null;
@@ -293,15 +294,13 @@ if ($stmt_recent_er) {
     error_log("Failed to prepare statement for recent equipment requests: " . $conn->error);
 }
 
-// จัดเรียงกิจกรรมล่าสุดทั้งหมดและจำกัดจำนวน
 usort($all_recent_activity_raw, function($a, $b) {
-    return strtotime($b['activity_date']) - strtotime($a['activity_date']); // เรียงจากใหม่ไปเก่า
+    return strtotime($b['activity_date']) - strtotime($a['activity_date']);
 });
 $dashboard_data['recent_activity'] = array_slice($all_recent_activity_raw, 0, 5);
 
 
 try {
-    // Projects count (excluding 'ร่างโครงการ')
     $stmt_proj_count = $conn->prepare("SELECT COUNT(*) FROM project WHERE writed_status != 'ร่างโครงการ'");
     if ($stmt_proj_count) {
         $stmt_proj_count->execute();
@@ -312,7 +311,6 @@ try {
         error_log("Failed to prepare statement for projects count: " . $conn->error);
     }
 
-    // Facilities Requests count (excluding 'ร่างคำร้องขอ')
     $stmt_fac_req_count = $conn->prepare("SELECT COUNT(*) FROM facilities_requests WHERE writed_status != 'ร่างคำร้องขอ'");
     if ($stmt_fac_req_count) {
         $stmt_fac_req_count->execute();
@@ -323,7 +321,6 @@ try {
         error_log("Failed to prepare statement for facilities requests count: " . $conn->error);
     }
 
-    // Equipments Requests count (excluding 'ร่างคำร้องขอ')
     $stmt_equip_req_count = $conn->prepare("SELECT COUNT(*) FROM equipments_requests WHERE writed_status != 'ร่างคำร้องขอ'");
     if ($stmt_equip_req_count) {
         $stmt_equip_req_count->execute();
@@ -334,7 +331,6 @@ try {
         error_log("Failed to prepare statement for equipments requests count: " . $conn->error);
     }
 
-    // --- Automatic Project Status Update (เหมือนเดิม) ---
     $current_date = date('Y-m-d');
     $stmt_end = $conn->prepare("UPDATE project SET writed_status = 'สิ้นสุดโครงการ' WHERE end_date < ? AND writed_status != 'สิ้นสุดโครงการ'");
     if ($stmt_end) {
@@ -435,7 +431,7 @@ try {
             
             $stmt_data = $conn->prepare($sql_data);
 
-            $data_params = $count_params; // Start with the same params as count
+            $data_params = $count_params; 
             $data_param_types = $count_param_types;
             $data_params[] = $items_per_page;
             $data_params[] = $offset;
@@ -506,7 +502,6 @@ try {
 
             $base_where = " WHERE fr.writed_status != 'ร่างคำร้องขอ' AND (p.project_name LIKE ? OR f.facility_name LIKE ?)";
             
-            // --- COUNT QUERY ---
             $count_sql = "SELECT COUNT(*) FROM facilities_requests fr JOIN project p ON fr.project_id = p.project_id JOIN facilities f ON fr.facility_id = f.facility_id" . $base_where . $sorting['where_sql'];
             $stmt_count = $conn->prepare($count_sql);
 
@@ -522,7 +517,6 @@ try {
             $stmt_count->fetch();
             $stmt_count->close();
 
-            // --- DATA QUERY ---
             $sql_data = "SELECT
                             fr.facility_re_id, fr.request_date, fr.writed_status, fr.start_date, fr.end_date, fr.prepare_start_date, fr.prepare_end_date, fr.start_time, fr.end_time, fr.approve,
                             f.facility_name, p.project_name, CONCAT(u.user_THname, ' ', u.user_THsur) AS user_name
@@ -861,7 +855,7 @@ $total_pages = ceil($total_items / $items_per_page);
                                 <ul class="list-group list-group-flush">
                                     <?php foreach ($dashboard_data['recent_activity'] as $activity):
                                         $detail_link = '';
-                                        // สำหรับ Admin Dashboard, ควรจะลิงก์ไปที่หน้ารายละเอียดของ Admin เอง
+
                                         if ($activity['item_type'] == 'คำร้องขอสถานที่') {
                                             $detail_link = '?main_tab=buildings_admin&mode=detail&id=' . $activity['id'];
                                         } elseif ($activity['item_type'] == 'คำร้องขออุปกรณ์') {
@@ -899,7 +893,6 @@ $total_pages = ceil($total_items / $items_per_page);
                         <input type="hidden" name="main_tab" value="<?php echo htmlspecialchars($main_tab); ?>">
                         <input type="hidden" name="mode" value="list">
                         
-                        <!-- Dropdown สำหรับการเรียงลำดับและกรอง -->
                         <select name="sort_filter" class="form-select me-2" onchange="this.form.submit()" style="width: auto;">
                             <optgroup label="เรียงตามวันที่">
                                 <option value="date_desc" <?php echo (($_GET['sort_filter'] ?? 'date_desc') == 'date_desc') ? 'selected' : ''; ?>>ใหม่สุดไปเก่าสุด</option>
@@ -910,13 +903,14 @@ $total_pages = ceil($total_items / $items_per_page);
                                     <option value="ส่งโครงการ" <?php echo (($_GET['sort_filter'] ?? '') == 'ส่งโครงการ') ? 'selected' : ''; ?>>ส่งโครงการ</option>
                                     <option value="เริ่มดำเนินการ" <?php echo (($_GET['sort_filter'] ?? '') == 'เริ่มดำเนินการ') ? 'selected' : ''; ?>>เริ่มดำเนินการ</option>
                                     <option value="สิ้นสุดโครงการ" <?php echo (($_GET['sort_filter'] ?? '') == 'สิ้นสุดโครงการ') ? 'selected' : ''; ?>>สิ้นสุดโครงการ</option>
+                                    <option value="ยกเลิกโครงการ" <?php echo (($_GET['sort_filter'] ?? '') == 'ยกเลิกโครงการ') ? 'selected' : ''; ?>>ยกเลิกโครงการ</option>
                                 <?php elseif (in_array($main_tab, ['buildings_admin', 'equipments_admin'])): ?>
                                     <option value="ส่งคำร้องขอ" <?php echo (($_GET['sort_filter'] ?? '') == 'ส่งคำร้องขอ') ? 'selected' : ''; ?>>ส่งคำร้องขอ</option>
                                     <option value="อนุมัติ" <?php echo (($_GET['sort_filter'] ?? '') == 'อนุมัติ') ? 'selected' : ''; ?>>อนุมัติ</option>
                                     <option value="ไม่อนุมัติ" <?php echo (($_GET['sort_filter'] ?? '') == 'ไม่อนุมัติ') ? 'selected' : ''; ?>>ไม่อนุมัติ</option>
-                                    <!-- เพิ่ม 2 บรรทัดนี้ -->
                                     <option value="เริ่มดำเนินการ" <?php echo (($_GET['sort_filter'] ?? '') == 'เริ่มดำเนินการ') ? 'selected' : ''; ?>>เริ่มดำเนินการ</option>
                                     <option value="สิ้นสุดดำเนินการ" <?php echo (($_GET['sort_filter'] ?? '') == 'สิ้นสุดดำเนินการ') ? 'selected' : ''; ?>>สิ้นสุดดำเนินการ</option>
+                                    <option value="ยกเลิกคำร้องขอ" <?php echo (($_GET['sort_filter'] ?? '') == 'ยกเลิกคำร้องขอ') ? 'selected' : ''; ?>>ยกเลิกคำร้องขอ</option>
                                 <?php endif; ?>
                             </optgroup>
                         </select>
@@ -1000,11 +994,15 @@ $total_pages = ceil($total_items / $items_per_page);
                                                         echo '<span class="badge bg-success">อนุมัติแล้ว</span>';
                                                     } elseif ($item['approve'] == 'ไม่อนุมัติ') {
                                                         echo '<span class="badge bg-danger">ไม่อนุมัติ</span>';
+                                                    } elseif ($item['approve'] == 'ยกเลิก') {
+                                                        echo '<span class="badge bg-dark">ยกเลิก</span>';
                                                     } else {
                                                         echo htmlspecialchars($item['approve']);
                                                     }
-                                                } else {
+                                                } elseif($item['writed_status'] != 'ยกเลิกคำร้องขอ') {
                                                     echo '<span class="badge bg-warning text-dark">รอดำเนินการ</span>';
+                                                } else {
+                                                    echo '<span class="badge bg-dark">ยกเลิกคำร้องขอ</span>';
                                                 }
                                                 ?>
                                             </td>
@@ -1031,8 +1029,10 @@ $total_pages = ceil($total_items / $items_per_page);
                                                     } else {
                                                         echo htmlspecialchars($item['approve']);
                                                     }
-                                                } else {
+                                                } elseif($item['writed_status'] != 'ยกเลิกคำร้องขอ') {
                                                     echo '<span class="badge bg-warning text-dark">รอดำเนินการ</span>';
+                                                } else {
+                                                    echo '<span class="badge bg-dark">ยกเลิกคำร้องขอ</span>';
                                                 }
                                                 ?>
                                             </td>
@@ -1047,12 +1047,11 @@ $total_pages = ceil($total_items / $items_per_page);
                             </tbody>
                         </table>
                     </div>
-                    <!-- Pagination -->
+
                     <nav aria-label="Page navigation">
                         <ul class="pagination justify-content-center">
                             <?php
-                            // สร้างตัวแปรสำหรับพารามิเตอร์เสริมให้เรียบร้อยก่อนใช้งาน
-                            // ใช้ urlencode() เพื่อความปลอดภัยในการส่งค่าผ่าน URL
+
                             $search_param = !empty($search_query) ? '&search=' . urlencode($search_query) : '';
                             $sort_param = !empty($_GET['sort_filter']) ? '&sort_filter=' . urlencode($_GET['sort_filter']) : '';
                             ?>
@@ -1185,7 +1184,7 @@ $total_pages = ceil($total_items / $items_per_page);
                                     }
                                     ?>
                                 </p>
-                                <?php if (isset($detail_item['approve']) && !empty($detail_item['approve'])): ?>
+                                <?php if (isset($detail_item['approve']) && !empty($detail_item['approve'] && $detail_item['approve'] !== 'ยกเลิก')): ?>
                                     <p><strong>วันที่ดำเนินการ:</strong> <?php echo htmlspecialchars(isset($detail_item['approve_date']) && $detail_item['approve_date'] ? (new DateTime($detail_item['approve_date']))->format('d/m/Y') : 'N/A'); ?></p>
                                     <p><strong>ผู้ดำเนินการ:</strong> <?php echo htmlspecialchars(isset($detail_item['staff_name']) ? ($detail_item['staff_name'] ?? 'N/A') : 'N/A'); ?></p>
                                     <?php if ($detail_item['approve'] == 'ไม่อนุมัติ'): ?>
@@ -1222,7 +1221,7 @@ $total_pages = ceil($total_items / $items_per_page);
                                     }
                                     ?>
                                 </p>
-                                <?php if (isset($detail_item['approve']) && !empty($detail_item['approve'])): ?>
+                                <?php if (isset($detail_item['approve']) && !empty($detail_item['approve'] && $detail_item['approve'] !== 'ยกเลิก')): ?>
                                     <p><strong>วันที่ดำเนินการ:</strong> <?php echo htmlspecialchars(isset($detail_item['approve_date']) && $detail_item['approve_date'] ? (new DateTime($detail_item['approve_date']))->format('d/m/Y') : 'N/A'); ?></p>
                                     <p><strong>ผู้ดำเนินการ:</strong> <?php echo htmlspecialchars(isset($detail_item['staff_name']) ? ($detail_item['staff_name'] ?? 'N/A') : 'N/A'); ?></p>
                                     <?php if ($detail_item['approve'] == 'ไม่อนุมัติ'): ?>
@@ -1244,7 +1243,7 @@ $total_pages = ceil($total_items / $items_per_page);
                         </a>
                         <div>
                             <?php
-                            if (($main_tab == 'buildings_admin' || $main_tab == 'equipments_admin') && ($detail_item['approve'] !== 'อนุมัติ')):
+                            if (($main_tab == 'buildings_admin' || $main_tab == 'equipments_admin') && ($detail_item['approve'] !== 'อนุมัติ' && $detail_item['approve'] !== 'ยกเลิก')):
                             ?>
                                 <button type="button" class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#approveModal">
                                     อนุมัติ
@@ -1253,7 +1252,6 @@ $total_pages = ceil($total_items / $items_per_page);
                                     ไม่อนุมัติ
                                 </button>
 
-                                <!-- Approve Modal -->
                                 <div class="modal fade" id="approveModal" tabindex="-1" aria-labelledby="approveModalLabel" aria-hidden="true">
                                     <div class="modal-dialog">
                                         <div class="modal-content">

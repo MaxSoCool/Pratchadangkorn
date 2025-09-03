@@ -7,8 +7,8 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
 }
 
 include 'database/database.php';
-// Include ไฟล์ที่มี Logic การเพิ่มข้อมูลจริง ๆ
-include_once 'php/admin-injection.php'; // ใช้ admin-injection.php ที่มีฟังก์ชันการอัปโหลดและบันทึกข้อมูล
+// Include ไฟล์ที่มี Logic การเพิ่ม, แก้ไข, ลบข้อมูลจริง ๆ
+include_once 'php/admin-injection.php'; 
 
 // --- Session Data ---
 $staff_THname = htmlspecialchars($_SESSION['staff_THname'] ?? 'N/A');
@@ -28,7 +28,7 @@ $search_param = '%' . $search_query . '%';
 
 $data = [];
 $total_items = 0;
-$detail_item = null;
+$detail_item = null; // ใช้สำหรับแสดงรายละเอียด หรือ Pre-fill form ในโหมด edit
 
 // --- คำนวณ OFFSET และการ์ด "เพิ่ม" ที่ถูกต้อง ---
 $show_add_card = false;
@@ -45,8 +45,8 @@ if (empty($search_query) && ($mode == 'buildings' || $mode == 'equipment')) {
     }
 }
 
-// --- ดึงข้อมูลหลักสำหรับแสดงรายการ (จะดึงข้อมูลก็ต่อเมื่อไม่ใช่โหมด Add/Edit) ---
-if (!in_array($mode, ['add_building', 'add_facility', 'add_equipment'])) {
+// เพิ่มโหมด edit เข้าไปในการตรวจสอบ
+if (!in_array($mode, ['add_building', 'add_facility', 'add_equipment', 'edit_building', 'edit_facility', 'edit_equipment'])) {
     try {
         if ($mode == 'buildings') {
             $sql_count = "SELECT COUNT(DISTINCT b.building_id) FROM buildings b LEFT JOIN facilities f ON b.building_id = f.building_id WHERE b.building_name LIKE ? OR f.facility_name LIKE ?";
@@ -79,9 +79,9 @@ if (!in_array($mode, ['add_building', 'add_facility', 'add_equipment'])) {
             while ($row = $result_data->fetch_assoc()) { $data[] = $row; }
             $stmt_data->close();
         } elseif ($mode == 'building_detail' && isset($_GET['building_id'])) {
-            $building_id = (int)$_GET['building_id'];
+            $building_id = htmlspecialchars($_GET['building_id']);
             $stmt_building = $conn->prepare("SELECT building_id, building_name, building_pic FROM buildings WHERE building_id = ?");
-            $stmt_building->bind_param("i", $building_id);
+            $stmt_building->bind_param("s", $building_id);
             $stmt_building->execute();
             $detail_item = $stmt_building->get_result()->fetch_assoc();
             $stmt_building->close();
@@ -107,7 +107,7 @@ if (!in_array($mode, ['add_building', 'add_facility', 'add_equipment'])) {
             }
         } elseif ($mode == 'facility_detail' && isset($_GET['facility_id'])) {
             $facility_id = (int)$_GET['facility_id'];
-            $stmt = $conn->prepare("SELECT f.facility_name, f.facility_des, f.facility_pic, f.building_id, b.building_name FROM facilities f JOIN buildings b ON f.building_id = b.building_id WHERE f.facility_id = ?");
+            $stmt = $conn->prepare("SELECT f.facility_id, f.facility_name, f.facility_des, f.facility_pic, f.building_id, b.building_name FROM facilities f JOIN buildings b ON f.building_id = b.building_id WHERE f.facility_id = ?");
             $stmt->bind_param("i", $facility_id);
             $stmt->execute();
             $detail_item = $stmt->get_result()->fetch_assoc();
@@ -134,10 +134,45 @@ if (!in_array($mode, ['add_building', 'add_facility', 'add_equipment'])) {
     }
     $total_pages_items = $show_add_card ? $total_items + 1 : $total_items;
     $total_pages = ceil($total_pages_items / $items_per_page);
+} 
+// Logic สำหรับดึงข้อมูลมา Pre-fill Form ในโหมด Edit
+elseif ($mode == 'edit_building' && isset($_GET['building_id'])) {
+    $building_id = htmlspecialchars($_GET['building_id']);
+    $stmt = $conn->prepare("SELECT building_id, building_name, building_pic FROM buildings WHERE building_id = ?");
+    $stmt->bind_param("s", $building_id);
+    $stmt->execute();
+    $detail_item = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$detail_item) {
+        header("Location: admin-data_view-page.php?mode=buildings&status=building_not_found");
+        exit();
+    }
+} elseif ($mode == 'edit_facility' && isset($_GET['facility_id'])) {
+    $facility_id = (int)$_GET['facility_id'];
+    $stmt = $conn->prepare("SELECT facility_id, facility_name, facility_des, facility_pic, building_id FROM facilities WHERE facility_id = ?");
+    $stmt->bind_param("i", $facility_id);
+    $stmt->execute();
+    $detail_item = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$detail_item) {
+        header("Location: admin-data_view-page.php?mode=buildings&status=facility_not_found");
+        exit();
+    }
+} elseif ($mode == 'edit_equipment' && isset($_GET['equip_id'])) {
+    $equip_id = (int)$_GET['equip_id'];
+    $stmt = $conn->prepare("SELECT equip_id, equip_name, quantity, measure, size, equip_pic FROM equipments WHERE equip_id = ?");
+    $stmt->bind_param("i", $equip_id);
+    $stmt->execute();
+    $detail_item = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$detail_item) {
+        header("Location: admin-data_view-page.php?mode=equipment&status=equip_not_found");
+        exit();
+    }
 }
 
-$buildings = []; // สำหรับฟอร์มเพิ่มสถานที่ (ถ้าอยู่ในโหมด add_facility)
-if ($mode == 'add_facility') {
+$buildings = []; 
+if ($mode == 'add_facility' || $mode == 'edit_facility') { // เพิ่ม edit_facility ด้วย
     $result_buildings = $conn->query("SELECT building_id, building_name FROM buildings ORDER BY building_name");
     if ($result_buildings) {
         while ($row = $result_buildings->fetch_assoc()) {
@@ -150,6 +185,29 @@ if ($mode == 'add_facility') {
 <html lang="th">
 <head>
     <?php include 'header.php'; ?>
+    <link href='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css' rel='stylesheet' />
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js'></script>
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/locales/th.js'></script>
+    <style>
+        /* Style for delete confirmation modal */
+        .delete-modal .modal-content {
+            border-radius: 0.5rem;
+        }
+        .delete-modal .modal-header {
+            background-color: #dc3545;
+            color: white;
+            border-bottom: none;
+            border-top-left-radius: 0.5rem;
+            border-top-right-radius: 0.5rem;
+        }
+        .delete-modal .modal-header .btn-close {
+            filter: invert(1);
+        }
+        .delete-modal .modal-footer .btn-danger {
+            background-color: #dc3545;
+            border-color: #dc3545;
+        }
+    </style>
 </head>
 <body>
     <nav class="navbar navbar-dark navigator">
@@ -180,10 +238,9 @@ if ($mode == 'add_facility') {
     </nav>
 
     <div class="container mt-0">
-        <?php // === ส่วนแสดงฟอร์มเพิ่มข้อมูล (เมื่อ $mode เป็น add_building, add_facility, add_equipment) === ?>
-        <?php if (in_array($mode, ['add_building', 'add_facility', 'add_equipment'])) : ?>
+        <?php if (in_array($mode, ['add_building', 'add_facility', 'add_equipment', 'edit_building', 'edit_facility', 'edit_equipment'])) : ?>
             <div class="card shadow-sm p-4 mt-3">
-                <?php if (!empty($errors)): // แสดง error เหนือฟอร์ม ?>
+                <?php if (!empty($errors)): ?>
                     <div class="alert alert-danger" role="alert">
                         <h4 class="alert-heading">เกิดข้อผิดพลาด!</h4>
                         <ul>
@@ -202,6 +259,27 @@ if ($mode == 'add_facility') {
                         <div class="mb-3"><label for="building_name" class="form-label fw-bold">ชื่ออาคาร:</label><input type="text" id="building_name" name="building_name" class="form-control" value="<?php echo htmlspecialchars($_POST['building_name'] ?? ''); ?>" required></div>
                         <div class="mb-3"><label for="building_pic" class="form-label fw-bold">รูปภาพ:</label><input type="file" id="building_pic" name="building_pic" class="form-control" accept="image/*"></div>
                         <div class="d-flex gap-2 mt-4"><button type="submit" class="btn btn-primary btn-lg flex-fill">บันทึก</button><a href="admin-data_view-page.php?mode=buildings" class="btn btn-secondary btn-lg flex-fill">ยกเลิก</a></div>
+                    </form>
+                <?php elseif ($mode == 'edit_building' && $detail_item): ?>
+                    <h2 class="mb-4 text-center fw-bold fs-5">แก้ไขอาคาร: <?php echo htmlspecialchars($detail_item['building_name']); ?></h2>
+                    <form action="admin-data_view-page.php?mode=edit_building" method="POST" enctype="multipart/form-data">
+                        <input type="hidden" name="inject_type" value="update_building">
+                        <input type="hidden" name="building_id" value="<?php echo htmlspecialchars($detail_item['building_id']); ?>">
+                        <input type="hidden" name="old_building_pic" value="<?php echo htmlspecialchars($detail_item['building_pic'] ?? ''); ?>">
+                        
+                        <div class="mb-3"><label for="building_id_display" class="form-label fw-bold">หมายเลขอาคาร:</label><input type="text" id="building_id_display" class="form-control" value="<?php echo htmlspecialchars($detail_item['building_id']); ?>" readonly></div>
+                        <div class="mb-3"><label for="building_name" class="form-label fw-bold">ชื่ออาคาร:</label><input type="text" id="building_name" name="building_name" class="form-control" value="<?php echo htmlspecialchars($detail_item['building_name'] ?? ''); ?>" required></div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">รูปภาพปัจจุบัน:</label><br>
+                            <?php if ($detail_item['building_pic'] && file_exists($detail_item['building_pic'])): ?>
+                                <img src="<?php echo htmlspecialchars($detail_item['building_pic']); ?>" class="img-thumbnail mb-2" style="max-width: 200px;" alt="Current Building Picture">
+                            <?php else: ?>
+                                <p>ไม่มีรูปภาพ</p>
+                            <?php endif; ?>
+                            <label for="building_pic" class="form-label fw-bold">เปลี่ยนรูปภาพ (เลือกไฟล์ใหม่หากต้องการเปลี่ยน):</label>
+                            <input type="file" id="building_pic" name="building_pic" class="form-control" accept="image/*">
+                        </div>
+                        <div class="d-flex gap-2 mt-4"><button type="submit" class="btn btn-primary btn-lg flex-fill">บันทึกการแก้ไข</button><a href="admin-data_view-page.php?mode=building_detail&building_id=<?php echo htmlspecialchars($detail_item['building_id']); ?>" class="btn btn-secondary btn-lg flex-fill">ยกเลิก</a></div>
                     </form>
                 <?php elseif ($mode == 'add_facility'): ?>
                     <h2 class="mb-4 text-center fw-bold fs-5">สร้างสถานที่ใหม่</h2>
@@ -237,6 +315,47 @@ if ($mode == 'add_facility') {
                         </div>
                         <div class="d-flex gap-2 mt-4"><button type="submit" class="btn btn-primary btn-lg flex-fill">บันทึก</button><a href="admin-data_view-page.php?mode=building_detail&building_id=<?php echo htmlspecialchars($_GET['building_id'] ?? ''); ?>" class="btn btn-secondary btn-lg flex-fill">ยกเลิก</a></div>
                     </form>
+                <?php elseif ($mode == 'edit_facility' && $detail_item): ?>
+                    <h2 class="mb-4 text-center fw-bold fs-5">แก้ไขสถานที่: <?php echo htmlspecialchars($detail_item['facility_name']); ?></h2>
+                    <form action="admin-data_view-page.php?mode=edit_facility" method="POST" enctype="multipart/form-data">
+                        <input type="hidden" name="inject_type" value="update_facility">
+                        <input type="hidden" name="facility_id" value="<?php echo htmlspecialchars($detail_item['facility_id']); ?>">
+                        <input type="hidden" name="building_id" value="<?php echo htmlspecialchars($detail_item['building_id']); ?>">
+                        <input type="hidden" name="old_facility_pic" value="<?php echo htmlspecialchars($detail_item['facility_pic'] ?? ''); ?>">
+                        
+                        <div class="mb-3">
+                            <label for="facility_name" class="form-label fw-bold">ชื่อสถานที่ (Facility Name):</label>
+                            <input type="text" id="facility_name" name="facility_name" class="form-control" value="<?php echo htmlspecialchars($detail_item['facility_name'] ?? ''); ?>" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="facility_des" class="form-label fw-bold">รายละเอียดสถานที่ (Description):</label>
+                            <textarea id="facility_des" name="facility_des" rows="4" class="form-control"><?php echo htmlspecialchars($detail_item['facility_des'] ?? ''); ?></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">รูปภาพปัจจุบัน:</label><br>
+                            <?php if ($detail_item['facility_pic'] && file_exists($detail_item['facility_pic'])): ?>
+                                <img src="<?php echo htmlspecialchars($detail_item['facility_pic']); ?>" class="img-thumbnail mb-2" style="max-width: 200px;" alt="Current Facility Picture">
+                            <?php else: ?>
+                                <p>ไม่มีรูปภาพ</p>
+                            <?php endif; ?>
+                            <label for="facility_pic" class="form-label fw-bold">เปลี่ยนรูปภาพ (เลือกไฟล์ใหม่หากต้องการเปลี่ยน):</label>
+                            <input type="file" id="facility_pic" name="facility_pic" class="form-control" accept="image/*">
+                        </div>
+                        <div class="mb-3">
+                            <label for="building_select" class="form-label fw-bold">อาคาร:</label>
+                            <select id="building_select" name="building_id" class="form-select" required>
+                                <?php foreach ($buildings as $building_option): ?>
+                                    <option value="<?php echo htmlspecialchars($building_option['building_id']); ?>" <?php echo ($building_option['building_id'] == $detail_item['building_id']) ? 'selected' : ''; ?>>
+                                        <?php echo htmlspecialchars($building_option['building_name']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="d-flex gap-2 mt-4">
+                            <button type="submit" class="btn btn-primary btn-lg flex-fill">บันทึกการแก้ไข</button>
+                            <a href="admin-data_view-page.php?mode=building_detail&building_id=<?php echo htmlspecialchars($detail_item['building_id'] ?? ''); ?>" class="btn btn-secondary btn-lg flex-fill">ยกเลิก</a>
+                        </div>
+                    </form>
                 <?php elseif ($mode == 'add_equipment'): ?>
                     <h2 class="mb-4 text-center fw-bold fs-5">เพิ่มอุปกรณ์ใหม่</h2>
                     <form action="admin-data_view-page.php?mode=add_equipment" method="POST" enctype="multipart/form-data">
@@ -248,10 +367,33 @@ if ($mode == 'add_facility') {
                         <div class="mb-3"><label for="equip_pic" class="form-label fw-bold">รูปภาพอุปกรณ์:</label><input type="file" id="equip_pic" name="equip_pic" class="form-control" accept="image/*"></div>
                         <div class="d-flex gap-2 mt-4"><button type="submit" class="btn btn-primary btn-lg flex-fill">บันทึก</button><a href="admin-data_view-page.php?mode=equipment" class="btn btn-secondary btn-lg flex-fill">ยกเลิก</a></div>
                     </form>
+                <?php elseif ($mode == 'edit_equipment' && $detail_item): ?>
+                    <h2 class="mb-4 text-center fw-bold fs-5">แก้ไขอุปกรณ์: <?php echo htmlspecialchars($detail_item['equip_name']); ?></h2>
+                    <form action="admin-data_view-page.php?mode=edit_equipment" method="POST" enctype="multipart/form-data">
+                        <input type="hidden" name="inject_type" value="update_equipment">
+                        <input type="hidden" name="equip_id" value="<?php echo htmlspecialchars($detail_item['equip_id']); ?>">
+                        <input type="hidden" name="old_equip_pic" value="<?php echo htmlspecialchars($detail_item['equip_pic'] ?? ''); ?>">
+
+                        <div class="mb-3"><label for="equip_name" class="form-label fw-bold">ชื่ออุปกรณ์:</label><input type="text" id="equip_name" name="equip_name" class="form-control" value="<?php echo htmlspecialchars($detail_item['equip_name'] ?? ''); ?>" required></div>
+                        <div class="mb-3"><label for="quantity" class="form-label fw-bold">จำนวน:</label><input type="number" id="quantity" name="quantity" class="form-control" value="<?php echo htmlspecialchars($detail_item['quantity'] ?? '1'); ?>" min="1" required></div>
+                        <div class="mb-3"><label for="measure" class="form-label fw-bold">หน่วยวัด:</label><input type="text" id="measure" name="measure" class="form-control" value="<?php echo htmlspecialchars($detail_item['measure'] ?? ''); ?>"></div>
+                        <div class="mb-3"><label for="size" class="form-label fw-bold">ขนาด:</label><input type="text" id="size" name="size" class="form-control" value="<?php echo htmlspecialchars($detail_item['size'] ?? ''); ?>"></div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">รูปภาพปัจจุบัน:</label><br>
+                            <?php if ($detail_item['equip_pic'] && file_exists($detail_item['equip_pic'])): ?>
+                                <img src="<?php echo htmlspecialchars($detail_item['equip_pic']); ?>" class="img-thumbnail mb-2" style="max-width: 200px;" alt="Current Equipment Picture">
+                            <?php else: ?>
+                                <p>ไม่มีรูปภาพ</p>
+                            <?php endif; ?>
+                            <label for="equip_pic" class="form-label fw-bold">เปลี่ยนรูปภาพ (เลือกไฟล์ใหม่หากต้องการเปลี่ยน):</label>
+                            <input type="file" id="equip_pic" name="equip_pic" class="form-control" accept="image/*">
+                        </div>
+                        <div class="d-flex gap-2 mt-4"><button type="submit" class="btn btn-primary btn-lg flex-fill">บันทึกการแก้ไข</button><a href="admin-data_view-page.php?mode=equipment" class="btn btn-secondary btn-lg flex-fill">ยกเลิก</a></div>
+                    </form>
                 <?php endif; ?>
             </div>
 
-        <?php else: // === ส่วนแสดงรายการข้อมูลปกติ (เมื่อ $mode ไม่ใช่ add_...) === ?>
+        <?php else: // === ส่วนแสดงรายการข้อมูลปกติ (เมื่อ $mode ไม่ใช่ add_... หรือ edit_...) === ?>
             <h1 class="mb-3 text-center">การจัดการอาคาร สถานที่และอุปกรณ์</h1>
             <?php if (!empty($errors)): // แสดง error ที่เกิดจากการดึงข้อมูล ?>
                 <div class="alert alert-danger" role="alert">
@@ -319,7 +461,7 @@ if ($mode == 'add_facility') {
                 </div>
             </div>
 
-            <?php // ส่วนแสดงผลรายละเอียด Facility/Equipment (เมื่อ $mode เป็น facility_detail หรือ equip_detail) ?>
+            <?php?>
             <?php
             if ($mode == 'facility_detail' && $detail_item):
                 $back_link = 'admin-data_view-page.php?mode=building_detail&building_id=' . htmlspecialchars($detail_item['building_id']);
@@ -341,8 +483,17 @@ if ($mode == 'add_facility') {
                             <p class="mb-1"><strong>ชื่ออาคาร:</strong> <?php echo htmlspecialchars($detail_item['building_name']); ?></p>
                         </div>
                     </div>
-                    <div class="d-flex justify-content-start mt-3">
+                    <div class="d-flex justify-content-start gap-2 mt-3">
                         <a href="<?php echo htmlspecialchars($back_link); ?>" class="btn btn-secondary">ย้อนกลับ</a>
+                        <a href="admin-data_view-page.php?mode=edit_facility&facility_id=<?php echo htmlspecialchars($detail_item['facility_id']); ?>" class="btn btn-primary">แก้ไข</a>
+                        <button type="button" class="btn btn-danger" 
+                                data-bs-toggle="modal" data-bs-target="#deleteConfirmationModal"
+                                data-id="<?php echo htmlspecialchars($detail_item['facility_id']); ?>"
+                                data-name="<?php echo htmlspecialchars($detail_item['facility_name']); ?>"
+                                data-type="facility"
+                                data-redirect-building-id="<?php echo htmlspecialchars($detail_item['building_id']); ?>">
+                            ลบ
+                        </button>
                     </div>
                 </div>
 
@@ -367,13 +518,21 @@ if ($mode == 'add_facility') {
                             <p class="mb-1"><strong>ขนาด:</strong> <?php echo htmlspecialchars($detail_item['size']); ?></p>
                         </div>
                     </div>
-                    <div class="d-flex justify-content-start mt-3">
+                    <div class="d-flex justify-content-start gap-2 mt-3">
                         <a href="<?php echo htmlspecialchars($back_link); ?>" class="btn btn-secondary">ย้อนกลับ</a>
+                        <a href="admin-data_view-page.php?mode=edit_equipment&equip_id=<?php echo htmlspecialchars($detail_item['equip_id']); ?>" class="btn btn-primary">แก้ไข</a>
+                        <button type="button" class="btn btn-danger" 
+                                data-bs-toggle="modal" data-bs-target="#deleteConfirmationModal"
+                                data-id="<?php echo htmlspecialchars($detail_item['equip_id']); ?>"
+                                data-name="<?php echo htmlspecialchars($detail_item['equip_name']); ?>"
+                                data-type="equipment">
+                            ลบ
+                        </button>
                     </div>
                 </div>
 
             <?php
-            else: // สำหรับโหมด buildings, equipment, building_detail (แสดงรายการ)
+            else: 
                 if (empty($data) && !$show_add_card && ($mode != 'building_detail' || ($mode == 'building_detail' && $total_items == 0))):
             ?>
                     <div class="alert alert-info text-center mt-4">
@@ -403,8 +562,16 @@ if ($mode == 'add_facility') {
                                     <small class="text-muted">คลิกที่รูปภาพสถานที่เพื่อดูรายละเอียด</small>
                                 </div>
                             </div>
-                            <div class="d-flex justify-content-start mt-3">
+                            <div class="d-flex justify-content-start gap-2 mt-3">
                                 <a href="admin-data_view-page.php?mode=buildings" class="btn btn-secondary">ย้อนกลับไปดูอาคารทั้งหมด</a>
+                                <a href="admin-data_view-page.php?mode=edit_building&building_id=<?php echo htmlspecialchars($detail_item['building_id']); ?>" class="btn btn-primary">แก้ไขอาคาร</a>
+                                <button type="button" class="btn btn-danger" 
+                                        data-bs-toggle="modal" data-bs-target="#deleteConfirmationModal"
+                                        data-id="<?php echo htmlspecialchars($detail_item['building_id']); ?>"
+                                        data-name="<?php echo htmlspecialchars($detail_item['building_name']); ?>"
+                                        data-type="building">
+                                    ลบอาคาร
+                                </button>
                             </div>
                         </div>
             <?php
@@ -444,19 +611,29 @@ if ($mode == 'add_facility') {
                                         $img_src = './images/placeholder.png';
                                         $item_name = '';
                                         $link_href = '#';
+                                        $item_id = '';
+                                        $item_type = '';
+                                        $redirect_building_id = ''; // สำหรับ Facility
 
                                         if ($mode == 'buildings') {
                                             $img_src = ($item['building_pic'] && file_exists($item['building_pic'])) ? htmlspecialchars($item['building_pic']) : $img_src;
                                             $item_name = 'อาคาร ' . htmlspecialchars($item['building_id']) . ': ' . htmlspecialchars($item['building_name']);
                                             $link_href = 'admin-data_view-page.php?mode=building_detail&building_id=' . htmlspecialchars($item['building_id']);
+                                            $item_id = $item['building_id'];
+                                            $item_type = 'building';
                                         } elseif ($mode == 'equipment') {
                                             $img_src = ($item['equip_pic'] && file_exists($item['equip_pic'])) ? htmlspecialchars($item['equip_pic']) : $img_src;
                                             $item_name = htmlspecialchars($item['equip_name']);
                                             $link_href = 'admin-data_view-page.php?mode=equip_detail&equip_id=' . htmlspecialchars($item['equip_id']);
+                                            $item_id = $item['equip_id'];
+                                            $item_type = 'equipment';
                                         } elseif ($mode == 'building_detail') {
                                             $img_src = ($item['facility_pic'] && file_exists($item['facility_pic'])) ? htmlspecialchars($item['facility_pic']) : $img_src;
                                             $item_name = htmlspecialchars($item['facility_name']);
                                             $link_href = 'admin-data_view-page.php?mode=facility_detail&facility_id=' . htmlspecialchars($item['facility_id']);
+                                            $item_id = $item['facility_id'];
+                                            $item_type = 'facility';
+                                            $redirect_building_id = htmlspecialchars($_GET['building_id'] ?? '');
                                         }
                                         ?>
                                         <a href="<?php echo $link_href; ?>" class="card-img-link">
@@ -472,13 +649,12 @@ if ($mode == 'add_facility') {
                                                         <i class="bi bi-search"></i> พบ: <?php echo htmlspecialchars($item['matched_facilities']); ?>
                                                     </p>
                                                 <?php endif; ?>
-                                            <?php else: ?>
+                                            <?php elseif ($mode == 'equipment'): ?>
                                                 <h5 class="card-title text-center"><?php echo $item_name; ?></h5>
-                                            <?php endif; ?>
-                                            <?php if ($mode == 'equipment'): ?>
                                                 <p class="card-text text-muted mb-0 small text-center">จำนวน: <?php echo htmlspecialchars($item['quantity'] . ' ' . $item['measure']); ?></p>
                                                 <p class="card-text text-muted mb-0 small text-center">ขนาด: <?php echo htmlspecialchars($item['size']); ?></p>
                                             <?php elseif ($mode == 'building_detail'): ?>
+                                                <h5 class="card-title text-center"><?php echo $item_name; ?></h5>
                                                 <p class="card-text text-muted mb-0 small text-center">รายละเอียด: <?php echo htmlspecialchars(mb_strimwidth($item['facility_des'], 0, 40, "...")); ?></p>
                                             <?php endif; ?>
                                         </div>
@@ -508,15 +684,70 @@ if ($mode == 'add_facility') {
     </div>
 
     <?php 
+        // ***** ส่วนที่รวมไฟล์ calendar.php ที่คุณต้องการ *****
         if ($mode == 'buildings' || $mode == 'building_detail') {
             include 'php/calendar.php';
         }
     ?>
+
+    <!-- Delete Confirmation Modal (ใช้ Modal เดียวกันสำหรับทุกประเภท) -->
+    <div class="modal fade delete-modal" id="deleteConfirmationModal" tabindex="-1" aria-labelledby="deleteConfirmationModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="deleteConfirmationModalLabel"><i class="bi bi-exclamation-triangle-fill"></i> ยืนยันการลบข้อมูล</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="deleteForm" action="admin-data_view-page.php" method="POST">
+                    <input type="hidden" name="inject_type" id="delete_inject_type">
+                    <input type="hidden" name="delete_id" id="delete_item_id">
+                    <input type="hidden" name="building_id_for_redirect" id="delete_redirect_building_id">
+                    <div class="modal-body">
+                        คุณต้องการลบ <strong id="delete_item_name"></strong> นี้หรือไม่? การดำเนินการนี้ไม่สามารถย้อนกลับได้.
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+                        <button type="submit" class="btn btn-danger">ลบ</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <?php 
         if (isset($conn)) {
             $conn->close();
         }
     ?>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
+    <script>
+        // JavaScript สำหรับจัดการ Modal ยืนยันการลบ
+        var deleteConfirmationModal = document.getElementById('deleteConfirmationModal');
+        deleteConfirmationModal.addEventListener('show.bs.modal', function (event) {
+            var button = event.relatedTarget; // Button that triggered the modal
+            var id = button.getAttribute('data-id');
+            var name = button.getAttribute('data-name');
+            var type = button.getAttribute('data-type');
+            var redirectBuildingId = button.getAttribute('data-redirect-building-id'); // สำหรับ facility
+
+            var modalTitle = deleteConfirmationModal.querySelector('.modal-title');
+            var modalBodyInput = deleteConfirmationModal.querySelector('#delete_item_name');
+            var deleteForm = deleteConfirmationModal.querySelector('#deleteForm');
+            var deleteItemId = deleteConfirmationModal.querySelector('#delete_item_id');
+            var deleteInjectType = deleteConfirmationModal.querySelector('#delete_inject_type');
+            var deleteRedirectBuildingId = deleteConfirmationModal.querySelector('#delete_redirect_building_id');
+
+            modalTitle.textContent = 'ยืนยันการลบข้อมูล ' + (type === 'building' ? 'อาคาร' : (type === 'facility' ? 'สถานที่' : 'อุปกรณ์'));
+            modalBodyInput.textContent = name;
+            deleteItemId.value = id;
+            deleteInjectType.value = 'delete_' + type;
+            
+            if (type === 'facility' && redirectBuildingId) {
+                deleteRedirectBuildingId.value = redirectBuildingId;
+            } else {
+                deleteRedirectBuildingId.value = ''; // Clear for other types
+            }
+        });
+    </script>
 </body>
 </html>
