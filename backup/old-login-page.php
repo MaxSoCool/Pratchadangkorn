@@ -52,11 +52,9 @@ unset($_SESSION['login_message']);
         </div>       
     </div>
 
-    <!-- Hidden inputs for JavaScript to read session status -->
     <input type="hidden" id="loginStatus" value="<?php echo htmlspecialchars($login_status); ?>">
     <input type="hidden" id="loginMessage" value="<?php echo htmlspecialchars($login_message); ?>">
 
-    <!-- Success Modal -->
     <div class="modal fade" id="successModal" tabindex="-1" aria-labelledby="successModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -65,7 +63,6 @@ unset($_SESSION['login_message']);
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body" id="successModalBody">
-                    <!-- Message will be injected here by JavaScript -->
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-success" data-bs-dismiss="modal">ตกลง</button>
@@ -74,7 +71,6 @@ unset($_SESSION['login_message']);
         </div>
     </div>
 
-    <!-- Error Modal -->
     <div class="modal fade" id="errorModal" tabindex="-1" aria-labelledby="errorModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -83,7 +79,6 @@ unset($_SESSION['login_message']);
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body details-text" id="errorModalBody">
-                    <!-- Message will be injected here by JavaScript -->
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-danger" data-bs-dismiss="modal">ตกลง</button>

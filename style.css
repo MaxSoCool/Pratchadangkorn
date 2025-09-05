@@ -197,6 +197,25 @@ html, body {
     max-width: 250px;
     height: auto;
 }
+
+        .delete-modal .modal-content {
+            border-radius: 0.5rem;
+        }
+        .delete-modal .modal-header {
+            background-color: #dc3545;
+            color: white;
+            border-bottom: none;
+            border-top-left-radius: 0.5rem;
+            border-top-right-radius: 0.5rem;
+        }
+        .delete-modal .modal-header .btn-close {
+            filter: invert(1);
+        }
+        .delete-modal .modal-footer .btn-danger {
+            background-color: #dc3545;
+            border-color: #dc3545;
+        }
+
 @media (max-width: 767.98px) {
     .detail-img {
         max-width: 80%;

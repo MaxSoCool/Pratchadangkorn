@@ -1,25 +1,29 @@
-document.addEventListener('DOMContentLoaded', function() {
-    var successModal = new bootstrap.Modal(document.getElementById('successModal'), {
-        keyboard: false 
-    });
-    var errorModal = new bootstrap.Modal(document.getElementById('errorModal'), {
-        keyboard: false
-    });
-
-    var loginStatusInput = document.getElementById('loginStatus');
-    var loginMessageInput = document.getElementById('loginMessage');
-
+document.addEventListener('DOMContentLoaded', () => {
+    const loginStatusInput = document.getElementById('loginStatus');
+    const loginMessageInput = document.getElementById('loginMessage');
+    
     if (loginStatusInput && loginMessageInput) {
-        var status = loginStatusInput.value;
-        var message = loginMessageInput.value;
+        const loginStatus = loginStatusInput.value;
+        const loginMessage = loginMessageInput.value;
 
-        if (status === 'success') {
-            document.getElementById('successModalBody').innerText = message;
-            successModal.show();
+        const successModalElement = document.getElementById('successModal');
+        const errorModalElement = document.getElementById('errorModal');
+        const successModalBody = document.getElementById('successModalBody');
+        const errorModalBody = document.getElementById('errorModalBody');
 
-        } else if (status === 'failed') {
-            document.getElementById('errorModalBody').innerText = message;
-            errorModal.show();
+        if (successModalElement && errorModalElement && successModalBody && errorModalBody) {
+            const successModal = new bootstrap.Modal(successModalElement);
+            const errorModal = new bootstrap.Modal(errorModalElement);
+
+            if (loginStatus === 'success') {
+                successModalBody.textContent = loginMessage;
+                successModal.show();
+            } else if (loginStatus === 'error') {
+                errorModalBody.textContent = loginMessage;
+                errorModal.show();
+            }
+        } else {
+            console.error('Modal or Modal Body elements not found.');
         }
     }
 });
