@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Sep 05, 2025 at 08:15 PM
+-- Generation Time: Sep 09, 2025 at 08:38 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -59,6 +59,7 @@ CREATE TABLE `buildings` (
 INSERT INTO `buildings` (`building_id`, `building_name`, `building_pic`) VALUES
 ('1', 'อาคารบริหาร', 'images/buildings/6853f0c538bd4.jpg'),
 ('10', 'โรงอาหารกลาง', 'images/buildings/6853f8c5ac540.jpg'),
+('11', 'โรงกรองน้ำและหอวิทยาเขต', 'images/buildings/68c046df87e07.jpg'),
 ('2', 'อาคารเรียนรวม', 'images/buildings/6853f0dc5836b.jpg'),
 ('3', 'อาคารชุดพักอาศัย', 'images/buildings/6853f0ef3f18f.jpg'),
 ('4', 'หอพักนิสิตชาย', 'images/buildings/6853f1062235d.jpg'),
@@ -282,7 +283,7 @@ INSERT INTO `project` (`project_id`, `project_name`, `start_date`, `end_date`, `
 (18, 'เก็บเอาไว้ในกายเธอ', '2025-08-26', '2025-08-27', 'asdsadsadsadsadsadsadsad', NULL, '100', '0987645321', 'asdsadadsadsa', '2025-08-31 09:51:29.811690', 'สิ้นสุดโครงการ', 'b6540201149', 1),
 (21, 'พระเจ้าจอร์จ มันยอดมาก', '2025-10-05', '2025-10-05', 'ว้าว', '', '100', '0912345678', 'ใครน้อ', '2025-09-03 16:37:49.437432', 'ยกเลิกโครงการ', 'b6540201149', 2),
 (22, 'ดาว บ้านดอน', '2025-10-01', '2025-10-01', 'เป็นเหมือนดาว', NULL, '100', '0987654321', 'ดาว ขมิ้น', '2025-09-03 17:03:05.000000', 'ส่งโครงการ', 'b6540201149', 1),
-(23, 'แม่เจ้า', '2025-09-06', '2025-10-07', 'จริงหรือนี่??', 'uploads/files/68b874f3cdd72.jpg', '100', '0987654321', 'asdasdsadsad', '2025-09-03 17:25:36.848397', 'ส่งโครงการ', 'b6540201149', 2);
+(23, 'แม่เจ้า', '2025-09-06', '2025-10-07', 'จริงหรือนี่??', 'uploads/files/68b874f3cdd72.jpg', '100', '0987654321', 'asdasdsadsad', '2025-09-09 13:19:37.091456', 'เริ่มดำเนินการ', 'b6540201149', 2);
 
 -- --------------------------------------------------------
 
@@ -318,8 +319,8 @@ CREATE TABLE `user` (
   `nontri_id` varchar(11) NOT NULL,
   `user_THname` varchar(100) NOT NULL,
   `user_THsur` varchar(100) NOT NULL,
-  `user_ENname` varchar(100) NOT NULL,
-  `user_Ensur` varchar(100) NOT NULL,
+  `user_ENname` varchar(100) DEFAULT NULL,
+  `user_Ensur` varchar(100) DEFAULT NULL,
   `position` varchar(255) DEFAULT NULL,
   `user_type_id` int(2) NOT NULL,
   `fa_de_id` int(2) NOT NULL
@@ -333,7 +334,7 @@ INSERT INTO `user` (`nontri_id`, `user_THname`, `user_THsur`, `user_ENname`, `us
 ('b6540200315', 'เกียรติสกุล', 'ไพยเสน', 'Kiatsakul', 'Paiyasen', NULL, 1, 2),
 ('b6540201149', 'ทวีศักดิ์', 'สีอังรัตน์', 'Thaweesak', 'Sriangrat', NULL, 1, 2),
 ('b6540201180', 'ทินวุฒิ', 'พลบำรุง', 'Thinnawut', 'Pholbumrung', NULL, 1, 2),
-('b6540201909', 'ปรัชชฎางค์กรณ์', 'แก้วมณีโชติ', 'Pratchadangkorn', '', NULL, 1, 2),
+('b6540201909', 'ปรัชชฎางค์กรณ์', 'แก้วมณีโชติ', NULL, NULL, NULL, 1, 2),
 ('b6540202410', 'พีระพงษ์', 'เทพประสิทธิ์', 'Peeraphong', 'Thepprasit', NULL, 1, 2),
 ('b6540202964', 'วัชรากร', 'เครือเนตร', 'Wacharakorn', 'Kruenet', NULL, 1, 2),
 ('t4340200197', 'ศิริพร', 'ทับทิม', 'Siriporn', 'Thubtim', NULL, 2, 2);

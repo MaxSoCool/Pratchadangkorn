@@ -188,26 +188,6 @@ if ($mode == 'add_facility' || $mode == 'edit_facility') { // เพิ่ม ed
     <link href='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css' rel='stylesheet' />
     <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js'></script>
     <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/locales/th.js'></script>
-    <style>
-        /* Style for delete confirmation modal */
-        .delete-modal .modal-content {
-            border-radius: 0.5rem;
-        }
-        .delete-modal .modal-header {
-            background-color: #dc3545;
-            color: white;
-            border-bottom: none;
-            border-top-left-radius: 0.5rem;
-            border-top-right-radius: 0.5rem;
-        }
-        .delete-modal .modal-header .btn-close {
-            filter: invert(1);
-        }
-        .delete-modal .modal-footer .btn-danger {
-            background-color: #dc3545;
-            border-color: #dc3545;
-        }
-    </style>
 </head>
 <body>
     <nav class="navbar navbar-dark navigator">
@@ -483,17 +463,21 @@ if ($mode == 'add_facility' || $mode == 'edit_facility') { // เพิ่ม ed
                             <p class="mb-1"><strong>ชื่ออาคาร:</strong> <?php echo htmlspecialchars($detail_item['building_name']); ?></p>
                         </div>
                     </div>
-                    <div class="d-flex justify-content-start gap-2 mt-3">
-                        <a href="<?php echo htmlspecialchars($back_link); ?>" class="btn btn-secondary">ย้อนกลับ</a>
-                        <a href="admin-data_view-page.php?mode=edit_facility&facility_id=<?php echo htmlspecialchars($detail_item['facility_id']); ?>" class="btn btn-primary">แก้ไข</a>
-                        <button type="button" class="btn btn-danger" 
-                                data-bs-toggle="modal" data-bs-target="#deleteConfirmationModal"
-                                data-id="<?php echo htmlspecialchars($detail_item['facility_id']); ?>"
-                                data-name="<?php echo htmlspecialchars($detail_item['facility_name']); ?>"
-                                data-type="facility"
-                                data-redirect-building-id="<?php echo htmlspecialchars($detail_item['building_id']); ?>">
-                            ลบ
-                        </button>
+                    <div class="col">
+                        <div class="d-flex gap-2 mt-3">
+                            <a href="<?php echo htmlspecialchars($back_link); ?>" class="btn btn-secondary">ย้อนกลับ</a>
+                            <div class="ms-auto d-flex gap-2">
+                                <a href="admin-data_view-page.php?mode=edit_facility&facility_id=<?php echo htmlspecialchars($detail_item['facility_id']); ?>" class="btn btn-warning text-dark">แก้ไขข้อมูลสถานที่</a>
+                                <button type="button" class="btn btn-danger" 
+                                        data-bs-toggle="modal" data-bs-target="#deleteConfirmationModal"
+                                        data-id="<?php echo htmlspecialchars($detail_item['facility_id']); ?>"
+                                        data-name="<?php echo htmlspecialchars($detail_item['facility_name']); ?>"
+                                        data-type="facility"
+                                        data-redirect-building-id="<?php echo htmlspecialchars($detail_item['building_id']); ?>">
+                                    ลบสถานที่
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -518,21 +502,56 @@ if ($mode == 'add_facility' || $mode == 'edit_facility') { // เพิ่ม ed
                             <p class="mb-1"><strong>ขนาด:</strong> <?php echo htmlspecialchars($detail_item['size']); ?></p>
                         </div>
                     </div>
-                    <div class="d-flex justify-content-start gap-2 mt-3">
-                        <a href="<?php echo htmlspecialchars($back_link); ?>" class="btn btn-secondary">ย้อนกลับ</a>
-                        <a href="admin-data_view-page.php?mode=edit_equipment&equip_id=<?php echo htmlspecialchars($detail_item['equip_id']); ?>" class="btn btn-primary">แก้ไข</a>
-                        <button type="button" class="btn btn-danger" 
-                                data-bs-toggle="modal" data-bs-target="#deleteConfirmationModal"
-                                data-id="<?php echo htmlspecialchars($detail_item['equip_id']); ?>"
-                                data-name="<?php echo htmlspecialchars($detail_item['equip_name']); ?>"
-                                data-type="equipment">
-                            ลบ
-                        </button>
+                    <div class="col">
+                        <div class="d-flex gap-2 mt-3">
+                            <a href="<?php echo htmlspecialchars($back_link); ?>" class="btn btn-secondary">ย้อนกลับ</a>
+                            <div class="ms-auto d-flex gap-2">
+                                <a href="admin-data_view-page.php?mode=edit_equipment&equip_id=<?php echo htmlspecialchars($detail_item['equip_id']); ?>" class="btn btn-warning text-dark">แก้ไขข้อมูลอุปกรณ์</a>
+                                <button type="button" class="btn btn-danger" 
+                                        data-bs-toggle="modal" data-bs-target="#deleteConfirmationModal"
+                                        data-id="<?php echo htmlspecialchars($detail_item['equip_id']); ?>"
+                                        data-name="<?php echo htmlspecialchars($detail_item['equip_name']); ?>"
+                                        data-type="equipment">
+                                    ลบอุปกรณ์
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
             <?php
-            else: 
+                else: 
+                    if ($mode == 'building_detail' && $detail_item):
+            ?>
+                        <div class="card p-3 my-3 bg-light">
+                            <div class="d-flex align-items-center">
+                                <?php if ($detail_item['building_pic'] && file_exists($detail_item['building_pic'])): ?>
+                                    <img src="<?php echo htmlspecialchars($detail_item['building_pic']); ?>" alt="Building Pic" class="img-thumbnail me-3" style="width: 70px; height: 70px; object-fit: cover;">
+                                <?php endif; ?>
+                                <div>
+                                    <h3 class="mb-0 fs-5">สถานที่ภายในอาคาร: <?php echo htmlspecialchars($detail_item['building_name']); ?></h3>
+                                    <small class="text-muted">คลิกที่รูปภาพสถานที่เพื่อดูรายละเอียด</small>
+                                </div>
+                            </div>
+                            <div class="col">
+                                <div class="d-flex gap-2 mt-3">
+                                    <a href="admin-data_view-page.php?mode=buildings" class="btn btn-secondary">ย้อนกลับไปดูอาคารทั้งหมด</a>
+                                    <div class="ms-auto d-flex gap-2">
+                                        <a href="admin-data_view-page.php?mode=edit_building&building_id=<?php echo htmlspecialchars($detail_item['building_id']); ?>" class="btn btn-warning text-dark">แก้ไขข้อมูลอาคาร</a>
+                                        <button type="button" class="btn btn-danger"
+                                                data-bs-toggle="modal" data-bs-target="#deleteConfirmationModal"
+                                                data-id="<?php echo htmlspecialchars($detail_item['building_id']); ?>"
+                                                data-name="<?php echo htmlspecialchars($detail_item['building_name']); ?>"
+                                                data-type="building">
+                                            ลบอาคาร
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+            <?php
+                endif; 
+
                 if (empty($data) && !$show_add_card && ($mode != 'building_detail' || ($mode == 'building_detail' && $total_items == 0))):
             ?>
                     <div class="alert alert-info text-center mt-4">
@@ -549,36 +568,12 @@ if ($mode == 'add_facility' || $mode == 'edit_facility') { // เพิ่ม ed
                         <?php endif; ?>
                     </div>
             <?php
-                else: // มีข้อมูลให้แสดง
-                    if ($mode == 'building_detail' && $detail_item):
-            ?>
-                        <div class="card p-3 my-3 bg-light">
-                            <div class="d-flex align-items-center">
-                                <?php if ($detail_item['building_pic'] && file_exists($detail_item['building_pic'])): ?>
-                                    <img src="<?php echo htmlspecialchars($detail_item['building_pic']); ?>" alt="Building Pic" class="img-thumbnail me-3" style="width: 70px; height: 70px; object-fit: cover;">
-                                <?php endif; ?>
-                                <div>
-                                    <h3 class="mb-0 fs-5">สถานที่ภายในอาคาร: <?php echo htmlspecialchars($detail_item['building_name']); ?></h3>
-                                    <small class="text-muted">คลิกที่รูปภาพสถานที่เพื่อดูรายละเอียด</small>
-                                </div>
-                            </div>
-                            <div class="d-flex justify-content-start gap-2 mt-3">
-                                <a href="admin-data_view-page.php?mode=buildings" class="btn btn-secondary">ย้อนกลับไปดูอาคารทั้งหมด</a>
-                                <a href="admin-data_view-page.php?mode=edit_building&building_id=<?php echo htmlspecialchars($detail_item['building_id']); ?>" class="btn btn-primary">แก้ไขอาคาร</a>
-                                <button type="button" class="btn btn-danger" 
-                                        data-bs-toggle="modal" data-bs-target="#deleteConfirmationModal"
-                                        data-id="<?php echo htmlspecialchars($detail_item['building_id']); ?>"
-                                        data-name="<?php echo htmlspecialchars($detail_item['building_name']); ?>"
-                                        data-type="building">
-                                    ลบอาคาร
-                                </button>
-                            </div>
-                        </div>
-            <?php
-                    endif;
+                endif; 
             ?>
                     <div class="row row-cols-1 row-cols-sm-2 row-cols-md-2 row-cols-lg-3 g-2 mt-0">
-                        <?php if ($mode == 'building_detail' && empty($search_query)): ?>
+                        <?php
+                        if ($mode == 'building_detail' && empty($search_query) && $detail_item): 
+                        ?>
                             <div class="col">
                                 <a href="admin-data_view-page.php?mode=add_facility&building_id=<?php echo htmlspecialchars($_GET['building_id']); ?>" class="text-decoration-none">
                                     <div class="card h-100 shadow-sm border-success border-2 d-flex">
@@ -589,7 +584,9 @@ if ($mode == 'add_facility' || $mode == 'edit_facility') { // เพิ่ม ed
                                     </div>
                                 </a>
                             </div>
-                        <?php endif; ?>
+                        <?php
+                        endif; 
+                        ?>
 
                         <?php if ($show_add_card): ?>
                             <div class="col">
@@ -677,20 +674,17 @@ if ($mode == 'add_facility' || $mode == 'edit_facility') { // เพิ่ม ed
                         </ul>
                     </nav>
             <?php
-                endif; // ปิด else (มีข้อมูลให้แสดง)
-            endif; // ปิด else (สำหรับโหมดแสดงรายการ)
-        endif; // ปิด if (!in_array($mode, ['add_building', ...]))
+                endif; 
+            endif; 
         ?>
     </div>
 
     <?php 
-        // ***** ส่วนที่รวมไฟล์ calendar.php ที่คุณต้องการ *****
         if ($mode == 'buildings' || $mode == 'building_detail') {
             include 'php/calendar.php';
         }
     ?>
 
-    <!-- Delete Confirmation Modal (ใช้ Modal เดียวกันสำหรับทุกประเภท) -->
     <div class="modal fade delete-modal" id="deleteConfirmationModal" tabindex="-1" aria-labelledby="deleteConfirmationModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">

@@ -1,11 +1,9 @@
 <?php
-session_start(); 
+session_start();
 
-$login_status = $_SESSION['login_status'] ?? ''; 
-$login_message = $_SESSION['login_message'] ?? ''; 
+$login_status = $_SESSION['login_status'] ?? '';
+$login_message = $_SESSION['login_message'] ?? '';
 
-unset($_SESSION['login_status']);
-unset($_SESSION['login_message']);
 ?>
 
 <!DOCTYPE html>
@@ -30,26 +28,26 @@ unset($_SESSION['login_message']);
     </nav>
     <div class="container mt-5">
         <div class="row justify-content-center">
-            <div class="col-md-6 col-lg-4"> 
+            <div class="col-md-6 col-lg-4">
                 <div class="card shadow login-form-bg">
                     <div class="card-body">
                         <center><img src="./images/ku_logo.png" class="img-fluid logo" alt="KU Logo"></center>
                         <h5 class="card-title login-form-header">KU ALL-LOGIN</h5>
-                        <form action="./php/login.php" method="POST"> 
+                        <form action="./php/login.php" method="POST">
                             <div class="mb-3">
-                                <input type="text" class="form-control" id="username" name="username" required placeholder="ชื่อผู้ใช้งาน เช่น b6xxxxxxxxx">
+                                <input type="text" class="form-control" id="username" name="username" placeholder="ชื่อผู้ใช้งาน เช่น b6xxxxxxxxx">
                             </div>
                             <div class="mb-3">
-                                <input type="password" class="form-control" id="password" name="password" required placeholder="รหัสผ่าน">
+                                <input type="password" class="form-control" id="password" name="password" placeholder="รหัสผ่าน">
                             </div>
                             <div class="d-flex justify-content-center">
                                 <button type="submit" class="btn w-50 login-btn">เข้าสู่ระบบ</button>
                             </div>
                         </form>
                     </div>
-                </div>    
+                </div>
             </div>
-        </div>       
+        </div>
     </div>
 
     <!-- Hidden inputs for JavaScript to read session status -->
@@ -94,5 +92,10 @@ unset($_SESSION['login_message']);
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
     <script src="./js/login_script.js"></script>
+
+    <?php
+    unset($_SESSION['login_status']);
+    unset($_SESSION['login_message']);
+    ?>
 </body>
 </html>

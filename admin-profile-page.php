@@ -9,8 +9,6 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
 $user_id = htmlspecialchars($_SESSION['staff_id'] ?? 'N/A');
 $staff_THname = htmlspecialchars($_SESSION['staff_THname'] ?? 'N/A');
 $staff_THsur = htmlspecialchars($_SESSION['staff_THsur'] ?? 'N/A');
-$staff_ENname = htmlspecialchars($_SESSION['staff_ENname'] ?? 'N/A');
-$staff_ENsur = htmlspecialchars($_SESSION['staff_ENsur'] ?? 'N/A');
 $user_role = htmlspecialchars($_SESSION['role'] ?? 'N/A');
 
 ?>
@@ -54,8 +52,6 @@ $user_role = htmlspecialchars($_SESSION['role'] ?? 'N/A');
                         <p><strong>ชื่อผู้ใช้:</strong> <?php echo $user_id; ?></p>
                         <p><strong>ชื่อ (ไทย):</strong> <?php echo $staff_THname; ?></p>
                         <p><strong>นามสกุล (ไทย):</strong> <?php echo $staff_THsur; ?></p>
-                        <p><strong>ชื่อ (อังกฤษ):</strong> <?php echo $staff_ENname; ?></p>
-                        <p><strong>นามสกุล (อังกฤษ):</strong> <?php echo $staff_ENsur; ?></p>
                         <p><strong>ประเภทผู้ใช้:</strong> <?php echo $user_role; ?></p>
                     </div>
                     <hr>

@@ -750,6 +750,20 @@ $total_pages = ceil($total_items / $items_per_page);
 
             <?php if ($main_tab == 'dashboard_admin'): ?>
                 <h1 class="mb-4">ภาพรวมคำร้องขอทั้งหมด</h1>
+                <div class="row mb-4 justify-content-end">
+                    <div class="col-md-6 text-end">
+                        <form id="timeFilterForm" class="d-inline-flex gap-2" action="" method="GET">
+                            <select name="predefined_range_select" id="predefined_range_select" class="form-select" style="width: auto;">
+                                <option value="">เลือกช่วงเวลา...</option>
+                                <option value="today">วันนี้</option>
+                                <option value="this_week" >สัปดาห์นี้</option>
+                                <option value="this_month" >เดือนนี้</option>
+                                <option value="this_year" >ปีนี้</option>
+                            </select>
+                        </form>
+                    </div>
+                </div>
+
                 <div class="row row-cols-1 row-cols-md-3 g-4 mb-4">
                     <div class="col">
                         <div class="card text-white bg-primary mb-3 h-100">
@@ -760,7 +774,7 @@ $total_pages = ceil($total_items / $items_per_page);
                             </div>
                             <div class="card-footer">
 
-                                <a href="?main_tab=projects_admin&mode=list" class="stretched-link text-white text-decoration-none">ดูรายละเอียด <i class="bi bi-arrow-right"></i></a>
+                                <a href="?main_tab=projects_admin&mode=list" class="stretched-link text-white text-decoration-none footer-text">ดูรายละเอียด <i class="bi bi-arrow-right"></i></a>
                             </div>
                         </div>
                     </div>
@@ -773,7 +787,7 @@ $total_pages = ceil($total_items / $items_per_page);
                             </div>
                             <div class="card-footer">
 
-                                <a href="?main_tab=buildings_admin&mode=list" class="stretched-link text-white text-decoration-none">ดูรายละเอียด <i class="bi bi-arrow-right"></i></a>
+                                <a href="?main_tab=buildings_admin&mode=list" class="stretched-link text-white text-decoration-none footer-text">ดูรายละเอียด <i class="bi bi-arrow-right"></i></a>
                             </div>
                         </div>
                     </div>
@@ -786,7 +800,7 @@ $total_pages = ceil($total_items / $items_per_page);
                             </div>
                             <div class="card-footer">
 
-                                <a href="?main_tab=equipments_admin&mode=list" class="stretched-link text-dark text-decoration-none">ดูรายละเอียด <i class="bi bi-arrow-right"></i></a>
+                                <a href="?main_tab=equipments_admin&mode=list" class="stretched-link text-dark text-decoration-none footer-text">ดูรายละเอียด <i class="bi bi-arrow-right"></i></a>
                             </div>
                         </div>
                     </div>
@@ -863,7 +877,7 @@ $total_pages = ceil($total_items / $items_per_page);
                                         }
                                     ?>
                                         <li class="list-group-item activity-item">
-                                            <a href="<?php echo $detail_link; ?>" class="d-flex w-100 justify-content-between align-items-center stretched-link text-decoration-none text-dark ">
+                                            <a href="<?php echo $detail_link; ?>" class="d-flex w-100 justify-content-between align-items-center stretched-link text-decoration-none text-dark inbox-text">
                                                 <div class="main-info">
                                                     <span class="badge bg-secondary me-2"><?php echo htmlspecialchars($activity['item_type']); ?></span>
                                                     <strong><?php echo htmlspecialchars($activity['item_name']); ?></strong>
@@ -932,7 +946,7 @@ $total_pages = ceil($total_items / $items_per_page);
                         <?php endif; ?>
                     </div>
                 <?php else: ?>
-                    <div class="table-responsive admin-details">
+                    <div class="table-responsive admin-details list-text">
                         <table class="table table-hover table-striped">
                             <thead>
                                 <tr>
@@ -1088,7 +1102,7 @@ $total_pages = ceil($total_items / $items_per_page);
                 </h2>
                 <div class="card shadow-sm p-4 admin-details">
                     <?php if ($main_tab == 'projects_admin'): ?>
-                        <div class="row">
+                        <div class="row list-text">
                             <div class="col-md-6">
                                 <p><strong>ชื่อโครงการ:</strong> <?php echo htmlspecialchars($detail_item['project_name']); ?></p>
                                 <p><strong>สถานะโครงการ:</strong> <?php echo htmlspecialchars($detail_item['writed_status']); ?></p>
@@ -1160,7 +1174,7 @@ $total_pages = ceil($total_items / $items_per_page);
 
 
                     <?php elseif ($main_tab == 'buildings_admin'): ?>
-                        <div class="row">
+                        <div class="row list-text">
                             <div class="col-md-6">
                                 <p><strong>ชื่อโครงการ:</strong> <?php echo htmlspecialchars($detail_item['project_name']); ?></a></p>
                                 <p><strong>ผู้ยื่นคำร้อง:</strong> <?php echo htmlspecialchars($detail_item['user_name'] ?? 'N/A'); ?></p>
@@ -1197,7 +1211,7 @@ $total_pages = ceil($total_items / $items_per_page);
                             </div>
                         </div>
                     <?php elseif ($main_tab == 'equipments_admin'): ?>
-                        <div class="row">
+                        <div class="row list-text">
                             <div class="col-md-6">
                                 <p><strong>ชื่อโครงการ:</strong> <?php echo htmlspecialchars($detail_item['project_name']); ?></a></p>
                                 <p><strong>ผู้ยื่นคำร้อง:</strong> <?php echo htmlspecialchars($detail_item['user_name'] ?? 'N/A'); ?></p>

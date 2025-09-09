@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     const loginStatusInput = document.getElementById('loginStatus');
     const loginMessageInput = document.getElementById('loginMessage');
-    
+
     if (loginStatusInput && loginMessageInput) {
         const loginStatus = loginStatusInput.value;
         const loginMessage = loginMessageInput.value;
@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (loginStatus === 'success') {
                 successModalBody.textContent = loginMessage;
                 successModal.show();
-            } else if (loginStatus === 'error') {
+            } else if (loginStatus === 'error' || loginStatus === 'failed') { 
                 errorModalBody.textContent = loginMessage;
                 errorModal.show();
             }

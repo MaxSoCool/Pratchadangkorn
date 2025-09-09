@@ -40,7 +40,6 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_facilities_by_project' && 
     exit(); 
 }
 
-// User Session Data (Common for all tabs)
 $user_THname = htmlspecialchars($_SESSION['user_THname'] ?? 'N/A');
 $user_THsur = htmlspecialchars($_SESSION['user_THsur'] ?? 'N/A');
 $user_ENname = htmlspecialchars($_SESSION['user_ENname'] ?? 'N/A');
@@ -52,9 +51,9 @@ $user_id = $_SESSION['nontri_id'] ?? '';
 
 $main_tab = $_GET['main_tab'] ?? 'user_dashboard';
 
-$mode = isset($_GET['mode']) ? $_GET['mode'] : 'projects_list'; // Default mode for user_requests tab
+$mode = isset($_GET['mode']) ? $_GET['mode'] : 'projects_list'; 
 
-$data = []; // This will now hold projects for project_list, and projects-with-requests for buildings_list/equipments_list
+$data = []; 
 $detail_item = null;
 $errors = [];
 $success_message = '';
@@ -2291,6 +2290,7 @@ $modal_message = $_GET['message'] ?? '';
                                 </a>
                             <?php endif; ?>
                         </div>
+                        
                     </div>
 
                     <div class="d-flex justify-content-between mt-4">

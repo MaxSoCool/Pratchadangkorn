@@ -47,7 +47,7 @@ function getCalendarEventsAsJson($db_conn, $view_mode = 'buildings', $building_i
                 'requestedBy'   => htmlspecialchars($row['user_full_name']),
                 'status'        => htmlspecialchars($status_text),
                 'requestDate'   => formatThaiDate($row['request_date']),
-                'statusClass'   => $event_class // ส่ง class ไปให้ JS ใช้ด้วย
+                'statusClass'   => $event_class 
             ]
         ];
     }
@@ -64,7 +64,7 @@ function formatThaiDate($date_str, $include_time = true) {
     ];
     $d = (int)$dt->format('j');
     $m = (int)$dt->format('n');
-    $y = (int)$dt->format('Y') + 543; // ปีพ.ศ.
+    $y = (int)$dt->format('Y') + 543; 
     $output = "{$d} {$thai_months[$m]} {$y}";
     if ($include_time) {
         $time = $dt->format('H:i');
@@ -73,13 +73,12 @@ function formatThaiDate($date_str, $include_time = true) {
     return $output;
 }
 
-// --- สร้างข้อมูลสำหรับปฏิทิน ---
 $calendar_mode = $mode ?? 'buildings';
 $building_id_for_calendar = ($calendar_mode === 'building_detail' && isset($_GET['building_id'])) ? (int)$_GET['building_id'] : null;
 $calendar_events_json = getCalendarEventsAsJson($conn, $calendar_mode, $building_id_for_calendar);
 ?>
 
-<!-- HTML for the Modal (ปรับปรุงเล็กน้อย) -->
+<!-- HTML for the Modal -->
 <div class="modal fade" id="calendarModal" tabindex="-1" aria-labelledby="calendarModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
@@ -92,7 +91,7 @@ $calendar_events_json = getCalendarEventsAsJson($conn, $calendar_mode, $building
             <div class="modal-body">
                 <div id="bookingCalendar"></div>
             </div>
-            <!-- สร้าง Modal Footer และย้ายคำอธิบายสีมาไว้ที่นี่ -->
+            <!-- Modal Footer -->
             <div class="modal-footer justify-content-start">
                 <div class="d-flex align-items-center calendar-des">
                     <span class="me-3"><strong>คำอธิบายสี:</strong></span>
@@ -105,7 +104,6 @@ $calendar_events_json = getCalendarEventsAsJson($conn, $calendar_mode, $building
     </div>
 </div>
 
-<!-- JavaScript for Initializing FullCalendar (อัปเดตใหม่ทั้งหมด) -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const calendarEl = document.getElementById('bookingCalendar');

@@ -24,7 +24,7 @@ $fa_de_name = htmlspecialchars($_SESSION['fa_de_name'] ?? 'N/A');
     <nav class="navbar navbar-dark navigator">
         <div class="container-fluid">
             <div class="d-flex align-items-center gap-3">
-                <a href="user-main-page.php">
+                <a href="user-project-page.php">
                     <img src="./images/logo.png" class="img-fluid logo" alt="Logo">
                 </a>
                 <div class="d-flex flex-column">
@@ -55,8 +55,6 @@ $fa_de_name = htmlspecialchars($_SESSION['fa_de_name'] ?? 'N/A');
                         <p><strong>ชื่อผู้ใช้:</strong> <?php echo $nontri_id; ?></p>
                         <p><strong>ชื่อ (ไทย):</strong> <?php echo $user_THname; ?></p>
                         <p><strong>นามสกุล (ไทย):</strong> <?php echo $user_THsur; ?></p>
-                        <p><strong>ชื่อ (อังกฤษ):</strong> <?php echo $user_ENname; ?></p>
-                        <p><strong>นามสกุล (อังกฤษ):</strong> <?php echo $user_ENsur; ?></p>
                         <p><strong>ประเภทผู้ใช้:</strong> <?php echo $user_role; ?></p>
                         <p><strong>หน่วยงาน/คณะ:</strong> <?php echo $fa_de_name; ?></p>
                     </div>

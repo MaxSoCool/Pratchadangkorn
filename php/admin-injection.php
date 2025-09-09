@@ -1,24 +1,10 @@
 <?php
-// php/admin-injection.php
 
-// ไฟล์นี้คาดหวังว่า $conn, $errors, $success_message
-// และตัวแปรอื่นๆ จากไฟล์หลัก (admin-data_view-page.php) จะพร้อมใช้งานอยู่แล้ว
-
-// กำหนด base directories สำหรับการอัปโหลด
 $images_base_dir = 'images/';
 $buildings_upload_dir = $images_base_dir . 'buildings/';
 $facilities_upload_dir = $images_base_dir . 'facilities/';
 $equipments_upload_dir = $images_base_dir . 'equipments/';
 
-// สร้าง folder ถ้ายังไม่มี
-if (!is_dir($buildings_upload_dir)) mkdir($buildings_upload_dir, 0755, true);
-if (!is_dir($facilities_upload_dir)) mkdir($facilities_upload_dir, 0755, true);
-if (!is_dir($equipments_upload_dir)) mkdir($equipments_upload_dir, 0755, true);
-
-
-// ฟังก์ชันช่วยในการอัปโหลดรูปภาพ (ปรับปรุงใหม่สำหรับทั้งเพิ่มและแก้ไข)
-// คาดหวังว่า $errors array จะถูกส่งมาแบบ reference (&) จากไฟล์หลัก
-// $old_pic_path ใช้สำหรับกรณีแก้ไข: ถ้ามีการอัปโหลดรูปใหม่จะลบรูปเก่าทิ้ง, ถ้าไม่จะคืนค่า path รูปเก่า
 function uploadImage($file_input_name, $target_dir, &$errors_ref, $old_pic_path = null) {
     if (isset($_FILES[$file_input_name]) && $_FILES[$file_input_name]['error'] == UPLOAD_ERR_OK) {
         $file_tmp_name = $_FILES[$file_input_name]['tmp_name'];
@@ -35,13 +21,11 @@ function uploadImage($file_input_name, $target_dir, &$errors_ref, $old_pic_path 
         $upload_path = $target_dir . $new_file_name;
 
         if (move_uploaded_file($file_tmp_name, $upload_path)) {
-            // ถ้ามีการอัปโหลดใหม่สำเร็จ และมีรูปภาพเก่าอยู่ ให้ลบรูปภาพเก่าทิ้ง
-            if ($old_pic_path && file_exists($old_pic_path) && strpos($old_pic_path, $images_base_dir) === 0) { // ตรวจสอบว่าเป็นไฟล์ในโฟลเดอร์ของเรา
-                unlink($old_pic_path); // [1], [2], [3], [5], [8]
+            if ($old_pic_path && file_exists($old_pic_path) && strpos($old_pic_path, $images_base_dir) === 0) { 
+                unlink($old_pic_path); 
             }
             return $upload_path; 
         } else {
-            // Error codes for file upload: [4], [37], [38], [39], [40]
             $errors_ref[] = "เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ " . $file_input_name . ": Error Code " . $_FILES[$file_input_name]['error'];
             return false;
         }
@@ -49,25 +33,23 @@ function uploadImage($file_input_name, $target_dir, &$errors_ref, $old_pic_path 
         $errors_ref[] = "เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ " . $file_input_name . ": Error Code " . $_FILES[$file_input_name]['error'];
         return false;
     }
-    // ถ้าไม่มีการอัปโหลดไฟล์ใหม่ (UPLOAD_ERR_NO_FILE) ให้คืนค่า path รูปภาพเก่า
     return $old_pic_path; 
 }
 
-
 // ฟังก์ชันสำหรับลบไฟล์รูปภาพ
 function deleteImageFile($file_path) {
-    global $images_base_dir; // เพื่อความปลอดภัยในการลบไฟล์
+    global $images_base_dir; 
     if ($file_path && file_exists($file_path) && is_file($file_path) && strpos($file_path, $images_base_dir) === 0) {
-        return unlink($file_path); // [1], [2], [3], [5], [8]
+        return unlink($file_path); 
     }
-    return true; // ถือว่าสำเร็จถ้าไม่มีไฟล์ให้ลบ หรือ path ไม่ถูกต้อง
+    return true; 
 }
 
 
-// --- Logic สำหรับการประมวลผล POST Request จากฟอร์ม ---
+// --- Logic ประมวลผล POST Request จากฟอร์ม ---
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
     
-    global $conn, $errors; // ใช้ $errors จากไฟล์หลัก
+    global $conn, $errors; 
 
     // --- CREATE Logic ---
     if ($_POST['inject_type'] === 'building') {
@@ -75,8 +57,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
         $building_name = trim($_POST['building_name'] ?? '');
         $building_pic_path = uploadImage('building_pic', $buildings_upload_dir, $errors);
 
-        if (empty($building_id)) { $errors[] = "กรุณากรอกหมายเลขอาคาร (Building Number)."; } // [7], [11], [19], [21], [22]
-        if (empty($building_name)) { $errors[] = "กรุณากรอกชื่ออาคาร (Building Name)."; } // [7], [11], [19], [21], [22]
+        if (empty($building_id)) { $errors[] = "กรุณากรอกหมายเลขอาคาร (Building Number)."; } 
+        if (empty($building_name)) { $errors[] = "กรุณากรอกชื่ออาคาร (Building Name)."; }
 
         if (empty($errors)) {
             $stmt = $conn->prepare("INSERT INTO buildings (building_id, building_name, building_pic) VALUES (?, ?, ?)");
@@ -152,7 +134,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
     elseif ($_POST['inject_type'] === 'update_building') {
         $building_id = trim($_POST['building_id'] ?? '');
         $building_name = trim($_POST['building_name'] ?? '');
-        $old_building_pic = trim($_POST['old_building_pic'] ?? ''); // Get old image path
+        $old_building_pic = trim($_POST['old_building_pic'] ?? '');
 
         if (empty($building_id)) { $errors[] = "ไม่พบรหัสอาคารที่ต้องการแก้ไข"; }
         if (empty($building_name)) { $errors[] = "กรุณากรอกชื่ออาคาร (Building Name)."; }
@@ -160,7 +142,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
         if (empty($errors)) {
             $new_building_pic_path = uploadImage('building_pic', $buildings_upload_dir, $errors, $old_building_pic);
             if ($new_building_pic_path === false && isset($_FILES['building_pic']) && $_FILES['building_pic']['error'] != UPLOAD_ERR_NO_FILE) {
-                // Image upload failed, errors already added by uploadImage function
             } else {
                 $stmt = $conn->prepare("UPDATE buildings SET building_name = ?, building_pic = ? WHERE building_id = ?"); // [10], [16], [18], [24], [28], [41]
                 if (!$stmt) { $errors[] = "เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL: " . $conn->error; } 
@@ -171,7 +152,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
                         exit();
                     } else {
                         $errors[] = "เกิดข้อผิดพลาดในการแก้ไขข้อมูลอาคาร: " . $stmt->error;
-                        // ถ้า update ล้มเหลวและมีการอัปโหลดรูปใหม่ ให้ลบรูปใหม่ทิ้งเพื่อกลับไปใช้รูปเดิม
                         if ($new_building_pic_path != $old_building_pic && $new_building_pic_path && file_exists($new_building_pic_path)) {
                             unlink($new_building_pic_path);
                         }
@@ -186,7 +166,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
         $facility_id = (int)($_POST['facility_id'] ?? 0);
         $facility_name = trim($_POST['facility_name'] ?? '');
         $facility_des = trim($_POST['facility_des'] ?? '');
-        $building_id_for_facility = (int)($_POST['building_id'] ?? 0); // Need to retain for redirect
+        $building_id_for_facility = (int)($_POST['building_id'] ?? 0); 
         $old_facility_pic = trim($_POST['old_facility_pic'] ?? '');
 
         if (empty($facility_id)) { $errors[] = "ไม่พบรหัสสถานที่ที่ต้องการแก้ไข"; }
@@ -196,7 +176,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
         if (empty($errors)) {
             $new_facility_pic_path = uploadImage('facility_pic', $facilities_upload_dir, $errors, $old_facility_pic);
             if ($new_facility_pic_path === false && isset($_FILES['facility_pic']) && $_FILES['facility_pic']['error'] != UPLOAD_ERR_NO_FILE) {
-                // Image upload failed
             } else {
                 $stmt = $conn->prepare("UPDATE facilities SET facility_name = ?, facility_des = ?, facility_pic = ?, building_id = ? WHERE facility_id = ?");
                 if (!$stmt) { $errors[] = "เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL: " . $conn->error; } 
@@ -232,7 +211,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
         if (empty($errors)) {
             $new_equip_pic_path = uploadImage('equip_pic', $equipments_upload_dir, $errors, $old_equip_pic);
             if ($new_equip_pic_path === false && isset($_FILES['equip_pic']) && $_FILES['equip_pic']['error'] != UPLOAD_ERR_NO_FILE) {
-                // Image upload failed
             } else {
                 $stmt = $conn->prepare("UPDATE equipments SET equip_name = ?, quantity = ?, measure = ?, size = ?, equip_pic = ? WHERE equip_id = ?");
                 if (!$stmt) { $errors[] = "เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL: " . $conn->error; } 
@@ -260,7 +238,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
         if (empty($building_id)) { $errors[] = "ไม่พบรหัสอาคารที่ต้องการลบ"; }
 
         if (empty($errors)) {
-            // Check for dependent facilities
+
             $stmt_check = $conn->prepare("SELECT COUNT(*) FROM facilities WHERE building_id = ?");
             $stmt_check->bind_param("s", $building_id);
             $stmt_check->execute();
@@ -271,7 +249,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
             if ($facility_count > 0) {
                 $errors[] = "ไม่สามารถลบอาคาร '{$building_id}' ได้ เนื่องจากยังมีสถานที่เกี่ยวข้องอยู่ ({$facility_count} แห่ง). กรุณาลบสถานที่ภายในอาคารนี้ก่อน";
             } else {
-                // Get image path before deleting the record
+
                 $stmt_get_pic = $conn->prepare("SELECT building_pic FROM buildings WHERE building_id = ?");
                 $stmt_get_pic->bind_param("s", $building_id);
                 $stmt_get_pic->execute();
@@ -279,12 +257,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
                 $stmt_get_pic->fetch();
                 $stmt_get_pic->close();
 
-                $stmt_delete = $conn->prepare("DELETE FROM buildings WHERE building_id = ?"); // [6], [12], [13], [17], [23]
+                $stmt_delete = $conn->prepare("DELETE FROM buildings WHERE building_id = ?"); 
                 if (!$stmt_delete) { $errors[] = "เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL: " . $conn->error; } 
                 else {
                     $stmt_delete->bind_param("s", $building_id);
                     if ($stmt_delete->execute()) {
-                        deleteImageFile($building_pic); // Delete associated image
+                        deleteImageFile($building_pic); // ลบรูปภาพที่เกี่ยวข้อง
                         header("Location: admin-data_view-page.php?mode=buildings&status=success&message=" . urlencode("ลบอาคาร '{$building_id}' สำเร็จแล้ว!"));
                         exit();
                     } else {
@@ -298,12 +276,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
 
     elseif ($_POST['inject_type'] === 'delete_facility') {
         $facility_id = (int)($_POST['delete_id'] ?? 0);
-        $building_id_for_redirect = (int)($_POST['building_id_for_redirect'] ?? 0); // For redirecting back
+        $building_id_for_redirect = (int)($_POST['building_id_for_redirect'] ?? 0); 
 
         if (empty($facility_id)) { $errors[] = "ไม่พบรหัสสถานที่ที่ต้องการลบ"; }
 
         if (empty($errors)) {
-            // Check for dependent requests (assuming a 'requests' table links to facilities)
+
             $stmt_check_requests = $conn->prepare("SELECT COUNT(*) FROM requests WHERE facility_id = ?"); 
             if ($stmt_check_requests) {
                 $stmt_check_requests->bind_param("i", $facility_id);
@@ -312,14 +290,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
                 $stmt_check_requests->fetch();
                 $stmt_check_requests->close();
             } else {
-                 $request_count = 0; // Assume no requests if table not found or query error
+                 $request_count = 0; 
                  error_log("Warning: Could not check for facility requests (table 'requests' or query failed). Assuming no requests.");
             }
 
             if ($request_count > 0) {
                 $errors[] = "ไม่สามารถลบสถานที่นี้ได้ เนื่องจากมีการขอใช้งานสถานที่นี้อยู่ ({$request_count} รายการ).";
             } else {
-                // Get image path before deleting the record
                 $stmt_get_pic = $conn->prepare("SELECT facility_pic FROM facilities WHERE facility_id = ?");
                 $stmt_get_pic->bind_param("i", $facility_id);
                 $stmt_get_pic->execute();
@@ -332,7 +309,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
                 else {
                     $stmt_delete->bind_param("i", $facility_id);
                     if ($stmt_delete->execute()) {
-                        deleteImageFile($facility_pic); // Delete associated image
+                        deleteImageFile($facility_pic); // ลบรูปภาพที่เกี่ยวข้อง
                         header("Location: admin-data_view-page.php?mode=building_detail&building_id={$building_id_for_redirect}&status=success&message=" . urlencode("ลบสถานที่สำเร็จแล้ว!"));
                         exit();
                     } else {
@@ -350,7 +327,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
         if (empty($equip_id)) { $errors[] = "ไม่พบรหัสอุปกรณ์ที่ต้องการลบ"; }
 
         if (empty($errors)) {
-            // Check for dependent requests (assuming a 'requests' table links to equipment, e.g., via a join table or direct column)
             $stmt_check_requests = $conn->prepare("SELECT COUNT(*) FROM requests WHERE equip_id = ?"); 
             if ($stmt_check_requests) {
                 $stmt_check_requests->bind_param("i", $equip_id);
@@ -359,14 +335,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
                 $stmt_check_requests->fetch();
                 $stmt_check_requests->close();
             } else {
-                $request_count = 0; // Assume no requests if table not found or query error
+                $request_count = 0; 
                 error_log("Warning: Could not check for equipment requests (table 'requests' or query failed). Assuming no requests.");
             }
 
             if ($request_count > 0) {
                 $errors[] = "ไม่สามารถลบอุปกรณ์นี้ได้ เนื่องจากมีการขอใช้งานอุปกรณ์นี้อยู่ ({$request_count} รายการ).";
             } else {
-                // Get image path before deleting the record
+
                 $stmt_get_pic = $conn->prepare("SELECT equip_pic FROM equipments WHERE equip_id = ?");
                 $stmt_get_pic->bind_param("i", $equip_id);
                 $stmt_get_pic->execute();
@@ -379,7 +355,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
                 else {
                     $stmt_delete->bind_param("i", $equip_id);
                     if ($stmt_delete->execute()) {
-                        deleteImageFile($equip_pic); // Delete associated image
+                        deleteImageFile($equip_pic); 
                         header("Location: admin-data_view-page.php?mode=equipment&status=success&message=" . urlencode("ลบอุปกรณ์สำเร็จแล้ว!"));
                         exit();
                     } else {

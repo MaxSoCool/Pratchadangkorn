@@ -578,3 +578,15 @@ h1 {
     text-align: right;
     min-width: 120px; /* กำหนดความกว้างขั้นต่ำเพื่อไม่ให้เลย์เอาต์เสีย */
 }
+
+.footer-text{
+    font-size: 14px;
+}
+
+.inbox-text{
+    font-size: 12px;
+}
+
+.list-text{
+    font-size: 14px;
+}

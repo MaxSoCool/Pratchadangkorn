@@ -2,7 +2,6 @@
 include 'database/database.php';
 include 'php/admin-injection.php';
 
-// --- Page Logic Configuration ---
 $mode = $_GET['mode'] ?? 'buildings';
 $errors = [];
 $success_message = '';
@@ -146,7 +145,7 @@ if (!in_array($mode, ['add_building', 'add_facility', 'add_equipment'])) {
     $total_pages = ceil($total_pages_items / $items_per_page);
 }
  
-$buildings = []; // For facility form dropdown
+$buildings = []; 
 if ($mode == 'add_facility') {
     $result_buildings = $conn->query("SELECT building_id, building_name FROM buildings ORDER BY building_name");
     if ($result_buildings) {
