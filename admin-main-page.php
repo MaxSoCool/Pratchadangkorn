@@ -7,10 +7,9 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true || $_SESSI
     exit();
 }
 
-include 'database/database.php'; // ไฟล์เชื่อมต่อฐานข้อมูล
+include 'database/database.php'; 
 include 'php/sorting.php';
 
-// --- Helper Functions (หากไม่ได้อยู่ใน header.php หรือไฟล์อื่นที่ include) ---
 if (!function_exists('formatThaiDate')) {
     function formatThaiDate($date_str, $with_time = true) {
         if (!$date_str || $date_str === '0000-00-00 00:00:00' || $date_str === '0000-00-00') {
@@ -1129,6 +1128,16 @@ $total_pages = ceil($total_items / $items_per_page);
                                 <?php endif; ?>
                             </div>
                         </div>
+                        <div class="d-flex">
+                            <a href="<?php echo htmlspecialchars($previous) ?: '#'; ?>"
+                            class="btn btn-secondary me-2"
+                            onclick="if(this.getAttribute('href') === '#'){ history.back(); return false; }">
+                                ย้อนกลับ
+                            </a>
+                            <button type="button" class="btn btn-info me-2" onclick="window.print()">
+                                <i class="bi bi-printer"></i> พิมพ์
+                            </button>
+                        </div>
 
                         <h4 class="mt-4 mb-3">คำร้องขอใช้สถานที่ที่เกี่ยวข้อง</h4>
                         <?php if (empty($project_facility_requests)): ?>
@@ -1248,100 +1257,92 @@ $total_pages = ceil($total_items / $items_per_page);
                             </div>
                         </div>
                     <?php endif; ?>
-
-                    <div class="d-flex justify-content-between mt-4">
-                        <a href="<?php echo htmlspecialchars($previous) ?: '#'; ?>"
-                        class="btn btn-secondary"
-                        onclick="if(this.getAttribute('href') === '#'){ history.back(); return false; }">
-                            ย้อนกลับ
-                        </a>
-                        <div>
-                            <?php
-                            if (($main_tab == 'buildings_admin' || $main_tab == 'equipments_admin') && ($detail_item['approve'] !== 'อนุมัติ' && $detail_item['approve'] !== 'ยกเลิก')):
-                            ?>
-                                <button type="button" class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#approveModal">
-                                    อนุมัติ
+                    <?php if ($main_tab == 'buildings_admin' || $main_tab == 'equipments_admin'): ?>
+                        <div class="d-flex justify-content-between mt-4">
+                            <div>
+                                <a href="<?php echo htmlspecialchars($previous) ?: '#'; ?>"
+                                class="btn btn-secondary me-2"
+                                onclick="if(this.getAttribute('href') === '#'){ history.back(); return false; }">
+                                    ย้อนกลับ
+                                </a>
+                                <button type="button" class="btn btn-info me-2" onclick="window.print()">
+                                    <i class="bi bi-printer"></i> พิมพ์
                                 </button>
-                                <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#rejectModal">
-                                    ไม่อนุมัติ
-                                </button>
+                            </div>
+                            <div>
+                                <?php
+                                if (($main_tab == 'buildings_admin' || $main_tab == 'equipments_admin') && ($detail_item['approve'] !== 'อนุมัติ' && $detail_item['approve'] !== 'ยกเลิก')):
+                                ?>
+                                    <button type="button" class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#approveModal">
+                                        อนุมัติ
+                                    </button>
+                                    <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#rejectModal">
+                                        ไม่อนุมัติ
+                                    </button>
 
-                                <div class="modal fade" id="approveModal" tabindex="-1" aria-labelledby="approveModalLabel" aria-hidden="true">
-                                    <div class="modal-dialog">
-                                        <div class="modal-content">
-                                            <form action="" method="POST">
-                                                <div class="modal-header bg-success text-white">
-                                                    <h5 class="modal-title" id="approveModalLabel">เพิ่มรายละเอียดการอนุมัติ (ไม่บังคับ)</h5>
-                                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                                                </div>
-                                                <div class="modal-body">
-                                                    <div class="mb-3">
-                                                        <label for="approve_detail_optional" class="form-label">รายละเอียดเพิ่มเติม:</label>
-                                                        <textarea class="form-control" id="approve_detail_optional" name="approve_detail" rows="3"></textarea>
-                                                        <small class="text-muted">คุณสามารถเพิ่มบันทึกเกี่ยวกับการอนุมัติคำร้องนี้ได้ (ไม่บังคับ)</small>
+                                    <div class="modal fade" id="approveModal" tabindex="-1" aria-labelledby="approveModalLabel" aria-hidden="true">
+                                        <div class="modal-dialog">
+                                            <div class="modal-content">
+                                                <form action="" method="POST">
+                                                    <div class="modal-header bg-success text-white">
+                                                        <h5 class="modal-title" id="approveModalLabel">เพิ่มรายละเอียดการอนุมัติ (ไม่บังคับ)</h5>
+                                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                                                     </div>
-                                                    <input type="hidden" name="action" value="approve_request">
-                                                    <input type="hidden" name="request_id" value="<?php echo htmlspecialchars($detail_item['facility_re_id'] ?? $detail_item['equip_re_id']); ?>">
-                                                    <input type="hidden" name="request_type" value="<?php echo ($main_tab == 'buildings_admin') ? 'facility' : 'equipment'; ?>">
-                                                </div>
-                                                <div class="modal-footer">
-                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
-                                                    <button type="submit" class="btn btn-success">ยืนยันอนุมัติ</button>
-                                                </div>
-                                            </form>
+                                                    <div class="modal-body">
+                                                        <div class="mb-3">
+                                                            <label for="approve_detail_optional" class="form-label">รายละเอียดเพิ่มเติม:</label>
+                                                            <textarea class="form-control" id="approve_detail_optional" name="approve_detail" rows="3"></textarea>
+                                                            <small class="text-muted">คุณสามารถเพิ่มบันทึกเกี่ยวกับการอนุมัติคำร้องนี้ได้ (ไม่บังคับ)</small>
+                                                        </div>
+                                                        <input type="hidden" name="action" value="approve_request">
+                                                        <input type="hidden" name="request_id" value="<?php echo htmlspecialchars($detail_item['facility_re_id'] ?? $detail_item['equip_re_id']); ?>">
+                                                        <input type="hidden" name="request_type" value="<?php echo ($main_tab == 'buildings_admin') ? 'facility' : 'equipment'; ?>">
+                                                    </div>
+                                                    <div class="modal-footer">
+                                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+                                                        <button type="submit" class="btn btn-success">ยืนยันอนุมัติ</button>
+                                                    </div>
+                                                </form>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
 
-                                <!-- Reject Modal -->
-                                <div class="modal fade" id="rejectModal" tabindex="-1" aria-labelledby="rejectModalLabel" aria-hidden="true">
-                                    <div class="modal-dialog">
-                                        <div class="modal-content">
-                                            <form action="" method="POST">
-                                                <div class="modal-header bg-danger text-white">
-                                                    <h5 class="modal-title" id="rejectModalLabel">ระบุเหตุผลการไม่อนุมัติ</h5>
-                                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                                                </div>
-                                                <div class="modal-body">
-                                                    <div class="mb-3">
-                                                        <label for="reject_reason" class="form-label">เหตุผล:</label>
-                                                        <textarea class="form-control" id="reject_reason" name="approve_detail" rows="3" required></textarea>
+                                    <!-- Reject Modal -->
+                                    <div class="modal fade" id="rejectModal" tabindex="-1" aria-labelledby="rejectModalLabel" aria-hidden="true">
+                                        <div class="modal-dialog">
+                                            <div class="modal-content">
+                                                <form action="" method="POST">
+                                                    <div class="modal-header bg-danger text-white">
+                                                        <h5 class="modal-title" id="rejectModalLabel">ระบุเหตุผลการไม่อนุมัติ</h5>
+                                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                                                     </div>
-                                                    <input type="hidden" name="action" value="reject_request">
-                                                    <input type="hidden" name="request_id" value="<?php echo htmlspecialchars($detail_item['facility_re_id'] ?? $detail_item['equip_re_id']); ?>">
-                                                    <input type="hidden" name="request_type" value="<?php echo ($main_tab == 'buildings_admin') ? 'facility' : 'equipment'; ?>">
-                                                </div>
-                                                <div class="modal-footer">
-                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
-                                                    <button type="submit" class="btn btn-danger">ยืนยันไม่อนุมัติ</button>
-                                                </div>
-                                            </form>
+                                                    <div class="modal-body">
+                                                        <div class="mb-3">
+                                                            <label for="reject_reason" class="form-label">เหตุผล:</label>
+                                                            <textarea class="form-control" id="reject_reason" name="approve_detail" rows="3" required></textarea>
+                                                        </div>
+                                                        <input type="hidden" name="action" value="reject_request">
+                                                        <input type="hidden" name="request_id" value="<?php echo htmlspecialchars($detail_item['facility_re_id'] ?? $detail_item['equip_re_id']); ?>">
+                                                        <input type="hidden" name="request_type" value="<?php echo ($main_tab == 'buildings_admin') ? 'facility' : 'equipment'; ?>">
+                                                    </div>
+                                                    <div class="modal-footer">
+                                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+                                                        <button type="submit" class="btn btn-danger">ยืนยันไม่อนุมัติ</button>
+                                                    </div>
+                                                </form>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            <?php endif; ?>
+                                <?php endif; ?>
+                            </div>
                         </div>
-                    </div>
+                    <?php endif; ?>
                 </div>
             <?php endif; ?>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Highlight active sidebar link
-            const urlParams = new URLSearchParams(window.location.search);
-            const currentTab = urlParams.get('main_tab') || 'dashboard_admin'; // Default to dashboard_admin
-            const navLinks = document.querySelectorAll('.admin-sidebar .nav-link'); // ใช้ .admin-sidebar เพื่อความเฉพาะเจาะจง
-
-            navLinks.forEach(link => {
-                link.classList.remove('active'); // Remove active from all
-                if (link.href.includes(`main_tab=${currentTab}`)) {
-                    link.classList.add('active'); // Add active to current tab
-                }
-            });
-        });
-    </script>
+    <script src="./js/admin_menu.js"></script>
 </body>
 </html>

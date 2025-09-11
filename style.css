@@ -590,3 +590,77 @@ h1 {
 .list-text{
     font-size: 14px;
 }
+
+@media print {
+    /* ซ่อน Navbar */
+    .navbar, .admin-sidebar, .admin-sidebar ul {
+        display: none !important;
+    }
+
+    /* ซ่อนปุ่มต่างๆ และส่วนควบคุมที่ไม่ต้องการให้พิมพ์ */
+    .btn,
+    .d-flex.justify-content-between.mt-4 > div:last-child, /* ซ่อนปุ่มอนุมัติ/ไม่อนุมัติและพิมพ์ */
+    .pagination,
+    form[action=""] .d-flex.align-items-center /* ซ่อนแถบค้นหาและตัวกรอง */
+    {
+        display: none !important;
+    }
+
+    /* ปรับปรุงการจัดวางเนื้อหาหลักให้เต็มหน้ากระดาษ */
+    .admin-main-wrapper {
+        display: block !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+    }
+
+    .admin-content-area {
+        margin-left: 0 !important;
+        width: 100% !important;
+        padding: 20px !important; /* อาจปรับตามความเหมาะสม */
+    }
+
+    /* ปรับการแสดงผลของ Card เพื่อให้ดูเป็นเอกสาร */
+    .card {
+        border: 1px solid #ddd;
+        box-shadow: none !important;
+        page-break-inside: avoid; /* ป้องกันการแบ่งหน้ากลาง card */
+        margin-bottom: 1em;
+    }
+
+    /* ปรับสีข้อความเป็นสีดำเพื่อให้อ่านง่ายบนกระดาษขาวดำ */
+    body, h1, h2, h3, h4, h5, h6, p, li, table {
+        color: #000 !important;
+    }
+
+    /* ตรวจสอบว่ารูปภาพแสดงผลถูกต้อง */
+    img {
+        max-width: 100% !important;
+        height: auto !important;
+    }
+
+    /* ลบพื้นหลังสีออกจาก badge เพื่อประหยัดหมึก */
+    .badge {
+        background-color: transparent !important;
+        color: #000 !important;
+        border: 1px solid #ccc;
+    }
+
+    /* กำหนดขอบเขตการพิมพ์สำหรับตาราง */
+    table {
+        width: 100% !important;
+        border-collapse: collapse;
+    }
+    th, td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+    }
+    thead {
+        display: table-header-group; /* ทำให้หัวตารางแสดงบนทุกหน้า */
+    }
+    tr {
+        page-break-inside: avoid;
+        page-break-after: auto;
+    }
+}
