@@ -4,7 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const passwordInput = document.getElementById('password');
     const messageDisplay = document.getElementById('message');
 
-    const API_ENDPOINT = 'https://verify.csc.ku.ac.th/api/cscapi/ldap/';
+    const API_ENDPOINT = 'https://inv.csc.ku.ac.th/cscapi/ldap/';
     const KEY_APP = '1db2648bd3d5251c02cd33fd5080f47c24383d0cc5be27159ec8ac01a133e685';
 
     loginForm.addEventListener('submit', async (event) => {

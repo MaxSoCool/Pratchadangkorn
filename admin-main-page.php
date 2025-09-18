@@ -7,7 +7,7 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true || $_SESSI
     exit();
 }
 
-include 'database/database.php'; 
+include 'database/database.php';
 include 'php/sorting.php';
 
 if (!function_exists('formatThaiDate')) {
@@ -63,10 +63,8 @@ if (!function_exists('getStatusBadgeClass')) {
 
 
 $staff_id_for_db = $_SESSION['staff_id'] ?? null;
-$staff_THname = htmlspecialchars($_SESSION['staff_THname'] ?? 'N/A');
-$staff_THsur = htmlspecialchars($_SESSION['staff_THsur'] ?? 'N/A');
-$staff_ENname = htmlspecialchars($_SESSION['staff_ENname'] ?? 'N/A');
-$staff_ENsur = htmlspecialchars($_SESSION['staff_ENsur'] ?? 'N/A');
+$staff_THname = htmlspecialchars($_SESSION['user_display_THname'] ?? 'N/A');
+$staff_THsur = htmlspecialchars($_SESSION['user_display_THsur'] ?? 'N/A');
 $user_role = htmlspecialchars($_SESSION['role'] ?? 'N/A');
 
 if (empty($staff_id_for_db) || $staff_id_for_db === 'N/A') {
@@ -80,7 +78,7 @@ $search_query = isset($_GET['search']) ? trim($_GET['search']) : '';
 $search_param = '%' . $search_query . '%';
 
 $main_tab = isset($_GET['main_tab']) ? $_GET['main_tab'] : 'dashboard_admin';
-$mode = isset($_GET['mode']) ? $_GET['mode'] : 'list'; 
+$mode = isset($_GET['mode']) ? $_GET['mode'] : 'list';
 
 $data = [];
 $detail_item = null;
@@ -403,7 +401,7 @@ try {
             $sorting = getSortingClauses('projects_admin', $sort_filter);
 
             $base_where = " WHERE p.project_name LIKE ? AND p.writed_status != 'ร่างโครงการ'";
-            
+
             $count_sql = "SELECT COUNT(*) FROM project p" . $base_where . $sorting['where_sql'];
             $stmt_count = $conn->prepare($count_sql);
 
@@ -427,10 +425,10 @@ try {
                         LEFT JOIN activity_type at ON p.activity_type_id = at.activity_type_id"
                         . $base_where . $sorting['where_sql']
                         . $sorting['order_by_sql'] . " LIMIT ? OFFSET ?";
-            
+
             $stmt_data = $conn->prepare($sql_data);
 
-            $data_params = $count_params; 
+            $data_params = $count_params;
             $data_param_types = $count_param_types;
             $data_params[] = $items_per_page;
             $data_params[] = $offset;
@@ -449,8 +447,8 @@ try {
                                 p.project_id, p.project_name, p.start_date, p.end_date, p.project_des, p.files, p.attendee, p.phone_num, p.advisor_name, p.writed_status, p.created_date,
                                 at.activity_type_name AS activity_type_name, CONCAT(u.user_THname, ' ', u.user_THsur) AS user_name, u.nontri_id
                            FROM project p
-                           LEFT JOIN user u ON p.nontri_id = u.nontri_id
-                           LEFT JOIN activity_type at ON p.activity_type_id = at.activity_type_id
+                           JOIN user u ON p.nontri_id = u.nontri_id
+                           JOIN activity_type at ON p.activity_type_id = at.activity_type_id
                            WHERE p.project_id = ?";
             $stmt_detail = $conn->prepare($sql_detail);
             $stmt_detail->bind_param("i", $project_id);
@@ -462,36 +460,94 @@ try {
                 $errors[] = "ไม่พบโครงการที่คุณร้องขอ.";
                 $mode = 'list';
             } else {
-
+                // Fetch summary of facility requests for display (on-screen)
                 $project_facility_requests = [];
-                $sql_fr = "SELECT fr.facility_re_id, fr.request_date, fr.writed_status, fr.start_date, fr.end_date, fr.prepare_start_date, fr.prepare_end_date, fr.start_time, fr.end_time, f.facility_name, fr.approve
+                $sql_fr_summary = "SELECT fr.facility_re_id, fr.request_date, fr.writed_status, fr.start_date, fr.end_date, fr.prepare_start_date, fr.prepare_end_date, fr.start_time, fr.end_time, f.facility_name, fr.approve
                            FROM facilities_requests fr
                            JOIN facilities f ON fr.facility_id = f.facility_id
                            WHERE fr.project_id = ? AND fr.writed_status != 'ร่างคำร้องขอ'
                            ORDER BY fr.request_date DESC";
-                $stmt_fr = $conn->prepare($sql_fr);
-                $stmt_fr->bind_param("i", $project_id);
-                $stmt_fr->execute();
-                $result_fr = $stmt_fr->get_result();
-                while ($row_fr = $result_fr->fetch_assoc()) {
-                    $project_facility_requests[] = $row_fr;
+                $stmt_fr_summary = $conn->prepare($sql_fr_summary);
+                $stmt_fr_summary->bind_param("i", $project_id);
+                $stmt_fr_summary->execute();
+                $result_fr_summary = $stmt_fr_summary->get_result();
+                while ($row_fr_summary = $result_fr_summary->fetch_assoc()) {
+                    $project_facility_requests[] = $row_fr_summary;
                 }
-                $stmt_fr->close();
+                $stmt_fr_summary->close();
 
+                // Fetch FULL details of facilities requests for PRINTING
+                $detailed_project_facility_requests = [];
+                foreach ($project_facility_requests as $summary_fr) {
+                    $fr_id = $summary_fr['facility_re_id'];
+                    $sql_fr_print_detail = "SELECT
+                                fr.facility_re_id, fr.project_id, fr.prepare_start_time, fr.prepare_end_time,
+                                fr.prepare_start_date, fr.prepare_end_date, fr.start_time, fr.end_time,
+                                fr.start_date , fr.end_date , fr.agree,
+                                fr.writed_status, fr.request_date, fr.approve, fr.approve_date, fr.approve_detail,
+                                f.facility_name, p.project_name, CONCAT(u.user_THname, ' ', u.user_THsur) AS user_name,
+                                CONCAT(s.staff_THname, ' ', s.staff_THsur) AS staff_name
+                            FROM facilities_requests fr
+                            JOIN facilities f ON fr.facility_id = f.facility_id
+                            JOIN project p ON fr.project_id = p.project_id
+                            LEFT JOIN user u ON p.nontri_id = u.nontri_id
+                            LEFT JOIN staff s ON fr.staff_id = s.staff_id
+                            WHERE fr.facility_re_id = ?";
+                    $stmt_fr_print = $conn->prepare($sql_fr_print_detail);
+                    if ($stmt_fr_print) {
+                        $stmt_fr_print->bind_param("i", $fr_id);
+                        $stmt_fr_print->execute();
+                        $detailed_fr_item = $stmt_fr_print->get_result()->fetch_assoc();
+                        if ($detailed_fr_item) {
+                            $detailed_project_facility_requests[] = $detailed_fr_item;
+                        }
+                        $stmt_fr_print->close();
+                    }
+                }
+
+                // Fetch summary of equipment requests for display (on-screen)
                 $project_equipment_requests = [];
-                $sql_er = "SELECT er.equip_re_id, er.request_date, er.writed_status, er.start_date, er.end_date, er.quantity, e.equip_name, e.measure, er.approve
+                $sql_er_summary = "SELECT er.equip_re_id, er.request_date, er.writed_status, er.start_date, er.end_date, er.quantity, e.equip_name, e.measure, er.approve
                            FROM equipments_requests er
                            JOIN equipments e ON er.equip_id = e.equip_id
                            WHERE er.project_id = ? AND er.writed_status != 'ร่างคำร้องขอ'
                            ORDER BY er.request_date DESC";
-                $stmt_er = $conn->prepare($sql_er);
-                $stmt_er->bind_param("i", $project_id);
-                $stmt_er->execute();
-                $result_er = $stmt_er->get_result();
-                while ($row_er = $result_er->fetch_assoc()) {
-                    $project_equipment_requests[] = $row_er;
+                $stmt_er_summary = $conn->prepare($sql_er_summary);
+                $stmt_er_summary->bind_param("i", $project_id);
+                $stmt_er_summary->execute();
+                $result_er_summary = $stmt_er_summary->get_result();
+                while ($row_er_summary = $result_er_summary->fetch_assoc()) {
+                    $project_equipment_requests[] = $row_er_summary;
                 }
-                $stmt_er->close();
+                $stmt_er_summary->close();
+
+                // Fetch FULL details of equipment requests for PRINTING
+                $detailed_project_equipment_requests = [];
+                foreach ($project_equipment_requests as $summary_er) {
+                    $er_id = $summary_er['equip_re_id'];
+                    $sql_er_print_detail = "SELECT
+                                er.equip_re_id, er.project_id, er.start_date, er.end_date, er.quantity, er.transport,
+                                er.writed_status, er.request_date, er.approve, er.approve_date, er.approve_detail, er.agree,
+                                e.equip_name, e.measure, f.facility_name, p.project_name, CONCAT(u.user_THname, ' ', u.user_THsur) AS user_name,
+                                CONCAT(s.staff_THname, ' ', s.staff_THsur) AS staff_name
+                            FROM equipments_requests er
+                            JOIN equipments e ON er.equip_id = e.equip_id
+                            JOIN project p ON er.project_id = p.project_id
+                            LEFT JOIN facilities f ON er.facility_id = f.facility_id
+                            LEFT JOIN user u ON p.nontri_id = u.nontri_id
+                            LEFT JOIN staff s ON er.staff_id = s.staff_id
+                            WHERE er.equip_re_id = ?";
+                    $stmt_er_print = $conn->prepare($sql_er_print_detail);
+                    if ($stmt_er_print) {
+                        $stmt_er_print->bind_param("i", $er_id);
+                        $stmt_er_print->execute();
+                        $detailed_er_item = $stmt_er_print->get_result()->fetch_assoc();
+                        if ($detailed_er_item) {
+                            $detailed_project_equipment_requests[] = $detailed_er_item;
+                        }
+                        $stmt_er_print->close();
+                    }
+                }
             }
         }
     } elseif ($main_tab == 'buildings_admin') {
@@ -500,7 +556,7 @@ try {
             $sorting = getSortingClauses('buildings_admin', $sort_filter);
 
             $base_where = " WHERE fr.writed_status != 'ร่างคำร้องขอ' AND (p.project_name LIKE ? OR f.facility_name LIKE ?)";
-            
+
             $count_sql = "SELECT COUNT(*) FROM facilities_requests fr JOIN project p ON fr.project_id = p.project_id JOIN facilities f ON fr.facility_id = f.facility_id" . $base_where . $sorting['where_sql'];
             $stmt_count = $conn->prepare($count_sql);
 
@@ -525,7 +581,7 @@ try {
                         LEFT JOIN user u ON p.nontri_id = u.nontri_id"
                         . $base_where . $sorting['where_sql']
                         . $sorting['order_by_sql'] . " LIMIT ? OFFSET ?";
-            
+
             $stmt_data = $conn->prepare($sql_data);
 
             $data_params = $count_params;
@@ -601,7 +657,7 @@ try {
                         LEFT JOIN user u ON p.nontri_id = u.nontri_id"
                         . $base_where . $sorting['where_sql']
                         . $sorting['order_by_sql'] . " LIMIT ? OFFSET ?";
-            
+
             $stmt_data = $conn->prepare($sql_data);
 
             $data_params = $count_params;
@@ -658,9 +714,131 @@ $total_pages = ceil($total_items / $items_per_page);
 <html lang="th">
 <head>
     <?php include 'header.php'?>
+    <!-- เพิ่ม CSS สำหรับ print โดยเฉพาะ -->
+<style>
+    /* CSS สำหรับแสดงผลบนหน้าจอ */
+    @media screen {
+        .print-only {
+            display: none !important; /* ซ่อนส่วนนี้เมื่ออยู่บนหน้าจอ */
+        }
+    }
+
+    /* CSS สำหรับการพิมพ์ */
+    @media print {
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Sarabun', sans-serif;
+            color: #000;
+            background-color: #fff;
+        }
+
+        /* ซ่อนทุกส่วน UI ที่ไม่ต้องการพิมพ์ */
+        .navbar, .admin-sidebar, .alert, .btn,
+        .d-flex.justify-content-between.mt-4 > div:last-child, /* ปุ่มอนุมัติ/ไม่อนุมัติ */
+        .list-group-item .btn, .card-footer a, .mb-3.d-flex, .pagination,
+        .activity-item .stretched-link, /* ไม่พิมพ์ลิงก์ใน dashboard */
+        .screen-only {
+            display: none !important;
+            visibility: hidden !important;
+        }
+
+        /* แสดงเฉพาะส่วนที่ต้องการพิมพ์ */
+        .admin-content-area {
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            box-shadow: none !important; /* ลบเงา card */
+            border: none !important;
+            flex: none !important; /* ป้องกัน flexbox จากการทำให้ layout เสีย */
+        }
+
+        /* ทำให้ส่วน print-only แสดงผล */
+        .print-only {
+            display: block !important;
+            visibility: visible !important;
+        }
+
+        /* ปรับขนาดตัวอักษรและอื่น ๆ เพื่อการพิมพ์ */
+        h1, h2, h3, h4, h5, h6 {
+            color: #000 !important;
+            page-break-after: avoid;
+        }
+
+        p, li {
+            font-size: 11pt;
+            line-height: 1.5;
+        }
+        .list-text p, .list-text li {
+            font-size: 11pt;
+        }
+
+        /* Style สำหรับ badge - อาจจะไม่ต้องการสีบนกระดาษ */
+        .badge {
+            color: #000 !important;
+            background-color: #f0f0f0 !important;
+            border: 1px solid #ccc;
+            padding: 3px 6px;
+            font-size: 9pt;
+            vertical-align: middle;
+        }
+
+        /* การจัดการตาราง */
+        .print-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1em;
+            font-size: 10pt; /* ขนาดตัวอักษรในตาราง */
+        }
+        .print-table th, .print-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            vertical-align: top;
+        }
+        .print-table th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+        /* เพื่อให้ส่วนหัวตารางแสดงซ้ำในทุกหน้า */
+        thead {
+            display: table-header-group;
+        }
+
+        /* การจัดการ page break */
+        .page-break-before-always {
+            page-break-before: always !important;
+        }
+        .page-break-after-always {
+            page-break-after: always !important;
+        }
+        .page-break-inside-avoid {
+            page-break-inside: avoid !important;
+        }
+
+        .report-header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .report-header h3, .report-header p {
+            margin: 0;
+            color: #000 !important;
+        }
+        .report-header hr {
+            border-top: 1px solid #000;
+        }
+
+        @page {
+            margin: 20mm; /* กำหนดขอบกระดาษ */
+            /* คุณสามารถเพิ่ม content สำหรับ header/footer ที่นี่ได้หากต้องการ */
+            /* @top-center { content: "ระบบขอใช้อุปกรณ์และสถานที่ KU FTD"; } */
+            /* @bottom-right { content: "หน้า " counter(page) " จาก " counter(pages); } */
+        }
+    }
+</style>
 </head>
 <body class="admin-body">
-    <nav class="navbar navbar-dark navigator">
+    <nav class="navbar navbar-dark navigator screen-only">
         <div class="container-fluid">
             <div class="d-flex align-items-center gap-3">
                 <a href="admin-data_view-page.php">
@@ -689,7 +867,7 @@ $total_pages = ceil($total_items / $items_per_page);
 
     <div class="admin-main-wrapper">
         <!-- Sidebar -->
-        <div class="admin-sidebar">
+        <div class="admin-sidebar screen-only">
             <h5 class="mb-3">เมนูผู้ดูแลระบบ</h5>
             <ul class="nav flex-column">
                 <li class="nav-item">
@@ -715,9 +893,9 @@ $total_pages = ceil($total_items / $items_per_page);
             </ul>
         </div>
 
-        <div class="admin-content-area">
+        <div class="admin-content-area" id="mainContent">
             <?php if (!empty($errors)): ?>
-                <div class="alert alert-danger" role="alert">
+                <div class="alert alert-danger" role="alert" class="screen-only">
                     <h4 class="alert-heading">เกิดข้อผิดพลาด!</h4>
                     <ul>
                         <?php foreach ($errors as $error): ?>
@@ -731,7 +909,7 @@ $total_pages = ceil($total_items / $items_per_page);
             $modal_status = $_GET['status'] ?? '';
             $modal_message = $_GET['message'] ?? '';
             if ($modal_status == 'success' && $modal_message != ''): ?>
-                <div class="alert alert-success" role="alert">
+                <div class="alert alert-success" role="alert" class="screen-only">
                     <h4 class="alert-heading">สำเร็จ!</h4>
                     <p><?php echo htmlspecialchars($modal_message); ?></p>
                 </div>
@@ -749,7 +927,7 @@ $total_pages = ceil($total_items / $items_per_page);
 
             <?php if ($main_tab == 'dashboard_admin'): ?>
                 <h1 class="mb-4">ภาพรวมคำร้องขอทั้งหมด</h1>
-                <div class="row mb-4 justify-content-end">
+                <div class="row mb-4 justify-content-end screen-only">
                     <div class="col-md-6 text-end">
                         <form id="timeFilterForm" class="d-inline-flex gap-2" action="" method="GET">
                             <select name="predefined_range_select" id="predefined_range_select" class="form-select" style="width: auto;">
@@ -763,7 +941,7 @@ $total_pages = ceil($total_items / $items_per_page);
                     </div>
                 </div>
 
-                <div class="row row-cols-1 row-cols-md-3 g-4 mb-4">
+                <div class="row row-cols-1 row-cols-md-3 g-4 mb-4 screen-only">
                     <div class="col">
                         <div class="card text-white bg-primary mb-3 h-100">
                             <div class="card-header"><i class="bi bi-folder-fill me-2"></i>โครงการ</div>
@@ -772,7 +950,6 @@ $total_pages = ceil($total_items / $items_per_page);
                                 <p class="card-text fs-1"><?php echo $total_projects_count; ?></p>
                             </div>
                             <div class="card-footer">
-
                                 <a href="?main_tab=projects_admin&mode=list" class="stretched-link text-white text-decoration-none footer-text">ดูรายละเอียด <i class="bi bi-arrow-right"></i></a>
                             </div>
                         </div>
@@ -785,7 +962,6 @@ $total_pages = ceil($total_items / $items_per_page);
                                 <p class="card-text fs-1"><?php echo $total_facilities_requests_count; ?></p>
                             </div>
                             <div class="card-footer">
-
                                 <a href="?main_tab=buildings_admin&mode=list" class="stretched-link text-white text-decoration-none footer-text">ดูรายละเอียด <i class="bi bi-arrow-right"></i></a>
                             </div>
                         </div>
@@ -798,15 +974,14 @@ $total_pages = ceil($total_items / $items_per_page);
                                 <p class="card-text fs-1"><?php echo $total_equipments_requests_count; ?></p>
                             </div>
                             <div class="card-footer">
-
                                 <a href="?main_tab=equipments_admin&mode=list" class="stretched-link text-dark text-decoration-none footer-text">ดูรายละเอียด <i class="bi bi-arrow-right"></i></a>
                             </div>
                         </div>
                     </div>
                 </div>
-                <hr>
+                <hr class="screen-only">
 
-                <div class="row g-4 mb-4">
+                <div class="row g-4 mb-4 screen-only">
                     <div class="col-md-6">
                         <div class="card h-100 shadow-sm p-4">
                             <h4 class="mb-3">โครงการที่กำลังจะมาถึง <span class="badge bg-secondary"><?php echo count($dashboard_data['upcoming_requests']); ?></span></h4>
@@ -892,6 +1067,7 @@ $total_pages = ceil($total_items / $items_per_page);
                             <?php endif; ?>
                         </div>
                     </div>
+                </div><!-- End of row g-4 mb-4 screen-only -->
 
             <?php elseif ($mode == 'list'): ?>
                 <h1 class="mb-4">
@@ -901,11 +1077,11 @@ $total_pages = ceil($total_items / $items_per_page);
                     elseif ($main_tab == 'equipments_admin') echo 'คำร้องขอใช้อุปกรณ์';
                     ?>
                 </h1>
-                <div class="d-flex justify-content-end mb-3">
+                <div class="d-flex justify-content-end mb-3 screen-only">
                     <form class="d-flex align-items-center" action="" method="GET">
                         <input type="hidden" name="main_tab" value="<?php echo htmlspecialchars($main_tab); ?>">
                         <input type="hidden" name="mode" value="list">
-                        
+
                         <select name="sort_filter" class="form-select me-2" onchange="this.form.submit()" style="width: auto;">
                             <optgroup label="เรียงตามวันที่">
                                 <option value="date_desc" <?php echo (($_GET['sort_filter'] ?? 'date_desc') == 'date_desc') ? 'selected' : ''; ?>>ใหม่สุดไปเก่าสุด</option>
@@ -927,7 +1103,7 @@ $total_pages = ceil($total_items / $items_per_page);
                                 <?php endif; ?>
                             </optgroup>
                         </select>
-                        
+
                         <input class="form-control me-2" type="search" placeholder="ค้นหา..." aria-label="Search" name="search" value="<?php echo htmlspecialchars($search_query); ?>">
                         <button class="btn btn-outline-success" type="submit">ค้นหา</button>
                         <?php if (!empty($search_query) || !empty($_GET['sort_filter'])): ?>
@@ -1061,7 +1237,7 @@ $total_pages = ceil($total_items / $items_per_page);
                         </table>
                     </div>
 
-                    <nav aria-label="Page navigation">
+                    <nav aria-label="Page navigation" class="screen-only">
                         <ul class="pagination justify-content-center">
                             <?php
 
@@ -1087,25 +1263,20 @@ $total_pages = ceil($total_items / $items_per_page);
                                 </li>
                             <?php endif; ?>
                         </ul>
-                    </nav
+                    </nav>
                 <?php endif; ?>
 
             <?php elseif ($mode == 'detail' && $detail_item): ?>
-                <h2 class="mb-4">
-                    รายละเอียด
-                    <?php
-                    if ($main_tab == 'projects_admin') echo 'โครงการ: ' . htmlspecialchars($detail_item['project_name']);
-                    elseif ($main_tab == 'buildings_admin') echo 'คำร้องขอใช้สถานที่สำหรับโครงการ: ' . htmlspecialchars($detail_item['project_name']);
-                    elseif ($main_tab == 'equipments_admin') echo 'คำร้องขอใช้อุปกรณ์สำหรับโครงการ: ' . htmlspecialchars($detail_item['project_name']);
-                    ?>
-                </h2>
-                <div class="card shadow-sm p-4 admin-details">
-                    <?php if ($main_tab == 'projects_admin'): ?>
+                <?php // --- Main conditional block for detail views (Corrected structure) --- ?>
+
+                <?php if ($main_tab == 'projects_admin'): ?>
+                    <h2 class="mb-4 screen-only">รายละเอียดโครงการ: <?php echo htmlspecialchars($detail_item['project_name']); ?></h2>
+                    <div class="card shadow-sm p-4 admin-details screen-only">
                         <div class="row list-text">
                             <div class="col-md-6">
                                 <p><strong>ชื่อโครงการ:</strong> <?php echo htmlspecialchars($detail_item['project_name']); ?></p>
                                 <p><strong>สถานะโครงการ:</strong> <?php echo htmlspecialchars($detail_item['writed_status']); ?></p>
-                                <p><strong>ระยะเวลาโครงการ:</strong> 
+                                <p><strong>ระยะเวลาโครงการ:</strong>
                                 <?php if ($detail_item['start_date'] != $detail_item['end_date']) : ?>
                                     ตั้งแต่วันที่ <?php echo formatThaiDate($detail_item['start_date'], false); ?> ถึง วันที่ <?php echo formatThaiDate($detail_item['end_date'], false); ?>
                                 <?php else: ?>
@@ -1124,28 +1295,28 @@ $total_pages = ceil($total_items / $items_per_page);
                                 <p><strong>วันที่สร้างโครงการ:</strong> <?php echo formatThaiDate($detail_item['created_date']); ?></p>
                                 <p><strong>รายละเอียดโครงการ:</strong><br> <?php echo nl2br(htmlspecialchars($detail_item['project_des'])); ?></p>
                                 <?php if ($detail_item['files'] && file_exists($detail_item['files'])): ?>
-                                    <a href="<?php echo htmlspecialchars($detail_item['files']); ?>" target="_blank" class="btn btn-secondary btn-sm mt-2"> ดูไฟล์แนบ</a>
+                                    <a href="<?php echo htmlspecialchars($detail_item['files']); ?>" target="_blank" class="btn btn-secondary btn-sm mt-2 screen-only"> ดูไฟล์แนบ</a>
                                 <?php endif; ?>
                             </div>
                         </div>
-                        <div class="d-flex">
+                        <div class="d-flex screen-only">
                             <a href="<?php echo htmlspecialchars($previous) ?: '#'; ?>"
                             class="btn btn-secondary me-2"
                             onclick="if(this.getAttribute('href') === '#'){ history.back(); return false; }">
                                 ย้อนกลับ
                             </a>
                             <button type="button" class="btn btn-info me-2" onclick="window.print()">
-                                <i class="bi bi-printer"></i> พิมพ์
+                                <i class="bi bi-printer"></i> พิมพ์รายงาน
                             </button>
                         </div>
 
-                        <h4 class="mt-4 mb-3">คำร้องขอใช้สถานที่ที่เกี่ยวข้อง</h4>
+                        <h4 class="mt-4 mb-3 screen-only">คำร้องขอใช้สถานที่ที่เกี่ยวข้อง (สรุป)</h4>
                         <?php if (empty($project_facility_requests)): ?>
-                            <div class="alert alert-info">ไม่มีคำร้องขอใช้สถานที่สำหรับโครงการนี้</div>
+                            <div class="alert alert-info screen-only">ไม่มีคำร้องขอใช้สถานที่สำหรับโครงการนี้</div>
                         <?php else: ?>
-                            <ul class="list-group">
+                            <ul class="list-group screen-only">
                                 <?php foreach ($project_facility_requests as $req): ?>
-                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <li class="list-group-item d-flex justify-content-between align-items-center page-break-inside-avoid">
                                         <div>
                                             <strong><?php echo htmlspecialchars($req['facility_name']); ?></strong>
                                             (สถานะ: <?php echo htmlspecialchars($req['writed_status']); ?>)
@@ -1160,13 +1331,13 @@ $total_pages = ceil($total_items / $items_per_page);
                             </ul>
                         <?php endif; ?>
 
-                        <h4 class="mt-4 mb-3">คำร้องขอใช้อุปกรณ์ที่เกี่ยวข้อง</h4>
+                        <h4 class="mt-4 mb-3 screen-only">คำร้องขอใช้อุปกรณ์ที่เกี่ยวข้อง (สรุป)</h4>
                         <?php if (empty($project_equipment_requests)): ?>
-                            <div class="alert alert-info">ไม่มีคำร้องขอใช้อุปกรณ์สำหรับโครงการนี้</div>
+                            <div class="alert alert-info screen-only">ไม่มีคำร้องขอใช้อุปกรณ์สำหรับโครงการนี้</div>
                         <?php else: ?>
-                            <ul class="list-group">
+                            <ul class="list-group screen-only">
                                 <?php foreach ($project_equipment_requests as $req): ?>
-                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <li class="list-group-item d-flex justify-content-between align-items-center page-break-inside-avoid">
                                         <div>
                                             <strong><?php echo htmlspecialchars($req['equip_name']); ?></strong> (<?php echo htmlspecialchars($req['quantity'] . ' ' . $req['measure']); ?>)
                                             (สถานะ: <?php echo htmlspecialchars($req['writed_status']); ?>)
@@ -1180,12 +1351,79 @@ $total_pages = ceil($total_items / $items_per_page);
                                 <?php endforeach; ?>
                             </ul>
                         <?php endif; ?>
+                    </div><!-- End of screen-only card -->
 
+                    <!-- START: Print-only section for Project related requests -->
+                    <div class="print-only">
+                        <div class="report-header">
+                            <h3>ระบบขอใช้อุปกรณ์และสถานที่ KU FTD</h3>
+                            <p>รายงานรายละเอียดโครงการ</p>
+                            <p>วันที่พิมพ์: <?php echo date('d/m/Y H:i'); ?></p>
+                            <hr>
+                        </div>
 
-                    <?php elseif ($main_tab == 'buildings_admin'): ?>
+                        <?php
+                        // Pass $detail_item (project detail) to the partial
+                        $project_detail_for_print = $detail_item;
+                        include 'partials/project_re_print.php';
+                        ?>
+
+                        <?php if (!empty($detailed_project_facility_requests)): ?>
+                            <h2 class="text-center mb-3 page-break-before-always">รายละเอียดคำร้องขอใช้สถานที่ที่เกี่ยวข้อง</h2>
+                            <?php
+                            $current_request_number = 1;
+                            $total_facility_requests = count($detailed_project_facility_requests);
+                            foreach ($detailed_project_facility_requests as $fr_item):
+                                // Temporarily store original $detail_item and $main_tab
+                                $original_detail_item = $detail_item;
+                                $original_main_tab = $main_tab;
+
+                                $detail_item = $fr_item; // Set $detail_item to the current facility request for the partial
+                                $main_tab = 'buildings_admin'; // Set main_tab to reflect the type of item for rendering logic
+                            ?>
+                                <div <?php if ($current_request_number > 1) echo 'class="page-break-before-always"'; ?>>
+                                    <h3 class="text-center">คำร้องขอใช้สถานที่ (<?php echo $current_request_number++; ?>/<?php echo $total_facility_requests; ?>)</h3>
+                                    <?php include 'partials/fac_re_print.php'; ?>
+                                </div>
+                            <?php
+                                // Restore original $detail_item and $main_tab
+                                $detail_item = $original_detail_item;
+                                $main_tab = $original_main_tab;
+                            endforeach; ?>
+                        <?php endif; ?>
+
+                        <?php if (!empty($detailed_project_equipment_requests)): ?>
+                            <h2 class="text-center mb-3 page-break-before-always">รายละเอียดคำร้องขอใช้อุปกรณ์ที่เกี่ยวข้อง</h2>
+                            <?php
+                            $current_request_number = 1;
+                            $total_equipment_requests = count($detailed_project_equipment_requests);
+                            foreach ($detailed_project_equipment_requests as $er_item):
+                                // Temporarily store original $detail_item and $main_tab
+                                $original_detail_item = $detail_item;
+                                $original_main_tab = $main_tab;
+
+                                $detail_item = $er_item; // Set $detail_item to the current equipment request for the partial
+                                $main_tab = 'equipments_admin'; // Set main_tab to reflect the type of item for rendering logic
+                            ?>
+                                <div <?php if ($current_request_number > 1) echo 'class="page-break-before-always"'; ?>>
+                                    <h3 class="text-center">คำร้องขอใช้อุปกรณ์ (<?php echo $current_request_number++; ?>/<?php echo $total_equipment_requests; ?>)</h3>
+                                    <?php include 'partials/eqp_re_print.php'; ?>
+                                </div>
+                            <?php
+                                // Restore original $detail_item and $main_tab
+                                $detail_item = $original_detail_item;
+                                $main_tab = $original_main_tab;
+                            endforeach; ?>
+                        <?php endif; ?>
+                    </div>
+                    <!-- END: Print-only section for Project related requests -->
+
+                <?php elseif ($main_tab == 'buildings_admin'): ?>
+                    <h2 class="mb-4 screen-only">รายละเอียดคำร้องขอใช้สถานที่สำหรับโครงการ: <?php echo htmlspecialchars($detail_item['project_name']); ?></h2>
+                    <div class="card shadow-sm p-4 admin-details screen-only">
                         <div class="row list-text">
                             <div class="col-md-6">
-                                <p><strong>ชื่อโครงการ:</strong> <?php echo htmlspecialchars($detail_item['project_name']); ?></a></p>
+                                <p><strong>ชื่อโครงการ:</strong> <a href="?main_tab=projects_admin&mode=detail&id=<?php echo htmlspecialchars($detail_item['project_id']); ?>"><?php echo htmlspecialchars($detail_item['project_name']); ?></a></p>
                                 <p><strong>ผู้ยื่นคำร้อง:</strong> <?php echo htmlspecialchars($detail_item['user_name'] ?? 'N/A'); ?></p>
                                 <p><strong>สถานที่ที่ขอใช้งาน:</strong> <?php echo htmlspecialchars($detail_item['facility_name']); ?></p>
                                 <p><strong>สถานะคำร้อง:</strong> <?php echo htmlspecialchars($detail_item['writed_status']); ?></p>
@@ -1208,7 +1446,7 @@ $total_pages = ceil($total_items / $items_per_page);
                                     ?>
                                 </p>
                                 <?php if (isset($detail_item['approve']) && !empty($detail_item['approve'] && $detail_item['approve'] !== 'ยกเลิก')): ?>
-                                    <p><strong>วันที่ดำเนินการ:</strong> <?php echo htmlspecialchars(isset($detail_item['approve_date']) && $detail_item['approve_date'] ? (new DateTime($detail_item['approve_date']))->format('d/m/Y') : 'N/A'); ?></p>
+                                    <p><strong>วันที่ดำเนินการ:</strong> <?php echo htmlspecialchars(isset($detail_item['approve_date']) && $detail_item['approve_date'] ? (new DateTime($detail_item['approve_date']))->format('d/m/Y H:i') : 'N/A'); ?></p>
                                     <p><strong>ผู้ดำเนินการ:</strong> <?php echo htmlspecialchars(isset($detail_item['staff_name']) ? ($detail_item['staff_name'] ?? 'N/A') : 'N/A'); ?></p>
                                     <?php if ($detail_item['approve'] == 'ไม่อนุมัติ'): ?>
                                         <p><strong>รายละเอียดการไม่อนุมัติ:</strong> <?php echo nl2br(htmlspecialchars(isset($detail_item['approve_detail']) ? ($detail_item['approve_detail'] ?? 'ไม่ระบุเหตุผล') : 'ไม่ระบุเหตุผล')); ?></p>
@@ -1219,10 +1457,26 @@ $total_pages = ceil($total_items / $items_per_page);
                                 <?php endif; ?>
                             </div>
                         </div>
-                    <?php elseif ($main_tab == 'equipments_admin'): ?>
+                    </div><!-- End of screen-only card -->
+
+                    <!-- START: Print-only section for Facility Request details -->
+                    <div class="print-only">
+                        <div class="report-header">
+                            <h3>ระบบขอใช้อุปกรณ์และสถานที่ KU FTD</h3>
+                            <p>รายงานรายละเอียดคำร้องขอใช้สถานที่</p>
+                            <p>วันที่พิมพ์: <?php echo date('d/m/Y H:i'); ?></p>
+                            <hr>
+                        </div>
+                        <?php include 'partials/fac_re_print.php'; ?>
+                    </div>
+                    <!-- END: Print-only section for Facility Request details -->
+
+                <?php elseif ($main_tab == 'equipments_admin'): ?>
+                    <h2 class="mb-4 screen-only">รายละเอียดคำร้องขอใช้อุปกรณ์สำหรับโครงการ: <?php echo htmlspecialchars($detail_item['project_name']); ?></h2>
+                    <div class="card shadow-sm p-4 admin-details screen-only">
                         <div class="row list-text">
                             <div class="col-md-6">
-                                <p><strong>ชื่อโครงการ:</strong> <?php echo htmlspecialchars($detail_item['project_name']); ?></a></p>
+                                <p><strong>ชื่อโครงการ:</strong> <a href="?main_tab=projects_admin&mode=detail&id=<?php echo htmlspecialchars($detail_item['project_id']); ?>"><?php echo htmlspecialchars($detail_item['project_name']); ?></a></p>
                                 <p><strong>ผู้ยื่นคำร้อง:</strong> <?php echo htmlspecialchars($detail_item['user_name'] ?? 'N/A'); ?></p>
                                 <p><strong>อุปกรณ์ที่ขอใช้งาน:</strong> <?php echo htmlspecialchars($detail_item['equip_name']); ?></p>
                                 <p><strong>จำนวน:</strong> <?php echo htmlspecialchars($detail_item['quantity']) . ' ' . htmlspecialchars($detail_item['measure']); ?></p>
@@ -1245,7 +1499,7 @@ $total_pages = ceil($total_items / $items_per_page);
                                     ?>
                                 </p>
                                 <?php if (isset($detail_item['approve']) && !empty($detail_item['approve'] && $detail_item['approve'] !== 'ยกเลิก')): ?>
-                                    <p><strong>วันที่ดำเนินการ:</strong> <?php echo htmlspecialchars(isset($detail_item['approve_date']) && $detail_item['approve_date'] ? (new DateTime($detail_item['approve_date']))->format('d/m/Y') : 'N/A'); ?></p>
+                                    <p><strong>วันที่ดำเนินการ:</strong> <?php echo htmlspecialchars(isset($detail_item['approve_date']) && $detail_item['approve_date'] ? (new DateTime($detail_item['approve_date']))->format('d/m/Y H:i') : 'N/A'); ?></p>
                                     <p><strong>ผู้ดำเนินการ:</strong> <?php echo htmlspecialchars(isset($detail_item['staff_name']) ? ($detail_item['staff_name'] ?? 'N/A') : 'N/A'); ?></p>
                                     <?php if ($detail_item['approve'] == 'ไม่อนุมัติ'): ?>
                                         <p><strong>รายละเอียดการไม่อนุมัติ:</strong> <?php echo nl2br(htmlspecialchars(isset($detail_item['approve_detail']) ? ($detail_item['approve_detail'] ?? 'ไม่ระบุเหตุผล') : 'ไม่ระบุเหตุผล')); ?></p>
@@ -1256,93 +1510,110 @@ $total_pages = ceil($total_items / $items_per_page);
                                 <?php endif; ?>
                             </div>
                         </div>
-                    <?php endif; ?>
-                    <?php if ($main_tab == 'buildings_admin' || $main_tab == 'equipments_admin'): ?>
-                        <div class="d-flex justify-content-between mt-4">
-                            <div>
-                                <a href="<?php echo htmlspecialchars($previous) ?: '#'; ?>"
-                                class="btn btn-secondary me-2"
-                                onclick="if(this.getAttribute('href') === '#'){ history.back(); return false; }">
-                                    ย้อนกลับ
-                                </a>
-                                <button type="button" class="btn btn-info me-2" onclick="window.print()">
-                                    <i class="bi bi-printer"></i> พิมพ์
-                                </button>
-                            </div>
-                            <div>
-                                <?php
-                                if (($main_tab == 'buildings_admin' || $main_tab == 'equipments_admin') && ($detail_item['approve'] !== 'อนุมัติ' && $detail_item['approve'] !== 'ยกเลิก')):
-                                ?>
-                                    <button type="button" class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#approveModal">
-                                        อนุมัติ
-                                    </button>
-                                    <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#rejectModal">
-                                        ไม่อนุมัติ
-                                    </button>
+                    </div><!-- End of screen-only card -->
 
-                                    <div class="modal fade" id="approveModal" tabindex="-1" aria-labelledby="approveModalLabel" aria-hidden="true">
-                                        <div class="modal-dialog">
-                                            <div class="modal-content">
-                                                <form action="" method="POST">
-                                                    <div class="modal-header bg-success text-white">
-                                                        <h5 class="modal-title" id="approveModalLabel">เพิ่มรายละเอียดการอนุมัติ (ไม่บังคับ)</h5>
-                                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                                                    </div>
-                                                    <div class="modal-body">
-                                                        <div class="mb-3">
-                                                            <label for="approve_detail_optional" class="form-label">รายละเอียดเพิ่มเติม:</label>
-                                                            <textarea class="form-control" id="approve_detail_optional" name="approve_detail" rows="3"></textarea>
-                                                            <small class="text-muted">คุณสามารถเพิ่มบันทึกเกี่ยวกับการอนุมัติคำร้องนี้ได้ (ไม่บังคับ)</small>
-                                                        </div>
-                                                        <input type="hidden" name="action" value="approve_request">
-                                                        <input type="hidden" name="request_id" value="<?php echo htmlspecialchars($detail_item['facility_re_id'] ?? $detail_item['equip_re_id']); ?>">
-                                                        <input type="hidden" name="request_type" value="<?php echo ($main_tab == 'buildings_admin') ? 'facility' : 'equipment'; ?>">
-                                                    </div>
-                                                    <div class="modal-footer">
-                                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
-                                                        <button type="submit" class="btn btn-success">ยืนยันอนุมัติ</button>
-                                                    </div>
-                                                </form>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Reject Modal -->
-                                    <div class="modal fade" id="rejectModal" tabindex="-1" aria-labelledby="rejectModalLabel" aria-hidden="true">
-                                        <div class="modal-dialog">
-                                            <div class="modal-content">
-                                                <form action="" method="POST">
-                                                    <div class="modal-header bg-danger text-white">
-                                                        <h5 class="modal-title" id="rejectModalLabel">ระบุเหตุผลการไม่อนุมัติ</h5>
-                                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                                                    </div>
-                                                    <div class="modal-body">
-                                                        <div class="mb-3">
-                                                            <label for="reject_reason" class="form-label">เหตุผล:</label>
-                                                            <textarea class="form-control" id="reject_reason" name="approve_detail" rows="3" required></textarea>
-                                                        </div>
-                                                        <input type="hidden" name="action" value="reject_request">
-                                                        <input type="hidden" name="request_id" value="<?php echo htmlspecialchars($detail_item['facility_re_id'] ?? $detail_item['equip_re_id']); ?>">
-                                                        <input type="hidden" name="request_type" value="<?php echo ($main_tab == 'buildings_admin') ? 'facility' : 'equipment'; ?>">
-                                                    </div>
-                                                    <div class="modal-footer">
-                                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
-                                                        <button type="submit" class="btn btn-danger">ยืนยันไม่อนุมัติ</button>
-                                                    </div>
-                                                </form>
-                                            </div>
-                                        </div>
-                                    </div>
-                                <?php endif; ?>
-                            </div>
+                    <!-- START: Print-only section for Equipment Request details -->
+                    <div class="print-only">
+                        <div class="report-header">
+                            <h3>ระบบขอใช้อุปกรณ์และสถานที่ KU FTD</h3>
+                            <p>รายงานรายละเอียดคำร้องขอใช้อุปกรณ์</p>
+                            <p>วันที่พิมพ์: <?php echo date('d/m/Y H:i'); ?></p>
+                            <hr>
                         </div>
-                    <?php endif; ?>
-                </div>
-            <?php endif; ?>
-        </div>
-    </div>
+                        <?php include 'partials/eqp_re_print.php'; ?>
+                    </div>
+                    <!-- END: Print-only section for Equipment Request details -->
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
-    <script src="./js/admin_menu.js"></script>
+                <?php endif; // Closes if ($main_tab == 'projects_admin') / elseif ($main_tab == 'buildings_admin') / elseif ($main_tab == 'equipments_admin') ?>
+
+                <?php // The approval/rejection buttons and modals should only appear for buildings_admin and equipments_admin ?>
+                <?php if ($main_tab == 'buildings_admin' || $main_tab == 'equipments_admin'): ?>
+                    <div class="d-flex justify-content-between mt-4 screen-only">
+                        <div>
+                            <a href="<?php echo htmlspecialchars($previous) ?: '#'; ?>"
+                            class="btn btn-secondary me-2"
+                            onclick="if(this.getAttribute('href') === '#'){ history.back(); return false; }">
+                                ย้อนกลับ
+                            </a>
+                            <button type="button" class="btn btn-info me-2" onclick="window.print()">
+                                <i class="bi bi-printer"></i> พิมพ์รายงาน
+                            </button>
+                        </div>
+                        <div>
+                            <?php
+                            // Show approve/reject buttons only if the request has not been approved/rejected/cancelled yet
+                            if (($main_tab == 'buildings_admin' || $main_tab == 'equipments_admin') &&
+                                ($detail_item['approve'] !== 'อนุมัติ' && $detail_item['approve'] !== 'ไม่อนุมัติ' && $detail_item['approve'] !== 'ยกเลิก')):
+                            ?>
+                                <button type="button" class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#approveModal">
+                                    อนุมัติ
+                                </button>
+                                <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#rejectModal">
+                                    ไม่อนุมัติ
+                                </button>
+
+                                <div class="modal fade" id="approveModal" tabindex="-1" aria-labelledby="approveModalLabel" aria-hidden="true">
+                                    <div class="modal-dialog">
+                                        <div class="modal-content">
+                                            <form action="" method="POST">
+                                                <div class="modal-header bg-success text-white">
+                                                    <h5 class="modal-title" id="approveModalLabel">เพิ่มรายละเอียดการอนุมัติ (ไม่บังคับ)</h5>
+                                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                </div>
+                                                <div class="modal-body">
+                                                    <div class="mb-3">
+                                                        <label for="approve_detail_optional" class="form-label">รายละเอียดเพิ่มเติม:</label>
+                                                        <textarea class="form-control" id="approve_detail_optional" name="approve_detail" rows="3"></textarea>
+                                                        <small class="text-muted">คุณสามารถเพิ่มบันทึกเกี่ยวกับการอนุมัติคำร้องนี้ได้ (ไม่บังคับ)</small>
+                                                    </div>
+                                                    <input type="hidden" name="action" value="approve_request">
+                                                    <input type="hidden" name="request_id" value="<?php echo htmlspecialchars($detail_item['facility_re_id'] ?? $detail_item['equip_re_id']); ?>">
+                                                    <input type="hidden" name="request_type" value="<?php echo ($main_tab == 'buildings_admin') ? 'facility' : 'equipment'; ?>">
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+                                                    <button type="submit" class="btn btn-success">ยืนยันอนุมัติ</button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Reject Modal -->
+                                <div class="modal fade" id="rejectModal" tabindex="-1" aria-labelledby="rejectModalLabel" aria-hidden="true">
+                                    <div class="modal-dialog">
+                                        <div class="modal-content">
+                                            <form action="" method="POST">
+                                                <div class="modal-header bg-danger text-white">
+                                                    <h5 class="modal-title" id="rejectModalLabel">ระบุเหตุผลการไม่อนุมัติ</h5>
+                                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                </div>
+                                                <div class="modal-body">
+                                                    <div class="mb-3">
+                                                        <label for="reject_reason" class="form-label">เหตุผล:</label>
+                                                        <textarea class="form-control" id="reject_reason" name="approve_detail" rows="3" required></textarea>
+                                                    </div>
+                                                    <input type="hidden" name="action" value="reject_request">
+                                                    <input type="hidden" name="request_id" value="<?php echo htmlspecialchars($detail_item['facility_re_id'] ?? $detail_item['equip_re_id']); ?>">
+                                                    <input type="hidden" name="request_type" value="<?php echo ($main_tab == 'buildings_admin') ? 'facility' : 'equipment'; ?>">
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+                                                    <button type="submit" class="btn btn-danger">ยืนยันไม่อนุมัติ</button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                <?php endif; ?>
+
+            <?php endif; // Closes elseif ($mode == 'detail' && $detail_item) ?>
+        </div> <!-- End of admin-content-area -->
+    </div> <!-- End of admin-main-wrapper -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
+<script src="./js/admin_menu.js"></script>
 </body>
 </html>

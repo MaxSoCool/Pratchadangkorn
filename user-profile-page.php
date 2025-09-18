@@ -1,18 +1,19 @@
 <?php
 session_start();
 
+// *** จุดแก้ไข: ถ้าผู้ใช้ไม่ได้ล็อกอิน ให้เปลี่ยนเส้นทางไปยังหน้า Login Form จริงๆ (login-page.php) ***
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
-    header("Location: login-page.php");
+    header("Location: login-page.php"); // เปลี่ยนให้ชี้ไปที่หน้า Login Form
     exit();
 }
 
-$nontri_id = htmlspecialchars($_SESSION['nontri_id'] ?? 'N/A');
-$user_THname = htmlspecialchars($_SESSION['user_THname'] ?? 'N/A');
-$user_THsur = htmlspecialchars($_SESSION['user_THsur'] ?? 'N/A');
-$user_ENname = htmlspecialchars($_SESSION['user_ENname'] ?? 'N/A');
-$user_ENsur = htmlspecialchars($_SESSION['user_ENsur'] ?? 'N/A');
+// ใช้ชื่อ session variable ใหม่ที่กำหนดใน login.php
+// ตรวจสอบทั้ง nontri_id และ staff_id
+$nontri_id = htmlspecialchars($_SESSION['nontri_id'] ?? ($_SESSION['staff_id'] ?? 'N/A')); 
+$user_THname = htmlspecialchars($_SESSION['user_display_THname'] ?? 'N/A');
+$user_THsur = htmlspecialchars($_SESSION['user_display_THsur'] ?? 'N/A');
 $user_role = htmlspecialchars($_SESSION['role'] ?? 'N/A');
-$fa_de_name = htmlspecialchars($_SESSION['fa_de_name'] ?? 'N/A');
+$fa_de_name = htmlspecialchars($_SESSION['fa_de_name'] ?? 'ไม่ระบุ'); 
 
 ?>
 <!DOCTYPE html>
@@ -38,6 +39,7 @@ $fa_de_name = htmlspecialchars($_SESSION['fa_de_name'] ?? 'N/A');
             </div>
             <div class="d-flex align-items-center ms-auto gap-2">
                 <div class="d-flex flex-column text-end">
+                    <!-- ใช้ชื่อ session variable ใหม่สำหรับชื่อที่แสดงผล -->
                     <span class="navbar-brand mb-0 fs-5 fs-md-4"><?php echo $user_THname . ' ' . $user_THsur; ?></span>
                     <span class="navbar-brand mb-0 fs-6 fs-md-5"><?php echo $user_role; ?></span>
                 </div>

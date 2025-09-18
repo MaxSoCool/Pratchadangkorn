@@ -7,8 +7,8 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
 }
 
 $user_id = htmlspecialchars($_SESSION['staff_id'] ?? 'N/A');
-$staff_THname = htmlspecialchars($_SESSION['staff_THname'] ?? 'N/A');
-$staff_THsur = htmlspecialchars($_SESSION['staff_THsur'] ?? 'N/A');
+$staff_THname = htmlspecialchars($_SESSION['user_display_THname'] ?? 'N/A');
+$staff_THsur = htmlspecialchars($_SESSION['user_display_THsur'] ?? 'N/A');
 $user_role = htmlspecialchars($_SESSION['role'] ?? 'N/A');
 
 ?>

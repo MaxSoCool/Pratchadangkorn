@@ -9,13 +9,13 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
     exit();
 }
 
-$nontri_id = htmlspecialchars($_SESSION['nontri_id'] ?? 'N/A');
 $user_THname = htmlspecialchars($_SESSION['user_THname'] ?? 'N/A');
-$user_THsur = htmlspecialchars($_SESSION['user_THsur'] ?? 'N/A');
-$user_ENname = htmlspecialchars($_SESSION['user_ENname'] ?? 'N/A');
-$user_ENsur = htmlspecialchars($_SESSION['user_ENsur'] ?? 'N/A');
+$user_THname = htmlspecialchars($_SESSION['user_display_THname'] ?? 'N/A');
+$user_THsur = htmlspecialchars($_SESSION['user_display_THsur'] ?? 'N/A');
 $user_role = htmlspecialchars($_SESSION['role'] ?? 'N/A');
-$fa_de_name = htmlspecialchars($_SESSION['fa_de_name'] ?? 'N/A');
+$fa_de_name = htmlspecialchars($_SESSION['fa_de_name'] ?? 'ไม่ระบุ');
+$nontri_id = htmlspecialchars($_SESSION['nontri_id'] ?? 'N/A');
+$user_id = $_SESSION['nontri_id'] ?? '';
 
 ?>
 
@@ -31,7 +31,7 @@ $fa_de_name = htmlspecialchars($_SESSION['fa_de_name'] ?? 'N/A');
     <nav class="navbar navbar-dark navigator">
         <div class="container-fluid">
             <div class="d-flex align-items-center gap-3">
-                <a href="user-main-page.php">
+                <a href="user-project-page.php">
                     <img src="./images/logo.png" class="img-fluid logo" alt="Logo">
                 </a>
                 <div class="d-flex flex-column">
