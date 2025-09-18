@@ -1,0 +1,119 @@
+/* CSS สำหรับแสดงผลบนหน้าจอ */
+@media screen {
+    .print-only {
+        display: none !important; /* ซ่อนส่วนนี้เมื่ออยู่บนหน้าจอ */
+    }
+}
+
+/* CSS สำหรับการพิมพ์ */
+@media print {
+    body {
+        margin: 0;
+        padding: 0;
+        font-family: 'Sarabun', sans-serif;
+        color: #000;
+        background-color: #fff;
+    }
+
+    /* ซ่อนทุกส่วน UI ที่ไม่ต้องการพิมพ์ */
+    .navbar, .admin-sidebar, .alert, .btn,
+    .d-flex.justify-content-between.mt-4 > div:last-child, /* ปุ่มอนุมัติ/ไม่อนุมัติ */
+    .list-group-item .btn, .card-footer a, .mb-3.d-flex, .pagination,
+    .activity-item .stretched-link, /* ไม่พิมพ์ลิงก์ใน dashboard */
+    .screen-only {
+        display: none !important;
+        visibility: hidden !important;
+    }
+
+    /* แสดงเฉพาะส่วนที่ต้องการพิมพ์ */
+    .admin-content-area {
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-shadow: none !important; /* ลบเงา card */
+        border: none !important;
+        flex: none !important; /* ป้องกัน flexbox จากการทำให้ layout เสีย */
+    }
+
+    /* ทำให้ส่วน print-only แสดงผล */
+    .print-only {
+        display: block !important;
+        visibility: visible !important;
+    }
+
+    /* ปรับขนาดตัวอักษรและอื่น ๆ เพื่อการพิมพ์ */
+    h1, h2, h3, h4, h5, h6 {
+        color: #000 !important;
+        page-break-after: avoid;
+    }
+
+    p, li {
+        font-size: 11pt;
+        line-height: 1.5;
+    }
+    .list-text p, .list-text li {
+        font-size: 11pt;
+    }
+
+    /* Style สำหรับ badge - อาจจะไม่ต้องการสีบนกระดาษ */
+    .badge {
+        color: #000 !important;
+        background-color: #f0f0f0 !important;
+        border: 1px solid #ccc;
+        padding: 3px 6px;
+        font-size: 9pt;
+        vertical-align: middle;
+    }
+
+    /* การจัดการตาราง */
+    .print-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 1em;
+        font-size: 10pt; /* ขนาดตัวอักษรในตาราง */
+    }
+    .print-table th, .print-table td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+        vertical-align: top;
+    }
+    .print-table th {
+        background-color: #f2f2f2;
+        font-weight: bold;
+    }
+    /* เพื่อให้ส่วนหัวตารางแสดงซ้ำในทุกหน้า */
+    thead {
+        display: table-header-group;
+    }
+
+    /* การจัดการ page break */
+    .page-break-before-always {
+        page-break-before: always !important;
+    }
+    .page-break-after-always {
+        page-break-after: always !important;
+    }
+    .page-break-inside-avoid {
+        page-break-inside: avoid !important;
+    }
+
+    .report-header {
+        text-align: center;
+        margin-bottom: 20px;
+    }
+    .report-header h3, .report-header p {
+        margin: 0;
+        color: #000 !important;
+    }
+    .report-header hr {
+        border-top: 1px solid #000;
+    }
+
+    @page {
+        margin: 20mm; /* กำหนดขอบกระดาษ */
+        /* คุณสามารถเพิ่ม content สำหรับ header/footer ที่นี่ได้หากต้องการ */
+        /* @top-center { content: "ระบบขอใช้อุปกรณ์และสถานที่ KU FTD"; } */
+        /* @bottom-right { content: "หน้า " counter(page) " จาก " counter(pages); } */
+    }
+}

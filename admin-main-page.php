@@ -9,6 +9,7 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true || $_SESSI
 
 include 'database/database.php';
 include 'php/sorting.php';
+include 'php/admin-sorting.php';
 
 if (!function_exists('formatThaiDate')) {
     function formatThaiDate($date_str, $with_time = true) {
@@ -76,6 +77,13 @@ $current_page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $offset = ($current_page - 1) * $items_per_page;
 $search_query = isset($_GET['search']) ? trim($_GET['search']) : '';
 $search_param = '%' . $search_query . '%';
+
+// เพิ่มตัวแปรสำหรับ Date Filtering
+$predefined_range_select = $_GET['predefined_range'] ?? null;
+$specific_year_select = $_GET['specific_year'] ?? null;
+$specific_month_select = $_GET['specific_month'] ?? null;
+$specific_day_select = $_GET['specific_day'] ?? null;
+// --- จบการเพิ่มตัวแปรสำหรับ Date Filtering ---
 
 $main_tab = isset($_GET['main_tab']) ? $_GET['main_tab'] : 'dashboard_admin';
 $mode = isset($_GET['mode']) ? $_GET['mode'] : 'list';
@@ -298,8 +306,17 @@ $dashboard_data['recent_activity'] = array_slice($all_recent_activity_raw, 0, 5)
 
 
 try {
-    $stmt_proj_count = $conn->prepare("SELECT COUNT(*) FROM project WHERE writed_status != 'ร่างโครงการ'");
+    // --- ส่วนการกรองวันที่สำหรับ Dashboard Counts ---
+    $date_filter_params_proj = getDateFilteringClauses('dashboard_projects', $predefined_range_select, $specific_year_select, $specific_month_select, $specific_day_select);
+    $date_filter_params_fr = getDateFilteringClauses('dashboard_facilities_requests', $predefined_range_select, $specific_year_select, $specific_month_select, $specific_day_select);
+    $date_filter_params_er = getDateFilteringClauses('dashboard_equipments_requests', $predefined_range_select, $specific_year_select, $specific_month_select, $specific_day_select);
+
+    // โครงการทั้งหมด (ยกเว้นร่างโครงการ)
+    $stmt_proj_count = $conn->prepare("SELECT COUNT(*) FROM project p WHERE p.writed_status != 'ร่างโครงการ' " . $date_filter_params_proj['where_sql']);
     if ($stmt_proj_count) {
+        if (!empty($date_filter_params_proj['param_types'])) {
+            $stmt_proj_count->bind_param($date_filter_params_proj['param_types'], ...$date_filter_params_proj['param_values']);
+        }
         $stmt_proj_count->execute();
         $stmt_proj_count->bind_result($total_projects_count);
         $stmt_proj_count->fetch();
@@ -308,8 +325,12 @@ try {
         error_log("Failed to prepare statement for projects count: " . $conn->error);
     }
 
-    $stmt_fac_req_count = $conn->prepare("SELECT COUNT(*) FROM facilities_requests WHERE writed_status != 'ร่างคำร้องขอ'");
+    // คำร้องขอใช้สถานที่ทั้งหมด (ยกเว้นร่างคำร้องขอ)
+    $stmt_fac_req_count = $conn->prepare("SELECT COUNT(*) FROM facilities_requests fr WHERE fr.writed_status != 'ร่างคำร้องขอ' " . $date_filter_params_fr['where_sql']);
     if ($stmt_fac_req_count) {
+        if (!empty($date_filter_params_fr['param_types'])) {
+            $stmt_fac_req_count->bind_param($date_filter_params_fr['param_types'], ...$date_filter_params_fr['param_values']);
+        }
         $stmt_fac_req_count->execute();
         $stmt_fac_req_count->bind_result($total_facilities_requests_count);
         $stmt_fac_req_count->fetch();
@@ -318,8 +339,12 @@ try {
         error_log("Failed to prepare statement for facilities requests count: " . $conn->error);
     }
 
-    $stmt_equip_req_count = $conn->prepare("SELECT COUNT(*) FROM equipments_requests WHERE writed_status != 'ร่างคำร้องขอ'");
+    // คำร้องขอใช้อุปกรณ์ทั้งหมด (ยกเว้นร่างคำร้องขอ)
+    $stmt_equip_req_count = $conn->prepare("SELECT COUNT(*) FROM equipments_requests er WHERE er.writed_status != 'ร่างคำร้องขอ' " . $date_filter_params_er['where_sql']);
     if ($stmt_equip_req_count) {
+        if (!empty($date_filter_params_er['param_types'])) {
+            $stmt_equip_req_count->bind_param($date_filter_params_er['param_types'], ...$date_filter_params_er['param_values']);
+        }
         $stmt_equip_req_count->execute();
         $stmt_equip_req_count->bind_result($total_equipments_requests_count);
         $stmt_equip_req_count->fetch();
@@ -327,6 +352,7 @@ try {
     } else {
         error_log("Failed to prepare statement for equipments requests count: " . $conn->error);
     }
+    // --- จบส่วนการกรองวันที่สำหรับ Dashboard Counts ---
 
     $current_date = date('Y-m-d');
     $stmt_end = $conn->prepare("UPDATE project SET writed_status = 'สิ้นสุดโครงการ' WHERE end_date < ? AND writed_status != 'สิ้นสุดโครงการ'");
@@ -400,9 +426,15 @@ try {
             $sort_filter = $_GET['sort_filter'] ?? 'date_desc';
             $sorting = getSortingClauses('projects_admin', $sort_filter);
 
-            $base_where = " WHERE p.project_name LIKE ? AND p.writed_status != 'ร่างโครงการ'";
+            // --- เริ่มต้นเพิ่มการกรองวันที่ ---
+            $date_filtering = getDateFilteringClauses('projects_admin', $predefined_range_select, $specific_year_select, $specific_month_select, $specific_day_select);
+            // --- สิ้นสุดการเพิ่มการกรองวันที่ ---
 
-            $count_sql = "SELECT COUNT(*) FROM project p" . $base_where . $sorting['where_sql'];
+            $base_where = " WHERE p.project_name LIKE ? AND p.writed_status != 'ร่างโครงการ'";
+            // รวมเงื่อนไข WHERE จาก sorting และ date filtering
+            $full_where_sql = $base_where . $sorting['where_sql'] . $date_filtering['where_sql'];
+
+            $count_sql = "SELECT COUNT(*) FROM project p" . $full_where_sql;
             $stmt_count = $conn->prepare($count_sql);
 
             $count_params = [$search_param];
@@ -411,6 +443,10 @@ try {
                 $count_params[] = $sorting['where_param_value'];
                 $count_param_types .= $sorting['where_param_type'];
             }
+            // เพิ่ม params จาก date filtering
+            $count_params = array_merge($count_params, $date_filtering['param_values']);
+            $count_param_types .= $date_filtering['param_types'];
+
             $stmt_count->bind_param($count_param_types, ...$count_params);
             $stmt_count->execute();
             $stmt_count->bind_result($total_items);
@@ -423,12 +459,12 @@ try {
                         FROM project p
                         LEFT JOIN user u ON p.nontri_id = u.nontri_id
                         LEFT JOIN activity_type at ON p.activity_type_id = at.activity_type_id"
-                        . $base_where . $sorting['where_sql']
+                        . $full_where_sql // ใช้ $full_where_sql ที่รวมเงื่อนไขแล้ว
                         . $sorting['order_by_sql'] . " LIMIT ? OFFSET ?";
 
             $stmt_data = $conn->prepare($sql_data);
 
-            $data_params = $count_params;
+            $data_params = $count_params; // ใช้ params ที่รวมกันแล้ว
             $data_param_types = $count_param_types;
             $data_params[] = $items_per_page;
             $data_params[] = $offset;
@@ -555,9 +591,15 @@ try {
             $sort_filter = $_GET['sort_filter'] ?? 'date_desc';
             $sorting = getSortingClauses('buildings_admin', $sort_filter);
 
-            $base_where = " WHERE fr.writed_status != 'ร่างคำร้องขอ' AND (p.project_name LIKE ? OR f.facility_name LIKE ?)";
+            // --- เริ่มต้นเพิ่มการกรองวันที่ ---
+            $date_filtering = getDateFilteringClauses('buildings_admin', $predefined_range_select, $specific_year_select, $specific_month_select, $specific_day_select);
+            // --- สิ้นสุดการเพิ่มการกรองวันที่ ---
 
-            $count_sql = "SELECT COUNT(*) FROM facilities_requests fr JOIN project p ON fr.project_id = p.project_id JOIN facilities f ON fr.facility_id = f.facility_id" . $base_where . $sorting['where_sql'];
+            $base_where = " WHERE fr.writed_status != 'ร่างคำร้องขอ' AND (p.project_name LIKE ? OR f.facility_name LIKE ?)";
+            // รวมเงื่อนไข WHERE จาก sorting และ date filtering
+            $full_where_sql = $base_where . $sorting['where_sql'] . $date_filtering['where_sql'];
+
+            $count_sql = "SELECT COUNT(*) FROM facilities_requests fr JOIN project p ON fr.project_id = p.project_id JOIN facilities f ON fr.facility_id = f.facility_id" . $full_where_sql;
             $stmt_count = $conn->prepare($count_sql);
 
             $count_params = [$search_param, $search_param];
@@ -566,6 +608,10 @@ try {
                 $count_params[] = $sorting['where_param_value'];
                 $count_param_types .= $sorting['where_param_type'];
             }
+            // เพิ่ม params จาก date filtering
+            $count_params = array_merge($count_params, $date_filtering['param_values']);
+            $count_param_types .= $date_filtering['param_types'];
+
             $stmt_count->bind_param($count_param_types, ...$count_params);
             $stmt_count->execute();
             $stmt_count->bind_result($total_items);
@@ -579,12 +625,12 @@ try {
                         JOIN facilities f ON fr.facility_id = f.facility_id
                         JOIN project p ON fr.project_id = p.project_id
                         LEFT JOIN user u ON p.nontri_id = u.nontri_id"
-                        . $base_where . $sorting['where_sql']
+                        . $full_where_sql // ใช้ $full_where_sql ที่รวมเงื่อนไขแล้ว
                         . $sorting['order_by_sql'] . " LIMIT ? OFFSET ?";
 
             $stmt_data = $conn->prepare($sql_data);
 
-            $data_params = $count_params;
+            $data_params = $count_params; // ใช้ params ที่รวมกันแล้ว
             $data_param_types = $count_param_types;
             $data_params[] = $items_per_page;
             $data_params[] = $offset;
@@ -628,10 +674,16 @@ try {
             $sort_filter = $_GET['sort_filter'] ?? 'date_desc';
             $sorting = getSortingClauses('equipments_admin', $sort_filter);
 
+            // --- เริ่มต้นเพิ่มการกรองวันที่ ---
+            $date_filtering = getDateFilteringClauses('equipments_admin', $predefined_range_select, $specific_year_select, $specific_month_select, $specific_day_select);
+            // --- สิ้นสุดการเพิ่มการกรองวันที่ ---
+
             $base_where = " WHERE er.writed_status != 'ร่างคำร้องขอ' AND (p.project_name LIKE ? OR e.equip_name LIKE ?)";
+            // รวมเงื่อนไข WHERE จาก sorting และ date filtering
+            $full_where_sql = $base_where . $sorting['where_sql'] . $date_filtering['where_sql'];
 
             // --- COUNT QUERY ---
-            $count_sql = "SELECT COUNT(*) FROM equipments_requests er JOIN project p ON er.project_id = p.project_id JOIN equipments e ON er.equip_id = e.equip_id" . $base_where . $sorting['where_sql'];
+            $count_sql = "SELECT COUNT(*) FROM equipments_requests er JOIN project p ON er.project_id = p.project_id JOIN equipments e ON er.equip_id = e.equip_id" . $full_where_sql;
             $stmt_count = $conn->prepare($count_sql);
 
             $count_params = [$search_param, $search_param];
@@ -640,6 +692,10 @@ try {
                 $count_params[] = $sorting['where_param_value'];
                 $count_param_types .= $sorting['where_param_type'];
             }
+            // เพิ่ม params จาก date filtering
+            $count_params = array_merge($count_params, $date_filtering['param_values']);
+            $count_param_types .= $date_filtering['param_types'];
+
             $stmt_count->bind_param($count_param_types, ...$count_params);
             $stmt_count->execute();
             $stmt_count->bind_result($total_items);
@@ -655,12 +711,12 @@ try {
                         JOIN project p ON er.project_id = p.project_id
                         LEFT JOIN facilities f ON er.facility_id = f.facility_id
                         LEFT JOIN user u ON p.nontri_id = u.nontri_id"
-                        . $base_where . $sorting['where_sql']
+                        . $full_where_sql // ใช้ $full_where_sql ที่รวมเงื่อนไขแล้ว
                         . $sorting['order_by_sql'] . " LIMIT ? OFFSET ?";
 
             $stmt_data = $conn->prepare($sql_data);
 
-            $data_params = $count_params;
+            $data_params = $count_params; // ใช้ params ที่รวมกันแล้ว
             $data_param_types = $count_param_types;
             $data_params[] = $items_per_page;
             $data_params[] = $offset;
@@ -714,128 +770,7 @@ $total_pages = ceil($total_items / $items_per_page);
 <html lang="th">
 <head>
     <?php include 'header.php'?>
-    <!-- เพิ่ม CSS สำหรับ print โดยเฉพาะ -->
-<style>
-    /* CSS สำหรับแสดงผลบนหน้าจอ */
-    @media screen {
-        .print-only {
-            display: none !important; /* ซ่อนส่วนนี้เมื่ออยู่บนหน้าจอ */
-        }
-    }
 
-    /* CSS สำหรับการพิมพ์ */
-    @media print {
-        body {
-            margin: 0;
-            padding: 0;
-            font-family: 'Sarabun', sans-serif;
-            color: #000;
-            background-color: #fff;
-        }
-
-        /* ซ่อนทุกส่วน UI ที่ไม่ต้องการพิมพ์ */
-        .navbar, .admin-sidebar, .alert, .btn,
-        .d-flex.justify-content-between.mt-4 > div:last-child, /* ปุ่มอนุมัติ/ไม่อนุมัติ */
-        .list-group-item .btn, .card-footer a, .mb-3.d-flex, .pagination,
-        .activity-item .stretched-link, /* ไม่พิมพ์ลิงก์ใน dashboard */
-        .screen-only {
-            display: none !important;
-            visibility: hidden !important;
-        }
-
-        /* แสดงเฉพาะส่วนที่ต้องการพิมพ์ */
-        .admin-content-area {
-            width: 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            box-shadow: none !important; /* ลบเงา card */
-            border: none !important;
-            flex: none !important; /* ป้องกัน flexbox จากการทำให้ layout เสีย */
-        }
-
-        /* ทำให้ส่วน print-only แสดงผล */
-        .print-only {
-            display: block !important;
-            visibility: visible !important;
-        }
-
-        /* ปรับขนาดตัวอักษรและอื่น ๆ เพื่อการพิมพ์ */
-        h1, h2, h3, h4, h5, h6 {
-            color: #000 !important;
-            page-break-after: avoid;
-        }
-
-        p, li {
-            font-size: 11pt;
-            line-height: 1.5;
-        }
-        .list-text p, .list-text li {
-            font-size: 11pt;
-        }
-
-        /* Style สำหรับ badge - อาจจะไม่ต้องการสีบนกระดาษ */
-        .badge {
-            color: #000 !important;
-            background-color: #f0f0f0 !important;
-            border: 1px solid #ccc;
-            padding: 3px 6px;
-            font-size: 9pt;
-            vertical-align: middle;
-        }
-
-        /* การจัดการตาราง */
-        .print-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 1em;
-            font-size: 10pt; /* ขนาดตัวอักษรในตาราง */
-        }
-        .print-table th, .print-table td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-            vertical-align: top;
-        }
-        .print-table th {
-            background-color: #f2f2f2;
-            font-weight: bold;
-        }
-        /* เพื่อให้ส่วนหัวตารางแสดงซ้ำในทุกหน้า */
-        thead {
-            display: table-header-group;
-        }
-
-        /* การจัดการ page break */
-        .page-break-before-always {
-            page-break-before: always !important;
-        }
-        .page-break-after-always {
-            page-break-after: always !important;
-        }
-        .page-break-inside-avoid {
-            page-break-inside: avoid !important;
-        }
-
-        .report-header {
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        .report-header h3, .report-header p {
-            margin: 0;
-            color: #000 !important;
-        }
-        .report-header hr {
-            border-top: 1px solid #000;
-        }
-
-        @page {
-            margin: 20mm; /* กำหนดขอบกระดาษ */
-            /* คุณสามารถเพิ่ม content สำหรับ header/footer ที่นี่ได้หากต้องการ */
-            /* @top-center { content: "ระบบขอใช้อุปกรณ์และสถานที่ KU FTD"; } */
-            /* @bottom-right { content: "หน้า " counter(page) " จาก " counter(pages); } */
-        }
-    }
-</style>
 </head>
 <body class="admin-body">
     <nav class="navbar navbar-dark navigator screen-only">
@@ -928,15 +863,48 @@ $total_pages = ceil($total_items / $items_per_page);
             <?php if ($main_tab == 'dashboard_admin'): ?>
                 <h1 class="mb-4">ภาพรวมคำร้องขอทั้งหมด</h1>
                 <div class="row mb-4 justify-content-end screen-only">
-                    <div class="col-md-6 text-end">
-                        <form id="timeFilterForm" class="d-inline-flex gap-2" action="" method="GET">
-                            <select name="predefined_range_select" id="predefined_range_select" class="form-select" style="width: auto;">
-                                <option value="">เลือกช่วงเวลา...</option>
-                                <option value="today">วันนี้</option>
-                                <option value="this_week" >สัปดาห์นี้</option>
-                                <option value="this_month" >เดือนนี้</option>
-                                <option value="this_year" >ปีนี้</option>
+                    <div class="col-md-auto">
+                        <form id="dateFilterFormDashboard" class="d-inline-flex gap-2 align-items-center" action="" method="GET">
+                            <input type="hidden" name="main_tab" value="<?php echo htmlspecialchars($main_tab); ?>">
+
+                            <!-- ดรอปดาวน์สำหรับช่วงเวลาที่กำหนดไว้ล่วงหน้า -->
+                            <select name="predefined_range" id="predefined_range_select" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+                                <option value="">กรองตามวันที่...</option>
+                                <option value="today" <?php echo ($predefined_range_select == 'today') ? 'selected' : ''; ?>>วันนี้</option>
+                                <option value="this_week" <?php echo ($predefined_range_select == 'this_week') ? 'selected' : ''; ?>>สัปดาห์นี้</option>
+                                <option value="this_month" <?php echo ($predefined_range_select == 'this_month') ? 'selected' : ''; ?>>เดือนนี้</option>
+                                <option value="this_year" <?php echo ($predefined_range_select == 'this_year') ? 'selected' : ''; ?>>ปีนี้</option>
                             </select>
+
+                            <!-- ดรอปดาวน์สำหรับเลือกวันที่เฉพาะเจาะจง -->
+                            <select name="specific_year" id="specific_year_select" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+                                <option value="">ปี</option>
+                                <?php for ($y = 2025; $y >= 2021; $y--): ?>
+                                    <option value="<?php echo $y; ?>" <?php echo ($specific_year_select == $y) ? 'selected' : ''; ?>><?php echo $y; ?></option>
+                                <?php endfor; ?>
+                            </select>
+                            <select name="specific_month" id="specific_month_select" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+                                <option value="">เดือน</option>
+                                <?php
+                                $thai_months_full = [
+                                    1 => 'มกราคม', 2 => 'กุมภาพันธ์', 3 => 'มีนาคม', 4 => 'เมษายน',
+                                    5 => 'พฤษภาคม', 6 => 'มิถุนายน', 7 => 'กรกฎาคม', 8 => 'สิงหาคม',
+                                    9 => 'กันยายน', 10 => 'ตุลาคม', 11 => 'พฤศจิกายน', 12 => 'ธันวาคม'
+                                ];
+                                foreach ($thai_months_full as $num => $name): ?>
+                                    <option value="<?php echo $num; ?>" <?php echo ($specific_month_select == $num) ? 'selected' : ''; ?>><?php echo $name; ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <select name="specific_day" id="specific_day_select" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+                                <option value="">วัน</option>
+                                <?php for ($d = 1; $d <= 31; $d++): ?>
+                                    <option value="<?php echo $d; ?>" <?php echo ($specific_day_select == $d) ? 'selected' : ''; ?>><?php echo $d; ?></option>
+                                <?php endfor; ?>
+                            </select>
+
+                            <?php if (!empty($predefined_range_select) || !empty($specific_year_select) || !empty($specific_month_select) || !empty($specific_day_select)): ?>
+                                <a href="?main_tab=<?php echo htmlspecialchars($main_tab); ?>" class="btn btn-outline-secondary btn-sm">ล้าง</a>
+                            <?php endif; ?>
                         </form>
                     </div>
                 </div>
@@ -950,7 +918,14 @@ $total_pages = ceil($total_items / $items_per_page);
                                 <p class="card-text fs-1"><?php echo $total_projects_count; ?></p>
                             </div>
                             <div class="card-footer">
-                                <a href="?main_tab=projects_admin&mode=list" class="stretched-link text-white text-decoration-none footer-text">ดูรายละเอียด <i class="bi bi-arrow-right"></i></a>
+                                <?php
+                                    $link_params = ['main_tab' => 'projects_admin', 'mode' => 'list'];
+                                    if (!empty($predefined_range_select)) $link_params['predefined_range'] = $predefined_range_select;
+                                    if (!empty($specific_year_select)) $link_params['specific_year'] = $specific_year_select;
+                                    if (!empty($specific_month_select)) $link_params['specific_month'] = $specific_month_select;
+                                    if (!empty($specific_day_select)) $link_params['specific_day'] = $specific_day_select;
+                                ?>
+                                <a href="?<?php echo http_build_query($link_params); ?>" class="stretched-link text-white text-decoration-none footer-text">ดูรายละเอียด <i class="bi bi-arrow-right"></i></a>
                             </div>
                         </div>
                     </div>
@@ -962,7 +937,14 @@ $total_pages = ceil($total_items / $items_per_page);
                                 <p class="card-text fs-1"><?php echo $total_facilities_requests_count; ?></p>
                             </div>
                             <div class="card-footer">
-                                <a href="?main_tab=buildings_admin&mode=list" class="stretched-link text-white text-decoration-none footer-text">ดูรายละเอียด <i class="bi bi-arrow-right"></i></a>
+                                <?php
+                                    $link_params = ['main_tab' => 'buildings_admin', 'mode' => 'list'];
+                                    if (!empty($predefined_range_select)) $link_params['predefined_range'] = $predefined_range_select;
+                                    if (!empty($specific_year_select)) $link_params['specific_year'] = $specific_year_select;
+                                    if (!empty($specific_month_select)) $link_params['specific_month'] = $specific_month_select;
+                                    if (!empty($specific_day_select)) $link_params['specific_day'] = $specific_day_select;
+                                ?>
+                                <a href="?<?php echo http_build_query($link_params); ?>" class="stretched-link text-white text-decoration-none footer-text">ดูรายละเอียด <i class="bi bi-arrow-right"></i></a>
                             </div>
                         </div>
                     </div>
@@ -974,7 +956,14 @@ $total_pages = ceil($total_items / $items_per_page);
                                 <p class="card-text fs-1"><?php echo $total_equipments_requests_count; ?></p>
                             </div>
                             <div class="card-footer">
-                                <a href="?main_tab=equipments_admin&mode=list" class="stretched-link text-dark text-decoration-none footer-text">ดูรายละเอียด <i class="bi bi-arrow-right"></i></a>
+                                <?php
+                                    $link_params = ['main_tab' => 'equipments_admin', 'mode' => 'list'];
+                                    if (!empty($predefined_range_select)) $link_params['predefined_range'] = $predefined_range_select;
+                                    if (!empty($specific_year_select)) $link_params['specific_year'] = $specific_year_select;
+                                    if (!empty($specific_month_select)) $link_params['specific_month'] = $specific_month_select;
+                                    if (!empty($specific_day_select)) $link_params['specific_day'] = $specific_day_select;
+                                ?>
+                                <a href="?<?php echo http_build_query($link_params); ?>" class="stretched-link text-dark text-decoration-none footer-text">ดูรายละเอียด <i class="bi bi-arrow-right"></i></a>
                             </div>
                         </div>
                     </div>
@@ -1003,7 +992,7 @@ $total_pages = ceil($total_items / $items_per_page);
                                     ?>
                                     <li class="list-group-item activity-item">
                                         <?php if ($detail_link): ?>
-                                            <a href="<?php echo $detail_link; ?>" class="d-flex w-100 justify-content-between align-items-center stretched-link text-decoration-none text-dark">
+                                            <a href="<?php echo $detail_link; ?>" class="d-flex w-100 justify-content-between align-items-center stretched-link text-decoration-none text-dark inbox-text">
                                         <?php else: ?>
                                             <div class="d-flex w-100 justify-content-between align-items-center text-dark">
                                         <?php endif; ?>
@@ -1077,12 +1066,13 @@ $total_pages = ceil($total_items / $items_per_page);
                     elseif ($main_tab == 'equipments_admin') echo 'คำร้องขอใช้อุปกรณ์';
                     ?>
                 </h1>
-                <div class="d-flex justify-content-end mb-3 screen-only">
-                    <form class="d-flex align-items-center" action="" method="GET">
+                <div class="d-flex justify-content-end mb-3 screen-only flex-wrap gap-2">
+                    <form id="combinedFilterFormList" class="d-inline-flex gap-2 align-items-center flex-wrap" action="" method="GET">
                         <input type="hidden" name="main_tab" value="<?php echo htmlspecialchars($main_tab); ?>">
                         <input type="hidden" name="mode" value="list">
 
-                        <select name="sort_filter" class="form-select me-2" onchange="this.form.submit()" style="width: auto;">
+                        <!-- Dropdown for Sorting -->
+                        <select name="sort_filter" class="form-select form-select-sm" onchange="this.form.submit()" style="width: auto;">
                             <optgroup label="เรียงตามวันที่">
                                 <option value="date_desc" <?php echo (($_GET['sort_filter'] ?? 'date_desc') == 'date_desc') ? 'selected' : ''; ?>>ใหม่สุดไปเก่าสุด</option>
                                 <option value="date_asc" <?php echo (($_GET['sort_filter'] ?? '') == 'date_asc') ? 'selected' : ''; ?>>เก่าสุดไปใหม่สุด</option>
@@ -1104,10 +1094,48 @@ $total_pages = ceil($total_items / $items_per_page);
                             </optgroup>
                         </select>
 
-                        <input class="form-control me-2" type="search" placeholder="ค้นหา..." aria-label="Search" name="search" value="<?php echo htmlspecialchars($search_query); ?>">
-                        <button class="btn btn-outline-success" type="submit">ค้นหา</button>
-                        <?php if (!empty($search_query) || !empty($_GET['sort_filter'])): ?>
-                            <a href="?main_tab=<?php echo htmlspecialchars($main_tab); ?>&mode=list" class="btn btn-outline-secondary ms-2">ล้าง</a>
+                        <!-- Search Input -->
+                        <input class="form-control form-control-sm" type="search" placeholder="ค้นหา..." aria-label="Search" name="search" value="<?php echo htmlspecialchars($search_query); ?>" style="width: 150px;">
+                        <button class="btn btn-outline-success btn-sm" type="submit">ค้นหา</button>
+
+                        <!-- Date Filtering Dropdowns -->
+                        <select name="predefined_range" id="predefined_range_select_list" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+                            <option value="">กรองตามวันที่...</option>
+                            <option value="today" <?php echo ($predefined_range_select == 'today') ? 'selected' : ''; ?>>วันนี้</option>
+                            <option value="this_week" <?php echo ($predefined_range_select == 'this_week') ? 'selected' : ''; ?>>สัปดาห์นี้</option>
+                            <option value="this_month" <?php echo ($predefined_range_select == 'this_month') ? 'selected' : ''; ?>>เดือนนี้</option>
+                            <option value="this_year" <?php echo ($predefined_range_select == 'this_year') ? 'selected' : ''; ?>>ปีนี้</option>
+                        </select>
+                        <select name="specific_year" id="specific_year_select_list" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+                            <option value="">ปี</option>
+                            <?php for ($y = 2025; $y >= 2021; $y--): ?>
+                                <option value="<?php echo $y; ?>" <?php echo ($specific_year_select == $y) ? 'selected' : ''; ?>><?php echo $y; ?></option>
+                            <?php endfor; ?>
+                        </select>
+                        <select name="specific_month" id="specific_month_select_list" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+                            <option value="">เดือน</option>
+                            <?php
+                            $thai_months_full = [
+                                1 => 'มกราคม', 2 => 'กุมภาพันธ์', 3 => 'มีนาคม', 4 => 'เมษายน',
+                                5 => 'พฤษภาคม', 6 => 'มิถุนายน', 7 => 'กรกฎาคม', 8 => 'สิงหาคม',
+                                9 => 'กันยายน', 10 => 'ตุลาคม', 11 => 'พฤศจิกายน', 12 => 'ธันวาคม'
+                            ];
+                            foreach ($thai_months_full as $num => $name): ?>
+                                <option value="<?php echo $num; ?>" <?php echo ($specific_month_select == $num) ? 'selected' : ''; ?>><?php echo $name; ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <select name="specific_day" id="specific_day_select_list" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+                            <option value="">วัน</option>
+                            <?php for ($d = 1; $d <= 31; $d++): ?>
+                                <option value="<?php echo $d; ?>" <?php echo ($specific_day_select == $d) ? 'selected' : ''; ?>><?php echo $d; ?></option>
+                            <?php endfor; ?>
+                        </select>
+
+                        <?php
+                        // สร้าง URL สำหรับปุ่ม 'ล้าง' ทั้งหมด
+                        $clear_all_params = ['main_tab' => $main_tab, 'mode' => 'list'];
+                        if (!empty($search_query) || !empty($_GET['sort_filter']) || !empty($predefined_range_select) || !empty($specific_year_select) || !empty($specific_month_select) || !empty($specific_day_select)): ?>
+                            <a href="?<?php echo http_build_query($clear_all_params); ?>" class="btn btn-outline-secondary btn-sm">ล้างทั้งหมด</a>
                         <?php endif; ?>
                     </form>
                 </div>
@@ -1243,23 +1271,39 @@ $total_pages = ceil($total_items / $items_per_page);
 
                             $search_param = !empty($search_query) ? '&search=' . urlencode($search_query) : '';
                             $sort_param = !empty($_GET['sort_filter']) ? '&sort_filter=' . urlencode($_GET['sort_filter']) : '';
+
+                            // เพิ่มพารามิเตอร์สำหรับ Date Filtering
+                            $date_filter_params_for_pagination = '';
+                            if (!empty($predefined_range_select)) {
+                                $date_filter_params_for_pagination .= '&predefined_range=' . urlencode($predefined_range_select);
+                            }
+                            if (!empty($specific_year_select)) {
+                                $date_filter_params_for_pagination .= '&specific_year=' . urlencode($specific_year_select);
+                            }
+                            if (!empty($specific_month_select)) {
+                                $date_filter_params_for_pagination .= '&specific_month=' . urlencode($specific_month_select);
+                            }
+                            if (!empty($specific_day_select)) {
+                                $date_filter_params_for_pagination .= '&specific_day=' . urlencode($specific_day_select);
+                            }
+                            // --- จบการเพิ่มพารามิเตอร์สำหรับ Date Filtering ---
                             ?>
 
                             <?php if ($current_page > 1): ?>
                                 <li class="page-item">
-                                    <a class="page-link" href="?main_tab=<?php echo htmlspecialchars($main_tab); ?>&mode=list&page=<?php echo $current_page - 1; ?><?php echo $search_param; ?><?php echo $sort_param; ?>">ก่อนหน้า</a>
+                                    <a class="page-link" href="?main_tab=<?php echo htmlspecialchars($main_tab); ?>&mode=list&page=<?php echo $current_page - 1; ?><?php echo $search_param; ?><?php echo $sort_param; ?><?php echo $date_filter_params_for_pagination; ?>">ก่อนหน้า</a>
                                 </li>
                             <?php endif; ?>
 
                             <?php for ($i = 1; $i <= $total_pages; $i++): ?>
                                 <li class="page-item <?php echo ($i == $current_page) ? 'active' : ''; ?>">
-                                    <a class="page-link" href="?main_tab=<?php echo htmlspecialchars($main_tab); ?>&mode=list&page=<?php echo $i; ?><?php echo $search_param; ?><?php echo $sort_param; ?>"><?php echo $i; ?></a>
+                                    <a class="page-link" href="?main_tab=<?php echo htmlspecialchars($main_tab); ?>&mode=list&page=<?php echo $i; ?><?php echo $search_param; ?><?php echo $sort_param; ?><?php echo $date_filter_params_for_pagination; ?>"><?php echo $i; ?></a>
                                 </li>
                             <?php endfor; ?>
 
                             <?php if ($current_page < $total_pages): ?>
                                 <li class="page-item">
-                                    <a class="page-link" href="?main_tab=<?php echo htmlspecialchars($main_tab); ?>&mode=list&page=<?php echo $current_page + 1; ?><?php echo $search_param; ?><?php echo $sort_param; ?>">ถัดไป</a>
+                                    <a class="page-link" href="?main_tab=<?php echo htmlspecialchars($main_tab); ?>&mode=list&page=<?php echo $current_page + 1; ?><?php echo $search_param; ?><?php echo $sort_param; ?><?php echo $date_filter_params_for_pagination; ?>">ถัดไป</a>
                                 </li>
                             <?php endif; ?>
                         </ul>
@@ -1423,16 +1467,16 @@ $total_pages = ceil($total_items / $items_per_page);
                     <div class="card shadow-sm p-4 admin-details screen-only">
                         <div class="row list-text">
                             <div class="col-md-6">
-                                <p><strong>ชื่อโครงการ:</strong> <a href="?main_tab=projects_admin&mode=detail&id=<?php echo htmlspecialchars($detail_item['project_id']); ?>"><?php echo htmlspecialchars($detail_item['project_name']); ?></a></p>
+                                <p><strong>ชื่อโครงการ:</strong> <a href="?main_tab=projects_admin&mode=detail&id=<?php echo htmlspecialchars($detail_item['project_id']); ?>" class="text-decoration-none text-dark"><?php echo htmlspecialchars($detail_item['project_name']); ?></a></p>
                                 <p><strong>ผู้ยื่นคำร้อง:</strong> <?php echo htmlspecialchars($detail_item['user_name'] ?? 'N/A'); ?></p>
                                 <p><strong>สถานที่ที่ขอใช้งาน:</strong> <?php echo htmlspecialchars($detail_item['facility_name']); ?></p>
                                 <p><strong>สถานะคำร้อง:</strong> <?php echo htmlspecialchars($detail_item['writed_status']); ?></p>
-                                <p><strong>วันเริ่มต้นการเตรียมการ:</strong> <?php echo (new DateTime($detail_item['prepare_start_date']))->format('d/m/Y'); ?> ถึง วันที่ <?php echo (new DateTime($detail_item['prepare_end_date']))->format('d/m/Y'); ?></p>
+                                <p><strong>วันเริ่มต้นการเตรียมการ:</strong> <?php echo formatThaiDate($detail_item['prepare_start_date'], false); ?> ถึง วันที่ <?php echo formatThaiDate($detail_item['prepare_end_date'], false); ?></p>
                                 <p><strong>ตั้งแต่เวลา:</strong> <?php echo (new DateTime($detail_item['prepare_start_time']))->format('H:i'); ?> น. ถึง <?php echo (new DateTime($detail_item['prepare_end_time']))->format('H:i'); ?></p>
                             </div>
                             <div class="col-md-6">
-                                <p><strong>วันที่สร้างคำร้อง:</strong> <?php echo (new DateTime($detail_item['request_date']))->format('d/m/Y H:i'); ?></p>
-                                <p><strong>วันเริ่มต้นการใช้งาน:</strong> <?php echo (new DateTime($detail_item['start_date']))->format('d/m/Y'); ?> ถึง วันที่ <?php echo (new DateTime($detail_item['end_date']))->format('d/m/Y'); ?></p>
+                                <p><strong>วันที่สร้างคำร้อง:</strong> <?php echo formatThaiDate($detail_item['request_date']); ?></p>
+                                <p><strong>วันเริ่มต้นการใช้งาน:</strong> <?php echo formatThaiDate($detail_item['start_date'], false); ?> ถึง วันที่ <?php echo formatThaiDate($detail_item['end_date'], false); ?></p>
                                 <p><strong>ตั้งแต่เวลา:</strong> <?php echo (new DateTime($detail_item['start_time']))->format('H:i'); ?> น. ถึง <?php echo (new DateTime($detail_item['end_time']))->format('H:i'); ?></p>
                                 <p><strong>ยินยอมให้ Reuse ป้ายไวนิลและวัสดุอื่น ๆ:</strong> <?php echo ($detail_item['agree'] == 1) ? 'ยินยอม' : 'ไม่ยินยอม'; ?></p>
                                 <p class="mt-3">
@@ -1476,7 +1520,7 @@ $total_pages = ceil($total_items / $items_per_page);
                     <div class="card shadow-sm p-4 admin-details screen-only">
                         <div class="row list-text">
                             <div class="col-md-6">
-                                <p><strong>ชื่อโครงการ:</strong> <a href="?main_tab=projects_admin&mode=detail&id=<?php echo htmlspecialchars($detail_item['project_id']); ?>"><?php echo htmlspecialchars($detail_item['project_name']); ?></a></p>
+                                <p><strong>ชื่อโครงการ:</strong> <a href="?main_tab=projects_admin&mode=detail&id=<?php echo htmlspecialchars($detail_item['project_id']); ?>" class="text-decoration-none text-dark"><?php echo htmlspecialchars($detail_item['project_name']); ?></a></p>
                                 <p><strong>ผู้ยื่นคำร้อง:</strong> <?php echo htmlspecialchars($detail_item['user_name'] ?? 'N/A'); ?></p>
                                 <p><strong>อุปกรณ์ที่ขอใช้งาน:</strong> <?php echo htmlspecialchars($detail_item['equip_name']); ?></p>
                                 <p><strong>จำนวน:</strong> <?php echo htmlspecialchars($detail_item['quantity']) . ' ' . htmlspecialchars($detail_item['measure']); ?></p>
@@ -1484,8 +1528,8 @@ $total_pages = ceil($total_items / $items_per_page);
                             </div>
                             <div class="col-md-6">
                                 <p><strong>สถานะคำร้อง:</strong> <?php echo htmlspecialchars($detail_item['writed_status']); ?></p>
-                                <p><strong>วันที่สร้างคำร้อง:</strong> <?php echo (new DateTime($detail_item['request_date']))->format('d/m/Y H:i'); ?></p>
-                                <p><strong>ช่วงเวลาใช้งาน:</strong> ตั้งแต่วันที่ <?php echo (new DateTime($detail_item['start_date']))->format('d/m/Y'); ?> ถึง วันที่ <?php echo (new DateTime($detail_item['end_date']))->format('d/m/Y'); ?></p>
+                                <p><strong>วันที่สร้างคำร้อง:</strong> <?php echo formatThaiDate($detail_item['request_date']); ?></p>
+                                <p><strong>ช่วงเวลาใช้งาน:</strong> ตั้งแต่วันที่ <?php echo formatThaiDate($detail_item['start_date'], false); ?> ถึง วันที่ <?php echo formatThaiDate($detail_item['end_date'], false); ?></p>
                                 <p><strong>ต้องการขนส่งอุปกรณ์:</strong> <?php echo ($detail_item['transport'] == 1) ? 'ต้องการ' : 'ไม่ต้องการ'; ?></p>
                                 <p><strong>ยินยอมให้ Reuse ป้ายไวนิลและวัสดุอื่น ๆ:</strong> <?php echo ($detail_item['agree'] == 1) ? 'ยินยอม' : 'ไม่ยินยอม'; ?></p>
                                 <p class="mt-3">
@@ -1617,3 +1661,4 @@ $total_pages = ceil($total_items / $items_per_page);
 <script src="./js/admin_menu.js"></script>
 </body>
 </html>
+inbox-text
