@@ -1,3 +1,5 @@
+console.log("building_dropdown.js loaded and executing."); // เพิ่มบรรทัดนี้
+
 document.addEventListener('DOMContentLoaded', function() {
     var statusModalElement = document.getElementById('statusModal');
     var statusModal = new bootstrap.Modal(statusModalElement);
@@ -12,8 +14,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const facilityReId = urlParams.get('facility_re_id');
     const equipReId = urlParams.get('equip_re_id');
 
-
-    if (status && message) {
+    if (status && message) { 
         // Set modal content
         statusModalElement.querySelector('.modal-header').className = 'modal-header ' + (status === 'success' ? 'bg-success' : 'bg-danger') + ' text-white';
         statusModalElement.querySelector('.modal-title').innerText = (status === 'success' ? 'สำเร็จ!' : 'ข้อผิดพลาด!');
@@ -22,7 +23,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
         statusModal.show();
 
-        // Clear URL parameters after showing modal (optional, but good practice)
         let newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
         let paramsToKeep = [];
 
@@ -42,10 +42,16 @@ document.addEventListener('DOMContentLoaded', function() {
 document.addEventListener('DOMContentLoaded', function() {
     const projectIdSelect = document.getElementById('project_id');
     const facilityIdSelect = document.getElementById('facility_id');
-    const currentMode = "<?php echo $mode; ?>"; // Get current PHP mode
-    const currentMainTab = "<?php echo $main_tab; ?>"; // Get current main_tab
+    const currentMode = phpCurrentMode;
+    const currentMainTab = phpCurrentMainTab;
+
+    console.log("JS Debug: currentMainTab =", currentMainTab);
+    console.log("JS Debug: currentMode =", currentMode);
+    console.log("JS Debug: projectIdSelect exists =", !!projectIdSelect);
+    console.log("JS Debug: facilityIdSelect exists =", !!facilityIdSelect);
 
     if (currentMainTab === 'user_requests' && projectIdSelect && facilityIdSelect && (currentMode === 'equipments_create' || currentMode === 'equipments_edit')) {
+        console.log("JS Debug: All conditions for AJAX load met.");
         function loadFacilitiesForProject(projectId, initialFacilityId = null) {
             facilityIdSelect.innerHTML = '<option value="">-- เลือกสถานที่/อาคาร --</option>';
 
@@ -83,17 +89,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
         }
 
-        // Event listener for project dropdown change (only in relevant modes)
         projectIdSelect.addEventListener('change', function() {
             loadFacilitiesForProject(this.value);
         });
 
-        // Initial load for equipments_edit and equipments_create (if project_id is already set, e.g., from POST)
         const initialProjectId = projectIdSelect.value;
         const initialFacilityId = facilityIdSelect.dataset.initialFacilityId;
 
         if (initialProjectId) {
             loadFacilitiesForProject(initialProjectId, initialFacilityId);
         }
+    } else {
+        console.warn("JS Debug: Conditions for AJAX load NOT met. Check main_tab, mode, and element existence. Current: mainTab=", currentMainTab, " mode=", currentMode);
     }
 });

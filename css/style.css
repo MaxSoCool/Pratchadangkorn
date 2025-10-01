@@ -1,7 +1,31 @@
 /* Font */
 @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@200;500&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@100;200;300;400;500;600;700&family=Kanit:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
 
-/* Default (Screen) Styles */
+
+/* Base HTML/Body for full height layout and overall scrolling management */
+html {
+    height: 100%; /* Ensures HTML takes full viewport height */
+    overflow: hidden; /* Prevents scrollbar on the HTML element */
+}
+body {
+    height: 100%; /* Ensures body takes full viewport height */
+    margin: 0;
+    padding: 0;
+    font-size: 10px;
+    font-family: "IBM Plex Sans Thai", sans-serif;
+    font-style: normal;
+    font-weight: 400;
+    background-color: #f4f4f4; /* Original background color */
+
+    /* Main Flexbox layout for the entire page: Navbar (fixed) + Main Content (scrollable) */
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh; /* Ensures body takes at least full viewport height */
+    overflow: hidden; /* Prevents scrollbar on the body, let its flex children manage it */
+}
+
+/* Responsive Navbar adjustments */
 @media (max-width: 768px) {
     .navbar .d-flex.flex-wrap {
         flex-direction: column !important;
@@ -13,16 +37,10 @@
     }
 }
 
-body {
-    font-size: 10px;
-    font-family: "Kanit", sans-serif;
-    font-style: normal;
-    font-weight: 400;
-}
-
+/* Navigator (Navbar) Styles */
 .navigator {
     background-color: #2D9596;
-    flex-shrink: 0;
+    flex-shrink: 0; /* Prevents navbar from shrinking vertically */
     padding: 20px;
 }
 
@@ -41,17 +59,6 @@ body {
 .logo {
     width: 80px;
     height: auto;
-}
-
-/* IMPORTANT: These are the global styles for HTML/BODY that need overriding for print */
-html, body {
-    height: 100%;
-    margin: 0;
-    padding: 0;
-    overflow: hidden; /* This causes print issues, will be overridden */
-    display: flex; /* This causes print issues, will be overridden */
-    flex-direction: column;
-    background-color: #f4f4f4;
 }
 
 .navigator .navbar-brand.fs-5 {
@@ -102,9 +109,9 @@ html, body {
     height: 40px !important;
 }
 
-.container {
-        flex-grow: 1;
-        overflow-y: auto;
+.container { /* This .container is likely for main content areas outside of admin-main-wrapper */
+        flex-grow: 1; /* Allows it to take available vertical space */
+        overflow-y: auto; /* Enables vertical scrolling */
         padding-top: 15px;
         padding-bottom: 15px;
 }
@@ -520,26 +527,34 @@ h1 {
     font-size: 12px;
 }
 
-.admin-body {
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
-}
+/* ADMIN LAYOUT SPECIFIC STYLES - MODIFIED FOR SCROLLING */
+/* No longer need .admin-body for flex, as 'body' itself is the flex container */
+/* Keeping it for other specific styles, if any */
+
 .admin-main-wrapper {
-    display: flex;
-    flex: 1;
+    display: flex; /* Makes sidebar and content area side-by-side */
+    flex-grow: 1; /* Allows main wrapper to take all available vertical space */
+    overflow: hidden; /* Important: Prevents scrollbar on this wrapper itself */
 }
 .admin-sidebar {
     width: 250px;
     background-color: #f8f9fa;
     padding: 20px;
     border-right: 1px solid #dee2e6;
-    flex-shrink: 0;
+    flex-shrink: 0; /* Prevents sidebar from shrinking horizontally */
+    
+    /* Enable scrolling for sidebar if its content overflows */
+    overflow-y: auto;
+    max-height: 100%; /* Important for flex children with overflow-y to work correctly */
 }
 .admin-content-area {
-    flex-grow: 1;
+    flex-grow: 1; /* Allows content area to take all remaining horizontal space */
     padding: 20px;
     background-color: #fff;
+
+    /* CRITICAL: Enables vertical scrolling for the content area */
+    overflow-y: auto;
+    max-height: 100%; /* Important for flex children with overflow-y to work correctly */
 }
 .admin-sidebar .nav-link {
     color: #333;
@@ -593,9 +608,28 @@ h1 {
     font-size: 15px;
 }
 
-/* 
+/* Chart specific styles */
+.chart-container {
+    width: 100%;
+    max-height: 400px; /* กำหนดความสูงสูงสุดเพื่อให้กราฟไม่ใหญ่เกินไป */
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    margin-top: 20px; /* เพิ่มระยะห่างจากด้านบน */
+    box-sizing: border-box; /* สำคัญเพื่อให้ padding ไม่ดัน width/height เกิน */
+}
+
+#facultyRequestsChart {
+    max-width: 100%;
+    max-height: 100%; /* ทำให้ canvas ไม่เกิน container */
+    display: block; /* ลบช่องว่างที่อาจเกิดขึ้นด้านล่าง canvas */
+}
+
+
+/*
     *** Consolidated Print Styles ***
-    This section will replace all previous @media print blocks.
+    This section replaces all previous @media print blocks.
 */
 @media screen {
     .print-only {
@@ -616,15 +650,15 @@ h1 {
 
     /* 2. Hide everything in the body by default, then selectively show desired content */
     body {
-        visibility: hidden; 
-        font-family: 'Sarabun', sans-serif;
+        visibility: hidden;
+        font-family: 'Kanit', sans-serif; /* Adjusted to user's font */
         color: #000;
     }
 
     /* 3. Make the main content area visible and styled for print */
     #mainContent {
         visibility: visible !important;
-        position: absolute !important; 
+        position: static !important; /* Position static is better for print flow */
         left: 0 !important;
         top: 0 !important;
         width: 100% !important;
@@ -633,10 +667,10 @@ h1 {
         padding: 20mm !important; /* A standard print margin */
         color: #000 !important;
         background-color: #fff !important;
-        box-shadow: none !important; 
+        box-shadow: none !important;
         border: none !important;
         display: block !important; /* Ensure it's a block-level element */
-        flex-grow: 1 !important; /* Important to override screen's flex-grow */
+        flex-grow: 0 !important; /* Override screen's flex-grow */
         box-sizing: border-box; /* Include padding in width calculations */
     }
 
@@ -645,6 +679,8 @@ h1 {
         visibility: visible !important;
         color: #000 !important;
         background-color: transparent !important; /* Clear any background colors */
+        box-shadow: none !important; /* Remove shadows */
+        border-color: #eee !important; /* Lighten borders */
     }
 
     /* 5. Explicitly hide all screen-only elements and other UI elements */
@@ -653,7 +689,7 @@ h1 {
     .d-flex.justify-content-between.mt-4 > div:last-child, /* Approve/Reject buttons */
     .list-group-item .btn, /* View details buttons in summary lists */
     .card-footer a, /* Detail links in dashboard cards */
-    .mb-3.d-flex, /* Search/sort bar */
+    .row.mb-4.justify-content-end.screen-only, /* Top filter row */
     .pagination, /* Pagination links */
     .activity-item .stretched-link /* Links in dashboard recent activity */
     {
@@ -665,6 +701,10 @@ h1 {
         margin: 0 !important;
         padding: 0 !important;
         width: 100% !important;
+        flex-grow: 0 !important; /* Ensure it doesn't try to fill height aggressively */
+        overflow: visible !important; /* Allow children to print fully */
+        height: auto !important;
+        max-height: none !important;
     }
 
     /* 6. Ensure print-only content is displayed */
@@ -687,7 +727,7 @@ h1 {
     /* 8. Text sizing and styling for readability */
     h1, h2, h3, h4, h5, h6 {
         color: #000 !important;
-        page-break-after: avoid; 
+        page-break-after: avoid;
         margin-top: 1em !important; /* Ensure spacing for headings */
         margin-bottom: 0.5em !important;
     }
@@ -713,7 +753,7 @@ h1 {
         border: 1px solid #ccc !important;
         margin-bottom: 20px !important;
         box-shadow: none !important;
-        page-break-inside: avoid; 
+        page-break-inside: avoid;
         background-color: #fff !important;
         padding: 15px !important; /* Add some padding to cards */
     }
@@ -731,7 +771,7 @@ h1 {
     .report-header {
         text-align: center;
         margin-bottom: 20px;
-        page-break-after: avoid; 
+        page-break-after: avoid;
         font-family: 'Kanit', sans-serif;
     }
     .report-header h3 {
@@ -777,7 +817,7 @@ h1 {
         page-break-inside: avoid;
     }
     .list-group-item {
-        border: none !important; 
+        border: none !important;
         border-bottom: 1px solid #eee !important;
         padding: 0.5rem 0.75rem !important;
     }
@@ -789,12 +829,12 @@ h1 {
     img {
         max-width: 100% !important;
         height: auto !important;
-        display: block; 
+        display: block;
         margin: 10px auto; /* Center images with some margin */
     }
 
     /* Page margins for PDF */
     @page {
-        margin: 20mm; 
+        margin: 20mm;
     }
 }

@@ -2300,7 +2300,7 @@ $modal_message = $_GET['message'] ?? '';
                         </a>
                         <div>
                             <?php
-                                $can_edit = (($detail_item['writed_status'] == 'ร่างโครงการ' || $detail_item['start_date_compare'] >= $limited_date) && ($detail_item['writed_status'] !== 'เริ่มดำเนินการ' && $detail_item['writed_status'] !== 'สิ้นสุดโครงการ' && $detail_item['writed_status'] !== 'ยกเลิกโครงการ'));
+                                $can_edit = (($detail_item['writed_status'] == 'ร่างโครงการ' || $detail_item['writed_status'] == 'ส่งโครงการ') && $detail_item['start_date_compare'] >= $limited_date );
                                 $can_delete = ($detail_item['writed_status'] == 'ร่างโครงการ');
                                 $can_cancel = ($detail_item['writed_status'] == 'ส่งโครงการ');
                             ?>
@@ -2863,7 +2863,7 @@ $modal_message = $_GET['message'] ?? '';
                         </a>
                         <div>
                             <?php
-                                $can_edit = (($detail_item['writed_status'] == 'ร่างคำร้องขอ' || $detail_item['start_date_compare'] >= $limited_date) && ($detail_item['writed_status'] !== 'เริ่มดำเนินการ' && $detail_item['writed_status'] !== 'สิ้นสุดดำเนินการ' && $detail_item['writed_status'] !== 'ยกเลิกคำร้องขอ'));
+                                $can_edit = (($detail_item['writed_status'] == 'ร่างคำร้องขอ' || $detail_item['writed_status'] == 'ส่งคำร้องขอ') && ($detail_item['start_date_compare'] >= $limited_date && $detail_item['approve'] == ''));
                                 $can_delete = ($detail_item['writed_status'] == 'ร่างคำร้องขอ');
                                 $can_cancel = ($detail_item['writed_status'] == 'ส่งคำร้องขอ'); 
                             ?>
@@ -3144,7 +3144,7 @@ $modal_message = $_GET['message'] ?? '';
                             <?php
                                 $can_edit = ($detail_item['writed_status'] == 'ร่างคำร้องขอ');
                                 $can_delete = ($detail_item['writed_status'] == 'ร่างคำร้องขอ');
-                                $can_cancel_request = ($detail_item['writed_status'] !== 'เริ่มดำเนินการ' && $detail_item['writed_status'] !== 'สิ้นสุดดำเนินการ' && $detail_item['approve'] !== 'อนุมัติ' && $detail_item['approve'] !== 'ไม่อนุมัติ' && $detail_item['writed_status'] !== 'ยกเลิกคำร้องขอ');
+                                $can_cancel_request = ($detail_item['writed_status'] !== 'ร่างคำร้องขอ' && $detail_item['writed_status'] !== 'เริ่มดำเนินการ' && $detail_item['writed_status'] !== 'สิ้นสุดดำเนินการ' && $detail_item['writed_status'] !== 'ยกเลิกคำร้องขอ');
                             ?>
                             <?php if ($can_edit): ?>
                                 <a href="?main_tab=user_requests&mode=equipments_edit&equip_re_id=<?php echo $detail_item['equip_re_id']; ?>" class="btn btn-warning me-2">
@@ -3312,11 +3312,15 @@ $modal_message = $_GET['message'] ?? '';
 
             <?php endif; ?>
         <?php endif; ?>
-        <!-- <<<<< END MODIFIED SECTION: user_requests Content >>>>> -->
 
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
-    <script src="./js/building_dropdown.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
+<script>
+    const phpCurrentMode = "<?php echo $mode; ?>";
+    const phpCurrentMainTab = "<?php echo $main_tab; ?>";
+    console.log("PHP values injected:", phpCurrentMainTab, phpCurrentMode); 
+</script>
+<script src="./js/building_dropdown.js"></script>
 </body>
 </html>

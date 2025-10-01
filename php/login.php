@@ -171,10 +171,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $fa_de_id = 0;
                         if (!empty($faculty_name)) {
                             switch ($faculty_name) {
-                                case 'ทรัพยากรธรรมชาติและอุตสาหกรรมเกษตร': $fa_de_id = 1; break;
+                                case 'ทรัพยากรธรรมชาติและอุตสาหกรรมเกษตร': $fa_de_id = 1; break; 
+                                case 'คณะทรัพยากรธรรมชาติและอุตสาหกรรมเกษตร': $fa_de_id = 1; break; 
                                 case 'วิทยาศาสตร์และวิศวกรรมศาสตร์': $fa_de_id = 2; break;
+                                case 'คณะวิทยาศาสตร์และวิศวกรรมศาสตร์': $fa_de_id = 2; break;
+                                case 'คณะศิลปศาสตร์และวิทยาการจัดการ': $fa_de_id = 3; break;
                                 case 'ศิลปศาสตร์และวิทยาการจัดการ': $fa_de_id = 3; break;
                                 case 'สาธารณสุขศาสตร์': $fa_de_id = 4; break;
+                                case 'คณะสาธารณสุขศาสตร์': $fa_de_id = 4; break;
                                 case null : $fa_de_id = 5; break;
                             }
                         }
@@ -195,8 +199,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     'user_type_id' => $user_type_id,
                                     'user_THname' => $first_name,
                                     'user_THsur' => $last_name,
-                                    'position' => $position,
-                                    'dept' => $department,
+                                    'position' => $position, // ใช้ตัวแปรใหม่
+                                    'dept' => $department,    // ใช้ตัวแปรใหม่
                                     'fa_de_id' => $fa_de_id,
                                     'role' => 'นิสิต', // กำหนด role ตาม user_type_id
                                     'fa_de_name' => null, // จะต้องดึงจากตาราง faculties_department ถ้าต้องการแสดง
@@ -244,7 +248,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     'position' => $position,
                                     'dept' => $department,
                                     'fa_de_id' => $fa_de_id,
-                                    'role' => 'อาจารย์และบุคลากร', // กำหนด role ตาม user_type_id
+                                    'role' => 'บุคลากร', // กำหนด role ตาม user_type_id
                                     'fa_de_name' => null, // จะต้องดึงจากตาราง faculties_department ถ้าต้องการแสดง
                                 ];
                                 $logged_in = true;
@@ -332,11 +336,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         $_SESSION['nontri_id'] = $user_data['nontri_id'] ?? null;
         $_SESSION['staff_id'] = $user_data['staff_id'] ?? null;
-
         // เลือกใช้ชื่อตามประเภทผู้ใช้ (staff_THname หรือ user_THname หรือชื่อที่ได้จากการ insert ใหม่)
         $_SESSION['user_display_THname'] = $user_data['staff_THname'] ?? $user_data['user_THname'] ?? ($user_data['user_THname'] ?? null);
         $_SESSION['user_display_THsur'] = $user_data['staff_THsur'] ?? $user_data['user_THsur'] ?? ($user_data['user_THsur'] ?? null);
-        
+        $_SESSION['position'] = !empty($user_data['position']) ? $user_data['position'] : null;
+        $_SESSION['dept'] = !empty($user_data['dept']) ? $user_data['dept'] : null;
         $_SESSION['role'] = $user_data['role'] ?? 'ไม่ระบุ';
         $_SESSION['fa_de_name'] = $user_data['fa_de_name'] ?? 'ไม่ระบุ';
 

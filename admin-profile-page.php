@@ -6,10 +6,10 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
     exit();
 }
 
-$user_id = htmlspecialchars($_SESSION['staff_id'] ?? 'N/A');
-$staff_THname = htmlspecialchars($_SESSION['user_display_THname'] ?? 'N/A');
-$staff_THsur = htmlspecialchars($_SESSION['user_display_THsur'] ?? 'N/A');
-$user_role = htmlspecialchars($_SESSION['role'] ?? 'N/A');
+$user_id = htmlspecialchars($_SESSION['staff_id'] ?? null);
+$staff_THname = htmlspecialchars($_SESSION['user_display_THname'] ?? null);
+$staff_THsur = htmlspecialchars($_SESSION['user_display_THsur'] ?? null);
+$user_role = htmlspecialchars($_SESSION['role'] ?? null);
 
 ?>
 <!DOCTYPE html>
