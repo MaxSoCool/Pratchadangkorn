@@ -14,18 +14,34 @@ function getCalendarEventsAsJson($db_conn, $view_mode = 'buildings', $building_i
             JOIN user u ON p.nontri_id = u.nontri_id
             WHERE (fr.approve IN ('อนุมัติ', 'ไม่อนุมัติ') OR fr.writed_status = 'ส่งคำร้องขอ')";
 
+    $stmt = null; // กำหนดค่าเริ่มต้นเป็น null
+
     if ($view_mode === 'building_detail' && !empty($building_id)) {
         $sql .= " AND f.building_id = ?";
         $stmt = $db_conn->prepare($sql);
-        $stmt->bind_param("i", $building_id);
+        // ตรวจสอบว่า prepare สำเร็จก่อนเรียก bind_param
+        if ($stmt === false) {
+            error_log("Calendar SQL Prepare Error (with building_id): " . $db_conn->error);
+            return json_encode([]);
+        }
+        // เรียก bind_param เฉพาะเมื่อมี placeholder '?'
+        if (!$stmt->bind_param("i", $building_id)) {
+            error_log("Calendar SQL Bind Param Error (building_id): " . $stmt->error);
+            $stmt->close(); // ปิด statement ที่ล้มเหลว
+            return json_encode([]);
+        }
     } else {
+        // สำหรับโหมด 'buildings' หรือ 'building_detail' ที่ไม่มี building_id ที่ถูกต้อง
         $stmt = $db_conn->prepare($sql);
+        // ตรวจสอบว่า prepare สำเร็จ
+        if ($stmt === false) {
+            error_log("Calendar SQL Prepare Error (no building_id): " . $db_conn->error);
+            return json_encode([]);
+        }
+        // ไม่ต้องเรียก bind_param ที่นี่ เพราะไม่มี placeholder '?'
     }
     
-    if (!$stmt) {
-        error_log("Calendar SQL Prepare Error: " . $db_conn->error);
-        return json_encode([]);
-    }
+    // ที่จุดนี้ $stmt รับประกันว่าเป็นอ็อบเจกต์ mysqli_stmt ที่เตรียมไว้แล้ว หรือฟังก์ชันได้ exit ไปแล้ว
     $stmt->execute();
     $result = $stmt->get_result();
     while ($row = $result->fetch_assoc()) {

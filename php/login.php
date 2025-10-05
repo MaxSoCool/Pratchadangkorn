@@ -2,23 +2,29 @@
 session_start();
 
 // ควรปิด display_errors ใน Production Environment เพื่อความปลอดภัย
-ini_set('display_errors', 0); // เปลี่ยนเป็น 0 เมื่อขึ้น Production
-ini_set('display_startup_errors', 0); // เปลี่ยนเป็น 0 เมื่อขึ้น Production
-error_reporting(E_ALL); // ยังคง log error ทั้งหมด แต่จะไม่แสดงผลออกทางหน้าเว็บ
+ini_set('display_errors', 1); // เปิดไว้ดู error ตอนเทส
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
 
 include '../database/database.php'; 
 
+// ==================================================================================
+// [TEST MODE] COMMENT ส่วน LDAP และ CONSTANT ออกชั่วคราว
+/*
 const API_ENDPOINT = 'https://inv.csc.ku.ac.th/cscapi/ldap/';
 // === สำคัญ: ควรย้าย KEY_APP ไปที่ไฟล์ .env หรือไฟล์นอก webroot เพื่อความปลอดภัย ===
 const KEY_APP = '1db2648bd3d5251c02cd33fd5080f47c24383d0cc5be27159ec8ac01a133e685';
+*/
+// ==================================================================================
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = trim($_POST['username'] ?? '');
-    $password = $_POST['password'] ?? '';
+    $password = $_POST['password'] ?? ''; // ในโหมดทดสอบ รหัสผ่านจะไม่ถูกนำไปใช้
 
-    if (empty($username) || empty($password)) {
+    // [TEST MODE] ตรวจสอบแค่ username ก็พอ
+    if (empty($username)) {
         $_SESSION['login_status'] = 'failed';
-        $_SESSION['login_message'] = 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน';
+        $_SESSION['login_message'] = 'กรุณากรอกชื่อผู้ใช้ (Test Mode: รหัสผ่านใส่อะไรก็ได้)';
         header("Location: ../login-page.php");
         exit();
     }
@@ -26,340 +32,102 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $logged_in = false;
     $user_data = []; 
 
-    // --- 1. พยายาม Login ผ่าน KU LDAP API ---
-    $ldap_auth_passed_campus_c = false;
-    $ldap_uid = null;
-    $ldap_connection_error = false;
-    $ldap_api_error_message = ''; // เพิ่มตัวแปรสำหรับเก็บข้อความผิดพลาดจาก API
-    $ldap_raw_data = []; // เก็บข้อมูลที่ได้จาก LDAP API เพื่อใช้ในการเพิ่มผู้ใช้
+    // ==================================================================================
+    // [TEST MODE] เริ่มส่วน LOGIN ชั่วคราว (บายพาสรหัสผ่าน เช็คทั้งตาราง staff และ user)
+    // ==================================================================================
+    
+    // 1. ลองค้นหาในตาราง staff ก่อน (ใช้ staff_id เพียงอย่างเดียว ไม่ตรวจสอบรหัสผ่าน)
+    $sql_test_bypass_staff = "SELECT s.staff_id, s.staff_name, s.staff_sur, 
+                                     s.position, s.dept,
+                                     ut.user_type_name AS role
+                              FROM staff s
+                              JOIN user_type ut ON s.user_type_id = ut.user_type_id
+                              WHERE s.staff_id = ?";
+    
+    $stmt_staff = $pdo->prepare($sql_test_bypass_staff);
+    if ($stmt_staff) {
+        $stmt_staff->execute([$username]);
+        $row_staff = $stmt_staff->fetch(PDO::FETCH_ASSOC);
+        $stmt_staff = null;
 
-    $postData = [
-        "keyapp" => KEY_APP,
-        "dataset" => "ldap",
-        "userid" => $username,
-        "pwd" => $password
-    ];
-
-    $ch = curl_init(API_ENDPOINT);
-    if ($ch === false) {
-        error_log("Failed to initialize cURL for LDAP API.");
-        $ldap_connection_error = true;
-        $ldap_api_error_message = "ไม่สามารถเริ่มต้นการเชื่อมต่อ LDAP API ได้";
-    } else {
-        $headers = [
-            'User-Agent: CSC-API-Client/1.0', 
-            'Content-Type: application/json',
-        ];
-
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => json_encode($postData, JSON_UNESCAPED_UNICODE),
-            CURLOPT_HTTPHEADER     => $headers,
-            CURLOPT_TIMEOUT        => 30, 
-            CURLOPT_CONNECTTIMEOUT => 10, 
-            CURLOPT_SSL_VERIFYPEER => true,
-            CURLOPT_SSL_VERIFYHOST => 2,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_MAXREDIRS      => 5,
-            CURLOPT_HTTP_VERSION   => CURL_HTTP_VERSION_1_1,
-        ]);
-
-        $response = curl_exec($ch);
-        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curl_error = curl_error($ch);
-        curl_close($ch);
-
-        if ($curl_error) {
-            error_log("LDAP cURL error: " . $curl_error . " | HTTP Status: " . $http_code . " | Response: " . $response);
-            $ldap_connection_error = true;
-            $ldap_api_error_message = "เกิดข้อผิดพลาดในการเชื่อมต่อ LDAP API: " . $curl_error;
-        } elseif ($http_code === 200) {
-            $ldap_response = json_decode($response, true);
-            if ($ldap_response) {
-                if (isset($ldap_response['status_code']) && $ldap_response['status_code'] === '1') {
-                    if (isset($ldap_response['data']['campus']) && $ldap_response['data']['campus'] === 'C') {
-                        $ldap_auth_passed_campus_c = true;
-                        $ldap_uid = $ldap_response['data']['uid'] ?? $username; 
-                        $ldap_raw_data = $ldap_response['data']; // เก็บข้อมูลดิบจาก LDAP
-                    } else {
-                        $_SESSION['login_status'] = 'failed';
-                        $_SESSION['login_message'] = 'ขออภัย การเข้าสู่ระบบนี้สำหรับนิสิตและบุคลากรของวิทยาเขตเฉลิมพระเกียรติ จังหวัดสกลนครเท่านั้น!';
-                        header("Location: ../login-page.php");
-                        exit();
-                    }
-                } else {
-                    $error_data = $ldap_response['data'] ?? 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
-                    $ldap_api_error_message = "LDAP: " . (is_array($error_data) ? json_encode($error_data) : $error_data); // ตรวจสอบว่าเป็น array เพื่อการ log ที่ถูกต้อง
-                    error_log("LDAP API responded with status_code 0 or other. Message: " . (is_array($error_data) ? json_encode($error_data) : $error_data) . " | Full Response: " . $response);
-                }
-            } else {
-                error_log("LDAP API response is not valid JSON. Response: " . $response);
-                $ldap_connection_error = true;
-                $ldap_api_error_message = "ไม่สามารถประมวลผลการตอบกลับจาก LDAP API ได้";
-            }
-        } else {
-            error_log("LDAP API returned HTTP Status Code: " . $http_code . " | Response: " . $response);
-            $ldap_connection_error = true;
-            $ldap_api_error_message = "LDAP API ตอบกลับด้วยสถานะผิดปกติ: HTTP " . $http_code;
-            if ($http_code === 401) {
-                $ldap_api_error_message .= " (ตรวจสอบ Key Application หรือสิทธิ์การเข้าถึง)";
-            }
+        if ($row_staff) {
+            // พบผู้ใช้ในตาราง staff
+            $logged_in = true;
+            $user_data = $row_staff;
+            
+            // จัดเตรียมข้อมูลให้เหมือนโครงสร้างเดิม เพื่อให้ Session ข้างล่างทำงานได้
+            $user_data['nontri_id'] = null; // บุคลากรจะไม่มี nontri_id
+            $user_data['user_name'] = $row_staff['staff_name']; // ใช้ staff_name สำหรับ key 'user_name' ใน session
+            $user_data['user_sur'] = $row_staff['staff_sur'];   // ใช้ staff_sur สำหรับ key 'user_sur' ใน session
         }
     }
 
-    if ($ldap_auth_passed_campus_c) {
-        // LDAP สำเร็จสำหรับ Campus 'C'
-        // ตรวจสอบข้อมูลผู้ใช้จากฐานข้อมูลภายใน (staff หรือ user)
-        $sql_staff = "SELECT staff_id, staff_THname, staff_THsur, staff_ENname, staff_ENsur, ut.user_type_name AS role FROM staff s
-                      JOIN user_type ut ON s.user_type_id = ut.user_type_id
-                      WHERE s.staff_id = ?";
-        $stmt = $pdo->prepare($sql_staff);
-        if ($stmt) {
-            $stmt->execute([$ldap_uid]);
-            $row = $stmt->fetch(PDO::FETCH_ASSOC);
-            $stmt = null; 
-            if ($row) {
-                // พบข้อมูลในตาราง staff (บุคลากร Login ผ่าน LDAP)
-                $logged_in = true;
-                $user_data = $row;
-                $user_data['nontri_id'] = null; 
-                $user_data['user_THname'] = $row['staff_THname']; 
-                $user_data['user_THsur'] = $row['staff_THsur'];
-                $user_data['user_ENname'] = $row['staff_ENname'];
-                $user_data['user_ENsur'] = $row['staff_ENsur'];
-                $user_data['fa_de_name'] = null; // ไม่ได้ดึงจาก staff (ถ้าต้องการต้อง Join เพิ่ม)
-            } else {
-                // ไม่พบใน staff ลองค้นใน user
-                $sql_user = "SELECT nontri_id, user_THname, user_THsur, user_ENname, user_ENsur, ut.user_type_name AS role, fd.fa_de_name FROM user u
-                             JOIN user_type ut ON u.user_type_id = ut.user_type_id
-                             JOIN faculties_department fd ON u.fa_de_id = fd.fa_de_id
-                             WHERE u.nontri_id = ?";
-                $stmt = $pdo->prepare($sql_user);
-                if ($stmt) {
-                    $stmt->execute([$ldap_uid]);
-                    $row = $stmt->fetch(PDO::FETCH_ASSOC);
-                    $stmt = null; 
-
-                    if ($row) {
-                        // พบข้อมูลในตาราง user (ผู้ใช้ทั่วไป Login ผ่าน LDAP)
-                        $logged_in = true;
-                        $user_data = $row;
-                        $user_data['staff_id'] = null; 
-                        $user_data['staff_THname'] = null; 
-                        $user_data['staff_THsur'] = null;
-                        $user_data['staff_ENname'] = null;
-                        $user_data['staff_ENsur'] = null;
-                    } else {
-                        // ==========================================================
-                        // *** LDAP สำเร็จ Campus 'C' แต่ไม่พบข้อมูลทั้งในตาราง staff และ user ***
-                        // *** เพิ่มข้อมูลผู้ใช้ใหม่ตามเงื่อนไขที่กำหนด ***
-                        // ==========================================================
-
-                        $uid_to_insert = $ldap_raw_data['uid'] ?? $username;
-                        $thainame = $ldap_raw_data['thainame'] ?? '';
-                        $position = $ldap_raw_data['position'] ?? '';
-                        $department = $ldap_raw_data['department'] ?? '';
-                        $faculty_name = $ldap_raw_data['faculty'] ?? '';
-
-                        // แยกชื่อ-สกุล
-                        $name_parts = explode(' ', $thainame, 2);
-                        $first_name = $name_parts[0] ?? '';
-                        $last_name = $name_parts[1] ?? '';
-
-                        // Map faculty_name เป็น fa_de_id
-                        $fa_de_id = 0;
-                        if (!empty($faculty_name)) {
-                            switch ($faculty_name) {
-                                case 'ทรัพยากรธรรมชาติและอุตสาหกรรมเกษตร': $fa_de_id = 1; break; 
-                                case 'คณะทรัพยากรธรรมชาติและอุตสาหกรรมเกษตร': $fa_de_id = 1; break; 
-                                case 'วิทยาศาสตร์และวิศวกรรมศาสตร์': $fa_de_id = 2; break;
-                                case 'คณะวิทยาศาสตร์และวิศวกรรมศาสตร์': $fa_de_id = 2; break;
-                                case 'คณะศิลปศาสตร์และวิทยาการจัดการ': $fa_de_id = 3; break;
-                                case 'ศิลปศาสตร์และวิทยาการจัดการ': $fa_de_id = 3; break;
-                                case 'สาธารณสุขศาสตร์': $fa_de_id = 4; break;
-                                case 'คณะสาธารณสุขศาสตร์': $fa_de_id = 4; break;
-                                case null : $fa_de_id = 5; break;
-                            }
-                        }
-
-                        try {
-                            if (empty($department)) {
-                                // เงื่อนไข 1: department ว่างเปล่า -> user (นิสิต)
-                                $user_type_id = 1; // นิสิต
-                                $sql_insert = "INSERT INTO user (nontri_id, user_type_id, user_THname, user_THsur, position, dept, fa_de_id) 
-                                               VALUES (?, ?, ?, ?, ?, ?, ?)";
-                                $stmt_insert = $pdo->prepare($sql_insert);
-                                $stmt_insert->execute([$uid_to_insert, $user_type_id, $first_name, $last_name, $position, $department, $fa_de_id]);
-                                $stmt_insert = null;
-                                
-                                // เตรียมข้อมูลสำหรับ session
-                                $user_data = [
-                                    'nontri_id' => $uid_to_insert,
-                                    'user_type_id' => $user_type_id,
-                                    'user_THname' => $first_name,
-                                    'user_THsur' => $last_name,
-                                    'position' => $position, // ใช้ตัวแปรใหม่
-                                    'dept' => $department,    // ใช้ตัวแปรใหม่
-                                    'fa_de_id' => $fa_de_id,
-                                    'role' => 'นิสิต', // กำหนด role ตาม user_type_id
-                                    'fa_de_name' => null, // จะต้องดึงจากตาราง faculties_department ถ้าต้องการแสดง
-                                ];
-                                $logged_in = true;
-
-                            } elseif ($department === 'กองบริหารกลาง') {
-                                // เงื่อนไข 3: department คือ "กองบริหารกลาง" -> staff (เจ้าหน้าที่)
-                                $user_type_id = 3; // เจ้าหน้าที่
-                                $sql_insert = "INSERT INTO staff (staff_id, user_type_id, staff_THname, staff_THsur, position, dept, fa_de_id) 
-                                               VALUES (?, ?, ?, ?, ?, ?, ?)";
-                                $stmt_insert = $pdo->prepare($sql_insert);
-                                $stmt_insert->execute([$uid_to_insert, $user_type_id, $first_name, $last_name, $position, $department, $fa_de_id]);
-                                $stmt_insert = null;
-
-                                // เตรียมข้อมูลสำหรับ session
-                                $user_data = [
-                                    'staff_id' => $uid_to_insert,
-                                    'user_type_id' => $user_type_id,
-                                    'staff_THname' => $first_name,
-                                    'staff_THsur' => $last_name,
-                                    'position' => $position,
-                                    'dept' => $department,
-                                    'fa_de_id' => $fa_de_id,
-                                    'role' => 'เจ้าหน้าที่', // กำหนด role ตาม user_type_id
-                                    'fa_de_name' => null, // จะต้องดึงจากตาราง faculties_department ถ้าต้องการแสดง
-                                ];
-                                $logged_in = true;
-
-                            } else {
-                                // เงื่อนไข 2: department ไม่ว่างเปล่า และไม่ใช่ "กองบริหารกลาง" -> user (อาจารย์และบุคลากร)
-                                $user_type_id = 2; // อาจารย์และบุคลากร
-                                $sql_insert = "INSERT INTO user (nontri_id, user_type_id, user_THname, user_THsur, position, dept, fa_de_id) 
-                                               VALUES (?, ?, ?, ?, ?, ?, ?)";
-                                $stmt_insert = $pdo->prepare($sql_insert);
-                                $stmt_insert->execute([$uid_to_insert, $user_type_id, $first_name, $last_name, $position, $department, $fa_de_id]);
-                                $stmt_insert = null;
-
-                                // เตรียมข้อมูลสำหรับ session
-                                $user_data = [
-                                    'nontri_id' => $uid_to_insert,
-                                    'user_type_id' => $user_type_id,
-                                    'user_THname' => $first_name,
-                                    'user_THsur' => $last_name,
-                                    'position' => $position,
-                                    'dept' => $department,
-                                    'fa_de_id' => $fa_de_id,
-                                    'role' => 'บุคลากร', // กำหนด role ตาม user_type_id
-                                    'fa_de_name' => null, // จะต้องดึงจากตาราง faculties_department ถ้าต้องการแสดง
-                                ];
-                                $logged_in = true;
-                            }
-
-                            // หลังจากเพิ่มข้อมูล ให้พยายามดึง fa_de_name ถ้า fa_de_id ไม่ใช่ 0
-                            if ($logged_in && isset($user_data['fa_de_id']) && $user_data['fa_de_id'] !== 5) {
-                                $sql_fa_de_name = "SELECT fa_de_name FROM faculties_department WHERE fa_de_id = ?";
-                                $stmt_fa_de = $pdo->prepare($sql_fa_de_name);
-                                $stmt_fa_de->execute([$user_data['fa_de_id']]);
-                                $fa_de_row = $stmt_fa_de->fetch(PDO::FETCH_ASSOC);
-                                if ($fa_de_row) {
-                                    $user_data['fa_de_name'] = $fa_de_row['fa_de_name'];
-                                }
-                                $stmt_fa_de = null;
-                            }
-
-                        } catch (PDOException $e) {
-                            error_log("Error inserting new user/staff from LDAP: " . $e->getMessage());
-                            $_SESSION['login_status'] = 'failed';
-                            $_SESSION['login_message'] = 'เกิดข้อผิดพลาดในการสร้างข้อมูลผู้ใช้ใหม่: ' . $e->getMessage();
-                            header("Location: ../login-page.php");
-                            exit();
-                        }
-                    }
-                } else {
-                    error_log("Failed to prepare user statement after LDAP: " . print_r($pdo->errorInfo(), true));
-                    $_SESSION['login_status'] = 'failed';
-                    $_SESSION['login_message'] = 'เกิดข้อผิดพลาดในการดึงข้อมูลผู้ใช้ (หลัง LDAP)';
-                    header("Location: ../login-page.php");
-                    exit();
-                }
-            }
-        } else {
-            error_log("Failed to prepare staff statement after LDAP: " . print_r($pdo->errorInfo(), true));
-            $_SESSION['login_status'] = 'failed';
-            $_SESSION['login_message'] = 'เกิดข้อผิดพลาดในการดึงข้อมูลบุคลากร (หลัง LDAP)';
-            header("Location: ../login-page.php");
-            exit();
-        }
-
-    } else {
-        // ถ้า LDAP ไม่สำเร็จ (หรือเชื่อมต่อไม่ได้) ให้ลอง Login ด้วยฐานข้อมูลภายใน
-        // (ส่วนนี้จะถูกเรียกเมื่อ LDAP_auth_passed_campus_c เป็น false)
+    // 2. ถ้ายังไม่ Login (ไม่พบในตาราง staff) ให้ลองค้นหาในตาราง user (ใช้ nontri_id เพียงอย่างเดียว)
+    if (!$logged_in) {
+        $sql_test_bypass_user = "SELECT u.nontri_id, u.user_name, u.user_sur,
+                                 u.position, u.dept, u.fa_de_id,
+                                 ut.user_type_name AS role, fd.fa_de_name 
+                            FROM user u
+                            JOIN user_type ut ON u.user_type_id = ut.user_type_id
+                            JOIN faculties_department fd ON u.fa_de_id = fd.fa_de_id
+                            WHERE u.nontri_id = ?";
         
-        $sql_staff_internal = "SELECT staff_id, user_pass, staff_THname, staff_THsur, staff_ENname, staff_ENsur, ut.user_type_name AS role FROM staff s
-                               JOIN user_type ut ON s.user_type_id = ut.user_type_id
-                               WHERE s.staff_id = ? AND s.user_pass = ?";
-        $stmt = $pdo->prepare($sql_staff_internal);
-        if ($stmt) {
-            $stmt->execute([$username, $password]);
-            $row = $stmt->fetch(PDO::FETCH_ASSOC);
-            $stmt = null;
+        $stmt_user = $pdo->prepare($sql_test_bypass_user);
+        if ($stmt_user) {
+            $stmt_user->execute([$username]);
+            $row_user = $stmt_user->fetch(PDO::FETCH_ASSOC);
+            $stmt_user = null;
 
-            if ($row) {
+            if ($row_user) {
+                // พบผู้ใช้ในตาราง user
                 $logged_in = true;
-                $user_data = $row;
-                $user_data['nontri_id'] = null;
-                $user_data['user_THname'] = $row['staff_THname']; 
-                $user_data['user_THsur'] = $row['staff_THsur'];
-                $user_data['fa_de_name'] = null; 
-            } 
-            if (!$logged_in) {
-                $_SESSION['login_status'] = 'failed';
-                $_SESSION['login_message'] = 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
-                if ($ldap_connection_error && !empty($ldap_api_error_message)) {
-                    $_SESSION['login_message'] .= ' (' . $ldap_api_error_message . ')';
-                } elseif (!$ldap_connection_error && !empty($ldap_api_error_message)) {
-                        $_SESSION['login_message'] .= ' (' . $ldap_api_error_message . ')';
-                }
-                header("Location: ../login-page.php");
-                exit();
+                $user_data = $row_user;
+                
+                // จัดเตรียมข้อมูลให้เหมือนโครงสร้างเดิม
+                $user_data['staff_id'] = null; // ผู้ใช้ทั่วไปจะไม่มี staff_id
+                // user_name, user_sur, role, fa_de_name มีอยู่ใน $row_user แล้วจากการ query
             }
-        } else {
-            error_log("Failed to prepare staff statement for internal fallback: " . print_r($pdo->errorInfo(), true));
-            $_SESSION['login_status'] = 'failed';
-            $_SESSION['login_message'] = 'เกิดข้อผิดพลาดในการดึงข้อมูลบุคลากร (Fallback)';
-            header("Location: ../login-page.php");
-            exit();
         }
     }
 
+    // ==================================================================================
+    // [TEST MODE] สิ้นสุดส่วน LOGIN ชั่วคราว
+    // ==================================================================================
+
+
+    // ==================================================================================
+    // [TEST MODE] COMMENT ปิดระบบ LDAP และ Logic เดิมทั้งหมดด้านล่างนี้
+    // ... (ส่วนที่ถูก Comment ปิดยาวไปก่อนหน้านี้) ...
+    // ==================================================================================
+
+
+    // --- ส่วนตั้งค่า SESSION (คงไว้เหมือนเดิมเพื่อให้ระบบทำงานต่อได้) ---
     if ($logged_in) {
         $_SESSION['logged_in'] = true;
         
         $_SESSION['nontri_id'] = $user_data['nontri_id'] ?? null;
         $_SESSION['staff_id'] = $user_data['staff_id'] ?? null;
-        // เลือกใช้ชื่อตามประเภทผู้ใช้ (staff_THname หรือ user_THname หรือชื่อที่ได้จากการ insert ใหม่)
-        $_SESSION['user_display_THname'] = $user_data['staff_THname'] ?? $user_data['user_THname'] ?? ($user_data['user_THname'] ?? null);
-        $_SESSION['user_display_THsur'] = $user_data['staff_THsur'] ?? $user_data['user_THsur'] ?? ($user_data['user_THsur'] ?? null);
+        // เลือกใช้ชื่อตามประเภทผู้ใช้ (staff_name หรือ user_name)
+        $_SESSION['user_display_name'] = $user_data['staff_name'] ?? $user_data['user_name'] ?? null;
+        $_SESSION['user_display_sur'] = $user_data['staff_sur'] ?? $user_data['user_sur'] ?? null;
         $_SESSION['position'] = !empty($user_data['position']) ? $user_data['position'] : null;
         $_SESSION['dept'] = !empty($user_data['dept']) ? $user_data['dept'] : null;
         $_SESSION['role'] = $user_data['role'] ?? 'ไม่ระบุ';
         $_SESSION['fa_de_name'] = $user_data['fa_de_name'] ?? 'ไม่ระบุ';
 
-        // เช็ค Role ของผู้ใช้
+        // เช็ค Role ของผู้ใช้ (คงไว้เหมือนเดิม)
         if (isset($_SESSION['role']) && $_SESSION['role'] == 'เจ้าหน้าที่') {
             header("Location: ../admin-main-page.php");
             exit();
         } else {
+            // ผู้ใช้ทั่วไป หรือบุคลากรอื่นๆ ที่ไม่ใช่ 'เจ้าหน้าที่' จะไปที่หน้า user project
             header("Location: ../user-project-page.php"); 
             exit();
         }
     } else {
+        // กรณีไม่พบในตาราง staff หรือ user (ในโหมด test)
         $_SESSION['login_status'] = 'failed';
-        $_SESSION['login_message'] = 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
-         if ($ldap_connection_error && !empty($ldap_api_error_message)) {
-            $_SESSION['login_message'] .= ' (' . $ldap_api_error_message . ')';
-        } elseif (!$ldap_connection_error && !empty($ldap_api_error_message)) {
-             $_SESSION['login_message'] .= ' (' . $ldap_api_error_message . ')';
-        }
+        $_SESSION['login_message'] = 'ไม่พบข้อมูลผู้ใช้ (TEST MODE: ตรวจสอบ nontri_id ในตาราง user หรือ staff_id ในตาราง staff)';
         header("Location: ../login-page.php");
         exit();
     }

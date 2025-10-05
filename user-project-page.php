@@ -9,10 +9,42 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
 include 'database/database.php';
 include 'php/sorting.php';
 
+// NEW AJAX Endpoint: Get facilities by building
+// This endpoint is used by the JS to populate the facility dropdown based on the selected building.
+if (isset($_GET['action']) && $_GET['action'] == 'get_facilities_by_building' && isset($_GET['building_id'])) {
+    header('Content-Type: application/json');
+    $buildingId = (int)$_GET['building_id'];
+
+    $facilities_in_building = [];
+    if ($buildingId > 0) {
+        $sql = "SELECT facility_id, facility_name
+                FROM facilities
+                WHERE building_id = ?
+                ORDER BY facility_id ASC"; // Order by facility_id (INT) for correct numeric sorting
+
+        $stmt = $conn->prepare($sql);
+        if ($stmt) {
+            $stmt->bind_param("i", $buildingId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            while ($row = $result->fetch_assoc()) {
+                $facilities_in_building[] = $row;
+            }
+            $stmt->close();
+        } else {
+            error_log("AJAX SQL Error (get_facilities_by_building): " . $conn->error);
+        }
+    }
+    echo json_encode($facilities_in_building);
+    exit();
+}
+
+// EXISTING AJAX Endpoint: Get facilities by project (for equipment requests)
+// This endpoint is used by the JS to populate the facility dropdown based on a project that previously requested them.
 if (isset($_GET['action']) && $_GET['action'] == 'get_facilities_by_project' && isset($_GET['project_id'])) {
-    header('Content-Type: application/json'); 
+    header('Content-Type: application/json');
     $projectId = (int)$_GET['project_id'];
-    $userId = $_SESSION['nontri_id'] ?? ''; 
+    $userId = $_SESSION['nontri_id'] ?? '';
 
     $facilities_for_project = [];
     if ($projectId > 0 && !empty($userId)) {
@@ -21,7 +53,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_facilities_by_project' && 
                 JOIN facilities_requests fr ON f.facility_id = fr.facility_id
                 JOIN project p ON fr.project_id = p.project_id
                 WHERE fr.project_id = ? AND p.nontri_id = ?
-                ORDER BY f.facility_name ASC";
+                ORDER BY f.facility_id ASC"; // Order by f.facility_id (INT) for correct numeric sorting
 
         $stmt = $conn->prepare($sql);
         if ($stmt) {
@@ -37,12 +69,12 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_facilities_by_project' && 
         }
     }
     echo json_encode($facilities_for_project);
-    exit(); 
+    exit();
 }
 
-$user_THname = htmlspecialchars($_SESSION['user_THname'] ?? 'N/A');
-$user_THname = htmlspecialchars($_SESSION['user_display_THname'] ?? 'N/A');
-$user_THsur = htmlspecialchars($_SESSION['user_display_THsur'] ?? 'N/A');
+$user_name = htmlspecialchars($_SESSION['user_name'] ?? 'N/A');
+$user_name = htmlspecialchars($_SESSION['user_display_name'] ?? 'N/A');
+$user_sur = htmlspecialchars($_SESSION['user_display_sur'] ?? 'N/A');
 $user_role = htmlspecialchars($_SESSION['role'] ?? 'N/A');
 $fa_de_name = htmlspecialchars($_SESSION['fa_de_name'] ?? 'ไม่ระบุ');
 $nontri_id = htmlspecialchars($_SESSION['nontri_id'] ?? 'N/A');
@@ -50,9 +82,9 @@ $user_id = $_SESSION['nontri_id'] ?? '';
 
 $main_tab = $_GET['main_tab'] ?? 'user_dashboard';
 
-$mode = isset($_GET['mode']) ? $_GET['mode'] : 'projects_list'; 
+$mode = isset($_GET['mode']) ? $_GET['mode'] : 'projects_list';
 
-$data = []; 
+$data = [];
 $detail_item = null;
 $errors = [];
 $success_message = '';
@@ -94,8 +126,48 @@ function uploadFile($file_input_name, $target_dir, &$errors, $allowed_ext = ['jp
     return null;
 }
 
-// <<<<< NEW SECTION: Helper functions for Dashboard & Status Display >>>>>
-// ฟังก์ชันสำหรับกำหนด class ของ Badge ตามสถานะ
+function handleMultipleFileUploads($file_input_name, $target_dir, &$errors, $allowed_ext = ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx', 'xls', 'xlsx']) {
+    $uploaded_paths = [];
+    // Check if files were actually uploaded for this input name and it's an array (due to `multiple` attribute)
+    if (isset($_FILES[$file_input_name]) && is_array($_FILES[$file_input_name]['name'])) {
+        $file_names = $_FILES[$file_input_name]['name'];
+        $file_tmp_names = $_FILES[$file_input_name]['tmp_name'];
+        $file_errors = $_FILES[$file_input_name]['error'];
+        $file_sizes = $_FILES[$file_input_name]['size'];
+
+        for ($i = 0; $i < count($file_names); $i++) {
+            if ($file_errors[$i] == UPLOAD_ERR_OK) {
+                $file_name = basename($file_names[$i]);
+                $file_ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
+
+                if (!in_array($file_ext, $allowed_ext)) {
+                    $errors[] = "ประเภทไฟล์สำหรับ " . $file_name . " ไม่ถูกต้อง (ประเภทไฟล์ที่อนุญาต: " . implode(', ', $allowed_ext) . ")";
+                    continue; // Skip this file and try the next
+                }
+
+                if ($file_sizes[$i] > 10 * 1024 * 1024) { // 10 MB
+                    $errors[] = "ขนาดไฟล์สำหรับ " . $file_name . " ต้องมีขนาดไม่เกิน 10 MB เท่านั้น.";
+                    continue; // Skip this file
+                }
+
+                $new_file_name = uniqid() . '.' . $file_ext; // Generate unique filename
+                $upload_path = $target_dir . $new_file_name;
+
+                if (move_uploaded_file($file_tmp_names[$i], $upload_path)) {
+                    $uploaded_paths[] = $upload_path; // Store the full path
+                } else {
+                    $errors[] = "เกิดข้อผิดพลาดในการอัปโหลดไฟล์ " . $file_name . ": Error Code " . $file_errors[$i];
+                }
+            } elseif ($file_errors[$i] != UPLOAD_ERR_NO_FILE) {
+                // Only log/show error if it's not simply "no file was uploaded"
+                $errors[] = "เกิดข้อผิดพลาดในการอัปโหลดไฟล์ " . $file_names[$i] . ": Error Code " . $file_errors[$i];
+            }
+        }
+    }
+    return $uploaded_paths; // Returns an array of paths or an empty array
+}
+
+// Helper functions for Dashboard & Status Display (unchanged)
 function getStatusBadgeClass($status_text, $approve_status = null) {
     if ($approve_status === 'อนุมัติ') {
         return 'bg-success';
@@ -125,7 +197,6 @@ function getStatusBadgeClass($status_text, $approve_status = null) {
     }
 }
 
-// ฟังก์ชันสำหรับจัดรูปแบบวันที่เป็นภาษาไทย
 function formatThaiDate($date_str, $include_time = true) {
     if (empty($date_str)) return "-";
     $dt = new DateTime($date_str);
@@ -143,10 +214,9 @@ function formatThaiDate($date_str, $include_time = true) {
     }
     return $output;
 }
-// <<<<< END NEW SECTION >>>>>
 
 
-// Initialize dashboard data structure
+// Initialize dashboard data structure (unchanged)
 $dashboard_data = [
     'project_counts' => [
         'total' => 0,
@@ -183,7 +253,7 @@ $dashboard_data = [
 ];
 
 
-// <<<<< MODIFIED SECTION: PHP Logic for Dashboard (main_tab = user_dashboard) >>>>>
+// PHP Logic for Dashboard (main_tab = user_dashboard) (unchanged)
 if (!empty($user_id)) {
     // 1. นับจำนวนโครงการ
     $sql_projects_count = "SELECT writed_status, COUNT(*) AS count FROM project WHERE nontri_id = ? GROUP BY writed_status";
@@ -374,11 +444,11 @@ if (!empty($user_id)) {
 
 $previous = $_SERVER['HTTP_REFERER'] ?? '';
 $current_mode = $_GET['mode'] ?? '';
-$this_tab = $_GET['this_tab'] ?? ''; 
+$this_tab = $_GET['this_tab'] ?? '';
 
 if ($current_mode === 'projects_detail') {
 
-    if (strpos($previous, 'mode=buildings_detail') === false && 
+    if (strpos($previous, 'mode=buildings_detail') === false &&
         strpos($previous, 'mode=equipments_detail') === false) {
         $_SESSION['projects_detail_initial_referrer'] = $previous;
     }
@@ -389,14 +459,14 @@ if ($current_mode === 'projects_detail') {
     }
 }
 
-if ($current_mode === 'projects_detail' && 
+if ($current_mode === 'projects_detail' &&
    (strpos($previous, 'mode=buildings_detail') !== false || strpos($previous, 'mode=equipments_detail') !== false)) {
-    
+
     if (isset($_SESSION['projects_detail_initial_referrer']) && !empty($_SESSION['projects_detail_initial_referrer'])) {
         $previous = $_SESSION['projects_detail_initial_referrer'];
     } else {
 
-        $previous = '?this_tab=user_dashboard'; 
+        $previous = '?this_tab=user_dashboard';
     }
 
 
@@ -509,42 +579,26 @@ if ($stmt_user_projects) {
     $errors[] = "ไม่สามารถดึงข้อมูลโครงการของผู้ใช้ได้: " . $conn->error;
 }
 
-$facilities = [];
-// Initial load of all facilities for 'buildings_create' and general use, or specific for 'equipments_edit'
-// The AJAX call will handle 'equipments_create' dynamically
-if ($main_tab == 'user_requests' && ($mode == 'buildings_create' || $mode == 'buildings_edit' || ($mode == 'equipments_edit' && isset($detail_item['project_id'])))) {
-    if ($mode == 'equipments_edit' && isset($detail_item['project_id'])) {
-        $projectIdForEdit = $detail_item['project_id'];
-        $sql_facilities_for_edit = "
-            SELECT DISTINCT f.facility_id, f.facility_name
-            FROM facilities f
-            JOIN facilities_requests fr ON f.facility_id = fr.facility_id
-            JOIN project p ON fr.project_id = p.project_id
-            WHERE fr.project_id = ? AND p.nontri_id = ?
-            ORDER BY f.facility_name ASC";
-        $stmt_facilities_for_edit = $conn->prepare($sql_facilities_for_edit);
-        if ($stmt_facilities_for_edit) {
-            $stmt_facilities_for_edit->bind_param("is", $projectIdForEdit, $user_id);
-            $stmt_facilities_for_edit->execute();
-            $result_facilities_edit = $stmt_facilities_for_edit->get_result();
-            while ($row = $result_facilities_edit->fetch_assoc()) {
-                $facilities[] = $row;
-            }
-            $stmt_facilities_for_edit->close();
-        } else {
-            $errors[] = "ไม่สามารถเตรียมคำสั่ง SQL สำหรับดึงสถานที่สำหรับแก้ไข: " . $conn->error;
+
+// NEW: Fetch all buildings for the first dropdown of building requests
+$buildings = [];
+if ($main_tab == 'user_requests' && ($mode == 'buildings_create' || $mode == 'buildings_edit')) {
+    // Modified: Removed building_number alias if building_id is used directly as number
+    // Order by building_id (INT) for correct numeric sorting
+    $result_buildings = $conn->query("SELECT building_id, building_name FROM buildings ORDER BY building_id ASC");
+    if ($result_buildings) {
+        while ($row = $result_buildings->fetch_assoc()) {
+            $buildings[] = $row;
         }
     } else {
-        $result_all_facilities = $conn->query("SELECT facility_id, facility_name FROM facilities ORDER BY facility_id ASC");
-        if ($result_all_facilities) {
-            while ($row = $result_all_facilities->fetch_assoc()) {
-                $facilities[] = $row;
-            }
-        } else {
-            $errors[] = "ไม่สามารถดึงข้อมูลสถานที่ทั้งหมด: " . $conn->error;
-        }
+        $errors[] = "ไม่สามารถดึงข้อมูลอาคารทั้งหมด: " . $conn->error;
     }
 }
+
+// $facilities array is now mostly populated by AJAX in create/edit modes
+// The initial PHP load for $facilities is no longer strictly needed for create/edit forms,
+// as the JS will handle dynamic loading. It might be used for display modes.
+$facilities = []; // Initialize, actual data will be loaded via AJAX for forms.
 
 
 $equipments = [];
@@ -591,16 +645,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $errors[] = "วันสุดท้ายของโครงการห้ามสิ้นสุดก่อนวันเริ่มต้นของโครงการ.";
         }
 
-        $file_path = uploadFile('files', $project_files_upload_dir, $errors);
+        $uploaded_paths = handleMultipleFileUploads('files', $project_files_upload_dir, $errors);
+        $file_paths_json = json_encode($uploaded_paths); // Convert array of paths to JSON string
 
-        if (empty($errors)) {
-
+         if (empty($errors)) {
             $stmt = $conn->prepare("INSERT INTO project (project_name, start_date, end_date, project_des, files, attendee, phone_num, advisor_name, nontri_id, activity_type_id, writed_status, created_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
             if (!$stmt) {
                 $errors[] = "เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL: " . $conn->error;
             } else {
                 $stmt->bind_param("sssssisssis",
-                    $project_name, $start_date, $end_date, $project_des, $file_path,
+                    $project_name, $start_date, $end_date, $project_des, $file_paths_json, // Use the JSON string here
                     $attendee, $phone_num, $advisor_name, $nontri_id, $activity_type_id, $writed_status
                 );
                 if ($stmt->execute()) {
@@ -610,8 +664,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     exit();
                 } else {
                     $errors[] = "เกิดข้อผิดพลาดในการบันทึกโครงการ: " . $stmt->error;
-                    if ($file_path && file_exists($file_path)) {
-                        unlink($file_path);
+                    // If insert fails, delete any newly uploaded files to prevent orphaned files
+                    foreach ($uploaded_paths as $path) {
+                        if (file_exists($path)) {
+                            unlink($path);
+                        }
                     }
                 }
                 $stmt->close();
@@ -644,8 +701,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if (empty($end_time)) $errors[] = "กรุณากรอกเวลาสิ้นสุดของวันใช้การ";
         if (empty($start_date)) $errors[] = "กรุณากรอกวันที่เริ่มต้นใช้การ";
         if (empty($end_date)) $errors[] = "กรุณากรอกวันที่สิ้นสุดใช้การ";
-        if (empty($facility_id)) $errors[] = "กรุณาเลือกสถานที่หรืออาคารที่ต้องการขอใช้";
-        if (empty($project_id)) $errors[] = "กรุณาเลือกโครงกาของท่านที่ต้องการขอใช้สถานที่";
+        if (empty($facility_id)) $errors[] = "กรุณาเลือกสถานที่ที่ต้องการขอใช้"; // Changed message
+        if (empty($project_id)) $errors[] = "กรุณาเลือกโครงการของท่านที่ต้องการขอใช้สถานที่";
 
         $today = date('Y-m-d');
         if (!empty($prepare_start_date) && $prepare_start_date < $today) {
@@ -672,7 +729,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $pre_start_ts = strtotime($prepare_start_date);
         $start_ts    = strtotime($start_date);
 
-        if ($pre_start_ts >= $approval_day && $start_ts >= $approval_day) {
+        if ( ($writed_status == 'ร่างคำร้องขอ') || ($pre_start_ts >= $approval_day && $start_ts >= $approval_day) ) { // Allow draft regardless of date, or submit if date is okay
 
             // เงื่อนไขผ่าน → ดำเนินการ INSERT
             if (empty($errors)) {
@@ -728,7 +785,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if (empty($equip_id)) $errors[] = "กรุณาเลือกอุปกรณ์ที่ต้องการขอใช้";
         // facility_id is optional for equipment requests
         // if (empty($facility_id)) $errors[] = "กรุณาเลือกสถานที่หรืออาคารที่อุปกรณ์นำไปใช้งาน";
-        if (empty($project_id)) $errors[] = "กรุณาเลือกโครงกาของท่านที่ต้องการขอใช้อุปกรณ์";
+        if (empty($project_id)) $errors[] = "กรุณาเลือกโครงการของท่านที่ต้องการขอใช้อุปกรณ์";
 
         $today = date('Y-m-d');
         if (!empty($start_date) && $start_date < $today) {
@@ -742,7 +799,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $approval_day = strtotime('+3 days');
         $start_ts    = strtotime($start_date);
 
-        if ($start_ts >= $approval_day) {
+        if ( ($writed_status == 'ร่างคำร้องขอ') || ($start_ts >= $approval_day) ) { // Allow draft regardless of date, or submit if date is okay
             if (empty($errors)) {
                 $stmt = $conn->prepare("INSERT INTO equipments_requests (start_date, end_date, agree, transport, quantity, equip_id, facility_id, project_id, writed_status, request_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
                 if (!$stmt) {
@@ -820,21 +877,40 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $errors[] = "วันสุดท้ายของโครงการห้ามสิ้นสุดก่อนวันเริ่มต้นของโครงการ.";
             }
 
-            $file_path = $existing_file_path; 
-            if (isset($_FILES['files']) && $_FILES['files']['error'] == UPLOAD_ERR_OK) {
-                $new_file_path = uploadFile('files', $project_files_upload_dir, $errors);
-                if ($new_file_path) {
-                    $file_path = $new_file_path;
-
-                    if ($existing_file_path && file_exists($existing_file_path)) {
-                        unlink($existing_file_path);
-                    }
-                }
-            } elseif (isset($_FILES['files']) && $_FILES['files']['error'] == UPLOAD_ERR_NO_FILE) {
-
-            } else if (isset($_FILES['files']) && $_FILES['files']['error'] != UPLOAD_ERR_NO_FILE) {
-                $errors[] = "เกิดข้อผิดพลาดในการอัปโหลดไฟล์ " . $_FILES['files']['name'] . ": Error Code " . $_FILES['files']['error'];
+            $original_files_json_from_db = '';
+            $stmt_get_original_files = $conn->prepare("SELECT files FROM project WHERE project_id = ? AND nontri_id = ?");
+            if($stmt_get_original_files) {
+                $stmt_get_original_files->bind_param("is", $project_id, $_SESSION['nontri_id']);
+                $stmt_get_original_files->execute();
+                $stmt_get_original_files->bind_result($original_files_json_from_db);
+                $stmt_get_original_files->fetch();
+                $stmt_get_original_files->close();
             }
+            // Decode to an array. Use `?: []` to ensure it's always an array even if DB value is null/empty.
+            $original_files_array_from_db = json_decode($original_files_json_from_db, true) ?: [];
+
+            // 2. Get files paths that the user chose to retain (from hidden inputs generated by JS)
+            $retained_file_paths_from_post = $_POST['existing_file_paths_retained'] ?? []; // These are paths user explicitly kept
+
+            // 3. Identify and delete files that were removed by the user (not in retained_file_paths_from_post but were in original_files_array_from_db)
+            $files_to_actually_delete = array_diff($original_files_array_from_db, $retained_file_paths_from_post);
+            foreach ($files_to_actually_delete as $file_path) {
+                if (file_exists($file_path)) {
+                    unlink($file_path); // Physically delete the file from the server
+                }
+            }
+
+            // 4. Handle new file uploads
+            $new_uploaded_paths = [];
+            // Check if new files were actually selected ($_FILES['files']['name'][0] would be empty if no files picked)
+            if (isset($_FILES['files']) && !empty($_FILES['files']['name'][0])) {
+                $new_uploaded_paths = handleMultipleFileUploads('files', $project_files_upload_dir, $errors);
+            }
+
+            // 5. Combine retained existing files and newly uploaded files
+            $final_file_paths_array = array_merge($retained_file_paths_from_post, $new_uploaded_paths);
+            // Use array_values to re-index the array numerically after potential removals
+            $file_paths_json = json_encode(array_values($final_file_paths_array)); // Convert the final array back to JSON string
 
             if (empty($errors)) {
                 $stmt = $conn->prepare("UPDATE project SET project_name = ?, start_date = ?, end_date = ?, project_des = ?, files = ?, attendee = ?, phone_num = ?, advisor_name = ?, activity_type_id = ?, writed_status = ? WHERE project_id = ? AND nontri_id = ?");
@@ -842,7 +918,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $errors[] = "เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL สำหรับการอัปเดต: " . $conn->error;
                 } else {
                     $stmt->bind_param("sssssissssis",
-                        $project_name, $start_date, $end_date, $project_des, $file_path,
+                        $project_name, $start_date, $end_date, $project_des, $file_paths_json, // Use the new JSON string here
                         $attendee, $phone_num, $advisor_name, $activity_type_id, $writed_status,
                         $project_id, $nontri_id
                     );
@@ -852,9 +928,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         exit();
                     } else {
                         $errors[] = "เกิดข้อผิดพลาดในการบันทึกการแก้ไขโครงการ: " . $stmt->error;
-                        // If update fails and a new file was uploaded, delete it to prevent orphaned files
-                        if (isset($new_file_path) && $new_file_path && file_exists($new_file_path)) {
-                            unlink($new_file_path);
+                        // If update fails, delete any newly uploaded files to prevent orphaned files
+                        foreach ($new_uploaded_paths as $path) { // Only delete files that were *just* uploaded
+                            if (file_exists($path)) {
+                                unlink($path);
+                            }
                         }
                     }
                     $stmt->close();
@@ -886,7 +964,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $stmt_status->bind_result($current_request_status);
                 $stmt_status->fetch();
                 $stmt_status->close();
-                // Only change status to 'ส่งคำร้องขอ' if it was a draft or pending submission
+
                 if ($current_request_status == 'ร่างคำร้องขอ' || $current_request_status == 'ส่งคำร้องขอ') {
                     $writed_status = 'ส่งคำร้องขอ';
                 } else {
@@ -907,8 +985,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if (empty($end_time)) $errors[] = "กรุณากรอกเวลาสิ้นสุดของวันใช้การ";
         if (empty($start_date)) $errors[] = "กรุณากรอกวันที่เริ่มต้นใช้การ";
         if (empty($end_date)) $errors[] = "กรุณากรอกวันที่สิ้นสุดใช้การ";
-        if (empty($facility_id)) $errors[] = "กรุณาเลือกสถานที่หรืออาคารที่ต้องการขอใช้";
-        if (empty($project_id)) $errors[] = "กรุณาเลือกโครงกาของท่านที่ต้องการขอใช้สถานที่";
+        if (empty($facility_id)) $errors[] = "กรุณาเลือกสถานที่ที่ต้องการขอใช้";
+        if (empty($project_id)) $errors[] = "กรุณาเลือกโครงการของท่านที่ต้องการขอใช้สถานที่";
 
         $today = date('Y-m-d');
         if (!empty($prepare_start_date) && $prepare_start_date < $today) {
@@ -935,7 +1013,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $pre_start_ts = strtotime($prepare_start_date);
         $start_ts    = strtotime($start_date);
 
-        if ($pre_start_ts >= $approval_day_ts && $start_ts >= $approval_day_ts) {
+        if ( ($writed_status == 'ร่างคำร้องขอ') || ($pre_start_ts >= $approval_day_ts && $start_ts >= $approval_day_ts) ) {
             if (empty($errors)) {
                 // Ensure the project belongs to the current user before updating the request
                 $check_project_owner_sql = "SELECT nontri_id FROM project WHERE project_id = ?";
@@ -1001,7 +1079,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $stmt_status->bind_result($current_request_status);
                 $stmt_status->fetch();
                 $stmt_status->close();
-                // Only change status to 'ส่งคำร้องขอ' if it was a draft or pending submission
+
                 if ($current_request_status == 'ร่างคำร้องขอ' || $current_request_status == 'ส่งคำร้องขอ') {
                     $writed_status = 'ส่งคำร้องขอ';
                 } else {
@@ -1018,7 +1096,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if (empty($end_date)) $errors[] = "กรุณากรอกวันที่สิ้นสุดใช้การ";
         if ($quantity <= 0) $errors[] = "กรุณาระบุจำนวนอุปกรณ์ที่ต้องการขอใช้";
         if (empty($equip_id)) $errors[] = "กรุณาเลือกอุปกรณ์ที่ต้องการขอใช้";
-        if (empty($project_id)) $errors[] = "กรุณาเลือกโครงกาของท่านที่ต้องการขอใช้อุปกรณ์";
+        if (empty($project_id)) $errors[] = "กรุณาเลือกโครงการของท่านที่ต้องการขอใช้อุปกรณ์";
 
         $today = date('Y-m-d');
         if (!empty($start_date) && $start_date < $today) {
@@ -1033,7 +1111,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $start_ts    = strtotime($start_date);
 
         // Allow editing if status is 'อนุมัติ' or 'ไม่อนุมัติ' or meets the 3-day approval criteria for 'ร่างคำร้องขอ' or 'ส่งคำร้องขอ'
-        if ($writed_status == 'อนุมัติ' || $writed_status == 'ไม่อนุมัติ' || ($start_ts >= $approval_day_ts)) {
+        if ($writed_status == 'อนุมัติ' || $writed_status == 'ไม่อนุมัติ' || ($writed_status == 'ร่างคำร้องขอ') || ($start_ts >= $approval_day_ts) ) {
             if (empty($errors)) {
                 // Ensure the project belongs to the current user before updating the request
                 $check_project_owner_sql = "SELECT nontri_id FROM project WHERE project_id = ?";
@@ -1063,7 +1141,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 . $equip_re_id . "&status=success&message=" . urlencode($success_message));
                             exit();
                         } else {
-                            $errors[] = "เกิดข้อผิดพลาดในการบันทึกการแก้ไขคำร้อง: " . $stmt->error;
+                            $errors[] = "เกิดข้อผิดผิดพลาดในการบันทึกการแก้ไขคำร้อง: " . $stmt->error;
                         }
                         $stmt->close();
                     }
@@ -1076,23 +1154,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     } elseif (isset($_POST['action']) && $_POST['action'] == 'delete_project') {
         $project_id = (int)$_POST['project_id'] ?? 0;
-        $file_to_delete = $_POST['file_to_delete'] ?? '';
+        // The 'file_to_delete' input is now outdated. We need to fetch the files JSON from the DB.
         $nontri_id = $_SESSION['nontri_id'] ?? '';
 
         if ($project_id > 0) {
             // Check current status - only allow deletion if 'ร่างโครงการ'
-            $current_status_sql = "SELECT writed_status FROM project WHERE project_id = ? AND nontri_id = ?";
+            $current_status_sql = "SELECT writed_status, files FROM project WHERE project_id = ? AND nontri_id = ?";
             $stmt_status = $conn->prepare($current_status_sql);
             $stmt_status->bind_param("is", $project_id, $nontri_id);
             $stmt_status->execute();
-            $stmt_status->bind_result($current_project_status);
+            $stmt_status->bind_result($current_project_status, $files_json_from_db); // Fetch files here
             $stmt_status->fetch();
             $stmt_status->close();
 
             if ($current_project_status === 'ร่างโครงการ') { // Only allow deletion for drafts
-                // Start transaction to ensure data integrity
                 $conn->begin_transaction();
                 try {
+                    // Decode files JSON to an array for physical deletion
+                    $files_to_unlink = json_decode($files_json_from_db, true) ?: [];
+
                     // 1. Delete associated facilities_requests for this project
                     $stmt_del_fr = $conn->prepare("DELETE FROM facilities_requests WHERE project_id = ?");
                     $stmt_del_fr->bind_param("i", $project_id);
@@ -1105,14 +1185,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $stmt_del_er->execute();
                     $stmt_del_er->close();
 
-                    // 3. Delete the project itself, ensuring it belongs to the current user
+                    // 3. Delete the project itself
                     $stmt_del_p = $conn->prepare("DELETE FROM project WHERE project_id = ? AND nontri_id = ?");
                     $stmt_del_p->bind_param("is", $project_id, $nontri_id);
                     if ($stmt_del_p->execute()) {
                         if ($stmt_del_p->affected_rows > 0) {
-                            // 4. Delete the associated file from the server
-                            if ($file_to_delete && file_exists($file_to_delete)) {
-                                unlink($file_to_delete);
+                            // 4. Delete all associated files from the server
+                            foreach ($files_to_unlink as $file_path) {
+                                if (file_exists($file_path)) {
+                                    unlink($file_path);
+                                }
                             }
                             $conn->commit();
                             $success_message = "ลบโครงการสำเร็จแล้ว!";
@@ -1373,7 +1455,7 @@ if ($main_tab == 'user_requests') {
             $stmt_count->bind_result($total_items);
             $stmt_count->fetch();
             $stmt_count->close();
-            
+
             $total_pages = ($items_per_page > 0) ? ceil($total_items / $items_per_page) : 1;
 
             // --- DATA QUERY ---
@@ -1385,7 +1467,7 @@ if ($main_tab == 'user_requests') {
                          LEFT JOIN activity_type at ON p.activity_type_id = at.activity_type_id"
                          . $base_where . $sorting['where_sql']
                          . $sorting['order_by_sql'] . " LIMIT ? OFFSET ?";
-            
+
             $stmt_data = $conn->prepare($sql_data);
 
             $data_params = $count_params;
@@ -1416,8 +1498,8 @@ if ($main_tab == 'user_requests') {
                 $stmt_detail->bind_param("is", $project_id, $nontri_id);
                 $stmt_detail->execute();
                 $detail_item = $stmt_detail->get_result()->fetch_assoc();
-                $detail_item['start_date_compare'] = strtotime($detail_item['start_date']); 
-                $limited_date = strtotime('+7 days'); 
+                $detail_item['start_date_compare'] = strtotime($detail_item['start_date']);
+                $limited_date = strtotime('+7 days');
                 $stmt_detail->close();
 
                 if (!$detail_item) {
@@ -1494,7 +1576,7 @@ if ($main_tab == 'user_requests') {
 
         } elseif ($mode == 'buildings_list') {
             $sorting = getSortingClauses('buildings_list', $sort_filter);
-            
+
             // สร้าง Subquery filter โดยใช้ EXISTS
             $subquery_filter = '';
             if ($sorting['where_param_value'] !== null) {
@@ -1527,7 +1609,7 @@ if ($main_tab == 'user_requests') {
             $sql_paginated_projects = "SELECT project_id, project_name, writed_status, created_date FROM project p"
                                     . $base_where . $subquery_filter
                                     . " ORDER BY p.created_date DESC LIMIT ? OFFSET ?";
-            
+
             $stmt_paginated_projects = $conn->prepare($sql_paginated_projects);
 
             $data_params = $count_params;
@@ -1541,7 +1623,7 @@ if ($main_tab == 'user_requests') {
             $result_paginated_projects = $stmt_paginated_projects->get_result();
 
             // ส่วนที่เหลือในการดึง requests ของแต่ละ project ไม่ต้องแก้ไข
-            $data = []; 
+            $data = [];
             while ($project_row = $result_paginated_projects->fetch_assoc()) {
                 $project_id = $project_row['project_id'];
                 $project_row['requests'] = [];
@@ -1551,7 +1633,7 @@ if ($main_tab == 'user_requests') {
                                  JOIN facilities f ON fr.facility_id = f.facility_id
                                  WHERE fr.project_id = ?" . $sorting['where_sql'] . $sorting['order_by_sql'];
                 $stmt_requests = $conn->prepare($sql_requests);
-                
+
                 $req_params = [$project_id];
                 $req_param_types = "i";
                 if ($sorting['where_param_value'] !== null) {
@@ -1566,7 +1648,7 @@ if ($main_tab == 'user_requests') {
                     $project_row['requests'][] = $req_row;
                 }
                 $stmt_requests->close();
-                
+
                 if (!empty($project_row['requests']) || empty($sorting['where_sql'])) {
                     $data[] = $project_row;
                 }
@@ -1581,8 +1663,8 @@ if ($main_tab == 'user_requests') {
                                 fr.facility_re_id, fr.project_id, fr.prepare_start_time, fr.prepare_end_time,
                                 fr.prepare_start_date, fr.prepare_end_date, fr.start_time, fr.end_time,
                                 fr.start_date , fr.end_date , fr.agree,
-                                fr.writed_status, fr.request_date, p.nontri_id, CONCAT(u.user_THname,' ', u.user_THsur) AS user_name,
-                                p.project_name, f.facility_name, fr.approve, fr.approve_date, fr.approve_detail, CONCAT(s.staff_THname, ' ', s.staff_THsur) AS staff_name
+                                fr.writed_status, fr.request_date, p.nontri_id, CONCAT(u.user_name,' ', u.user_sur) AS user_name,
+                                p.project_name, f.facility_name, fr.approve, fr.approve_date, fr.approve_detail, CONCAT(s.staff_name, ' ', s.staff_sur) AS staff_name
                             FROM facilities_requests fr
                             JOIN project p ON fr.project_id = p.project_id
                             JOIN user u ON p.nontri_id = u.nontri_id
@@ -1614,8 +1696,8 @@ if ($main_tab == 'user_requests') {
                                 fr.facility_re_id, fr.project_id, fr.prepare_start_time, fr.prepare_end_time,
                                 fr.prepare_start_date, fr.prepare_end_date, fr.start_time, fr.end_time,
                                 fr.start_date , fr.end_date , fr.agree,
-                                fr.writed_status, fr.request_date, p.nontri_id, CONCAT(u.user_THname,' ', u.user_THsur) AS user_name,
-                                p.project_name, f.facility_id, f.facility_name
+                                fr.writed_status, fr.request_date, p.nontri_id, CONCAT(u.user_name,' ', u.user_sur) AS user_name,
+                                p.project_name, f.facility_id, f.facility_name, f.building_id  -- NEW: Get building_id
                             FROM facilities_requests fr
                             JOIN project p ON fr.project_id = p.project_id
                             JOIN user u ON p.nontri_id = u.nontri_id
@@ -1638,7 +1720,7 @@ if ($main_tab == 'user_requests') {
 
         } elseif ($mode == 'equipments_list') {
             $sorting = getSortingClauses('equipments_list', $sort_filter);
-            
+
             $subquery_filter = '';
             if ($sorting['where_param_value'] !== null) {
                 // แก้ไข: ใช้วิธีที่ถูกต้องในการลบ " AND " ที่นำหน้าออก
@@ -1665,7 +1747,7 @@ if ($main_tab == 'user_requests') {
             $stmt_count_projects->close();
 
             $total_pages = ($items_per_page > 0) ? ceil($total_items / $items_per_page) : 1;
-            
+
             // --- DATA QUERY ---
             $sql_paginated_projects = "SELECT project_id, project_name, writed_status, created_date FROM project p"
                                     . $base_where . $subquery_filter
@@ -1677,7 +1759,7 @@ if ($main_tab == 'user_requests') {
             $data_params[] = $items_per_page;
             $data_params[] = $offset;
             $data_param_types .= "ii";
-            
+
             $stmt_paginated_projects->bind_param($data_param_types, ...$data_params);
             $stmt_paginated_projects->execute();
             $result_paginated_projects = $stmt_paginated_projects->get_result();
@@ -1692,7 +1774,7 @@ if ($main_tab == 'user_requests') {
                                  JOIN equipments e ON er.equip_id = e.equip_id
                                  LEFT JOIN facilities f ON er.facility_id = f.facility_id
                                  WHERE er.project_id = ?" . $sorting['where_sql'] . $sorting['order_by_sql'];
-                
+
                 $stmt_requests = $conn->prepare($sql_requests);
 
                 $req_params = [$project_id];
@@ -1701,7 +1783,7 @@ if ($main_tab == 'user_requests') {
                     $req_params[] = $sorting['where_param_value'];
                     $req_param_types .= $sorting['where_param_type'];
                 }
-                
+
                 $stmt_requests->bind_param($req_param_types, ...$req_params);
                 $stmt_requests->execute();
                 $result_requests = $stmt_requests->get_result();
@@ -1721,7 +1803,7 @@ if ($main_tab == 'user_requests') {
 
             $sql_detail = "SELECT
                                 er.equip_re_id, er.project_id, er.start_date, er.end_date, er.quantity, er.transport,
-                                er.writed_status, er.request_date, p.nontri_id, CONCAT(u.user_THname,' ', u.user_THsur) AS user_name,
+                                er.writed_status, er.request_date, p.nontri_id, CONCAT(u.user_name,' ', u.user_sur) AS user_name,
                                 p.project_name, e.equip_name, f.facility_name, e.measure, er.agree, er.approve, er.approve_date, er.approve_detail
                             FROM equipments_requests er
                             JOIN project p ON er.project_id = p.project_id
@@ -1752,7 +1834,7 @@ if ($main_tab == 'user_requests') {
             $equip_re_id = (int)$_GET['equip_re_id'];
             $sql_detail = "SELECT
                                 er.equip_re_id, er.project_id, er.start_date, er.end_date, er.quantity, er.transport,
-                                er.writed_status, er.request_date, p.nontri_id, CONCAT(u.user_THname,' ', u.user_THsur) AS user_name,
+                                er.writed_status, er.request_date, p.nontri_id, CONCAT(u.user_name,' ', u.user_sur) AS user_name,
                                 p.project_name, e.equip_id, e.equip_name, f.facility_id, f.facility_name, e.measure, er.agree, er.approve, er.approve_date
                             FROM equipments_requests er
                             JOIN project p ON er.project_id = p.project_id
@@ -1770,30 +1852,8 @@ if ($main_tab == 'user_requests') {
                     $errors[] = "ไม่พบคำร้องขออุปกรณ์ที่คุณต้องการแก้ไข หรือคุณไม่มีสิทธิ์เข้าถึงคำร้องนี้.";
                     $mode = 'equipments_list';
                 }
-                // Load facilities for the selected project in edit mode for dropdown
-                if (isset($detail_item['project_id'])) {
-                    $projectIdForEdit = $detail_item['project_id'];
-                    $sql_facilities_for_edit = "
-                        SELECT DISTINCT f.facility_id, f.facility_name
-                        FROM facilities f
-                        JOIN facilities_requests fr ON f.facility_id = fr.facility_id
-                        JOIN project p ON fr.project_id = p.project_id
-                        WHERE fr.project_id = ? AND p.nontri_id = ?
-                        ORDER BY f.facility_name ASC";
-                    $stmt_facilities_for_edit = $conn->prepare($sql_facilities_for_edit);
-                    if ($stmt_facilities_for_edit) {
-                        $stmt_facilities_for_edit->bind_param("is", $projectIdForEdit, $user_id);
-                        $stmt_facilities_for_edit->execute();
-                        $result_facilities_edit = $stmt_facilities_for_edit->get_result();
-                        while ($row = $result_facilities_edit->fetch_assoc()) {
-                            $facilities[] = $row; // Populate the facilities array for the dropdown
-                        }
-                        $stmt_facilities_for_edit->close();
-                    } else {
-                        $errors[] = "ไม่สามารถเตรียมคำสั่ง SQL สำหรับดึงสถานที่สำหรับแก้ไข: " . $conn->error;
-                    }
-                }
-
+                // Removed the PHP-side facility loading for equipments_edit.
+                // It will now rely on JS AJAX just like equipments_create.
             } else {
                 $errors[] = "เกิดข้อผิดพลาดในการดึงข้อมูลคำร้องขออุปกรณ์: " . $conn->error;
                 $mode = 'equipments_list';
@@ -1836,7 +1896,7 @@ $modal_message = $_GET['message'] ?? '';
             </div>
             <div class="d-flex align-items-center ms-auto gap-2">
                 <div class="d-flex flex-column text-end">
-                    <span class="navbar-brand mb-0 fs-5 fs-md-4"><?php echo $user_THname . ' ' . $user_THsur; ?></span>
+                    <span class="navbar-brand mb-0 fs-5 fs-md-4"><?php echo $user_name . ' ' . $user_sur; ?></span>
                     <span class="navbar-brand mb-0 fs-6 fs-md-5"><?php echo $user_role; ?></span>
                 </div>
                 <a href="user-profile-page.php">
@@ -1876,7 +1936,7 @@ $modal_message = $_GET['message'] ?? '';
         </div>
 
         <?php if ($main_tab == 'user_requests') : ?>
-            <?php if ($mode == 'projects_list') : ?> 
+            <?php if ($mode == 'projects_list') : ?>
                 <h1 class="mb-3 text-center">ข้อมูลโครงการของผู้ใช้</h1>
             <?php elseif ($mode == 'buildings_list') : ?>
                 <h1 class="mb-3 text-center">ข้อมูลคำร้องขอใช้อาคารและสถานที่</h1>
@@ -2006,7 +2066,7 @@ $modal_message = $_GET['message'] ?? '';
                                 </div>
                             <?php else: ?>
                                 <ul class="list-group list-group-flush">
-                                    <?php foreach ($dashboard_data['upcoming_requests'] as $req): 
+                                    <?php foreach ($dashboard_data['upcoming_requests'] as $req):
                                         $detail_link = '';
                                         if ($req['type'] == 'โครงการ') {
                                             $detail_link = '?main_tab=user_requests&mode=projects_detail&project_id=' . $req['id'];
@@ -2216,8 +2276,8 @@ $modal_message = $_GET['message'] ?? '';
                             <textarea class="form-control" id="project_des" name="project_des" rows="5"><?php echo htmlspecialchars($_POST['project_des'] ?? ''); ?></textarea>
                         </div>
                         <div class="mb-3">
-                            <label for="files" class="form-label">ไฟล์แนบ (รูปภาพ, PDF, Doc, XLS):</label>
-                            <input type="file" class="form-control" id="files" name="files" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx">
+                            <label for="files" class="form-label">ไฟล์แนบ (รูปภาพ, PDF, Doc, XLS) (สามารถอัปโหลดได้หลายไฟล์):</label>
+                            <input type="file" class="form-control" id="files" name="files[]" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx">
                         </div>
                         <div class="row mb-3">
                             <div class="col-md-6">
@@ -2267,10 +2327,10 @@ $modal_message = $_GET['message'] ?? '';
                         <div class="col-md-6 pro-details">
                             <p><strong>ชื่อโครงการ:</strong> <?php echo htmlspecialchars($detail_item['project_name']); ?></p>
                             <p><strong>สถานะโครงการ:</strong> <span class="badge <?php echo getStatusBadgeClass($detail_item['writed_status']); ?>"><?php echo htmlspecialchars($detail_item['writed_status']); ?></span></p>
-                            <p><strong>ระยะเวลาโครงการ:</strong> 
-                                <?php if (($detail_item['start_date']) !== ($detail_item['end_date'])):?> 
+                            <p><strong>ระยะเวลาโครงการ:</strong>
+                                <?php if (($detail_item['start_date']) !== ($detail_item['end_date'])):?>
                                     ตั้งแต่วันที่ <?php echo formatThaiDate($detail_item['start_date'], false); ?> ถึง วันที่ <?php echo formatThaiDate($detail_item['end_date'], false); ?></p>
-                                <?php else: ?> 
+                                <?php else: ?>
                                     วันที่ <?php echo formatThaiDate($detail_item['start_date'], false); ?>
                                 <?php endif; ?>
                             <p><strong>จำนวนผู้เข้าร่วม:</strong> <?php echo htmlspecialchars($detail_item['attendee']); ?></p>
@@ -2281,15 +2341,27 @@ $modal_message = $_GET['message'] ?? '';
                                 <p><strong>ชื่อที่ปรึกษาโครงการ:</strong> <?php echo htmlspecialchars($detail_item['advisor_name']); ?></p>
                             <?php endif; ?>
                             <p><strong>ประเภทกิจกรรม:</strong> <?php echo htmlspecialchars($detail_item['activity_type_name'] ?? 'ไม่ระบุ'); ?></p>
-                            <p><strong>ผู้เขียนโครงการ:</strong> <?php echo $user_THname, ' ', $user_THsur ?></p>
+                            <p><strong>ผู้เขียนโครงการ:</strong> <?php echo $user_name, ' ', $user_sur ?></p>
                             <p><strong>วันที่สร้างโครงการ: </strong><?php echo formatThaiDate($detail_item['created_date'])?>
                             <p><strong>รายละเอียดโครงการ:</strong><br> <?php echo nl2br(htmlspecialchars($detail_item['project_des'])); ?></p>
-                            <?php if ($detail_item['files'] && file_exists($detail_item['files'])): ?>
-                                <a href="<?php echo htmlspecialchars($detail_item['files']); ?>" target="_blank" class="btn btn-secondary"> ดูไฟล์แนบ
-                                </a>
+                            <?php
+                                $project_files = json_decode($detail_item['files'], true) ?: [];
+                            ?>
+                            <?php if (!empty($project_files)): ?>
+                                <p><strong>ไฟล์แนบ:</strong></p>
+                                <ul>
+                                    <?php foreach ($project_files as $file_path): ?>
+                                        <li><a href="<?php echo htmlspecialchars($file_path); ?>" target="_blank" class="btn btn-secondary btn-sm mb-1">
+                                                <i class="bi bi-file-earmark"></i> <?php echo htmlspecialchars(basename($file_path)); ?>
+                                            </a>
+                                        </li>
+                                    <?php endforeach; ?>
+                                </ul>
+                            <?php else: ?>
+                                <p><strong>ไฟล์แนบ:</strong> ไม่มี</p>
                             <?php endif; ?>
                         </div>
-                        
+
                     </div>
 
                     <div class="d-flex justify-content-between mt-4">
@@ -2300,7 +2372,7 @@ $modal_message = $_GET['message'] ?? '';
                         </a>
                         <div>
                             <?php
-                                $can_edit = (($detail_item['writed_status'] == 'ร่างโครงการ' || $detail_item['writed_status'] == 'ส่งโครงการ') && $detail_item['start_date_compare'] >= $limited_date );
+                                $can_edit = (($detail_item['writed_status'] == 'ร่างโครงการ' || $detail_item['writed_status'] == 'ส่งโครงการ') && $detail_item['start_date_compare'] >= strtotime(date('Y-m-d', strtotime('+7 days'))) ); // Adjusted for 7 days
                                 $can_delete = ($detail_item['writed_status'] == 'ร่างโครงการ');
                                 $can_cancel = ($detail_item['writed_status'] == 'ส่งโครงการ');
                             ?>
@@ -2388,7 +2460,7 @@ $modal_message = $_GET['message'] ?? '';
                                                 <h5 class="card-title mb-1">สถานที่: <?php echo htmlspecialchars($request['facility_name']); ?></h5>
                                                 <div class="text-end">
                                                     <?php if ($request['approve'] === 'อนุมัติ' || $request['approve'] === 'ไม่อนุมัติ' || $request['approve'] === 'ยกเลิก'): ?>
-                                                        <h5 class="card-title mb-1">การอนุมัติคำร้อง: <span class="badge <?php echo getStatusBadgeClass($request['writed_status'], $request['approve']); ?>"><?php echo htmlspecialchars($request['approve']); ?></span> 
+                                                        <h5 class="card-title mb-1">การอนุมัติคำร้อง: <span class="badge <?php echo getStatusBadgeClass($request['writed_status'], $request['approve']); ?>"><?php echo htmlspecialchars($request['approve']); ?></span>
                                                         </h5>
                                                     <?php endif; ?>
                                                     <p class="card-text small mb-1 text-muted">
@@ -2439,7 +2511,7 @@ $modal_message = $_GET['message'] ?? '';
                                                 <h5 class="card-title mb-1">อุปกรณ์: <?php echo htmlspecialchars($request['equip_name']); ?></h5>
                                                 <div class="text-end">
                                                     <?php if ($request['approve'] === 'อนุมัติ' || $request['approve'] === 'ไม่อนุมัติ' || $request['approve'] === 'ยกเลิก'): ?>
-                                                        <h5 class="card-title mb-1">การอนุมัติคำร้อง: <span class="badge <?php echo getStatusBadgeClass($request['writed_status'], $request['approve']); ?>"><?php echo htmlspecialchars($request['approve']); ?></span> 
+                                                        <h5 class="card-title mb-1">การอนุมัติคำร้อง: <span class="badge <?php echo getStatusBadgeClass($request['writed_status'], $request['approve']); ?>"><?php echo htmlspecialchars($request['approve']); ?></span>
                                                         </h5>
                                                     <?php endif; ?>
                                                     <p class="card-text small mb-1 text-muted">
@@ -2471,11 +2543,12 @@ $modal_message = $_GET['message'] ?? '';
                 </div>
 
             <?php elseif ($mode == 'projects_edit' && $detail_item): ?>
-                    <div class="form-section my-4">
-                        <h2 class="mb-4 text-center">แก้ไขโครงการ: <?php echo htmlspecialchars($detail_item['project_name']); ?></h2>
-                        <form action="?main_tab=user_requests&mode=projects_edit" method="POST" enctype="multipart/form-data">
-                            <input type="hidden" name="project_id" value="<?php echo htmlspecialchars($detail_item['project_id']); ?>">
-                            <input type="hidden" name="existing_file_path" value="<?php echo htmlspecialchars($detail_item['files'] ?? ''); ?>">
+                <div class="form-section my-4">
+                    <h2 class="mb-4 text-center">แก้ไขโครงการ: <?php echo htmlspecialchars($detail_item['project_name']); ?></h2>
+                    <form action="?main_tab=user_requests&mode=projects_edit" method="POST" enctype="multipart/form-data">
+                        <input type="hidden" name="project_id" value="<?php echo htmlspecialchars($detail_item['project_id']); ?>">
+                        <!-- This hidden input stores the original JSON array from DB for server-side comparison -->
+                        <input type="hidden" name="existing_file_paths_json_from_db" value="<?php echo htmlspecialchars($detail_item['files'] ?? '[]'); ?>">
 
                             <div class="mb-3">
                                 <label for="project_name" class="form-label">ชื่อโครงการ:</label>
@@ -2496,13 +2569,28 @@ $modal_message = $_GET['message'] ?? '';
                                 <textarea class="form-control" id="project_des" name="project_des" rows="5"><?php echo htmlspecialchars($_POST['project_des'] ?? $detail_item['project_des']); ?></textarea>
                             </div>
                             <div class="mb-3">
-                                <label for="files" class="form-label">ไฟล์แนบ (รูปภาพ, PDF, Doc, XLS):</label>
-                                <?php if ($detail_item['files'] && file_exists($detail_item['files'])): ?>
-                                    <p class="text-muted small">ไฟล์เดิม: <a href="<?php echo htmlspecialchars($detail_item['files']); ?>" target="_blank"><?php echo basename($detail_item['files']); ?></a> (เลือกไฟล์ใหม่เพื่ออัปโหลดทับ)</p>
-                                <?php else: ?>
-                                    <p class="text-muted small">ไม่มีไฟล์เดิม</p>
-                                <?php endif; ?>
-                                <input type="file" class="form-control" id="files" name="files" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx">
+                                <label class="form-label">ไฟล์แนบปัจจุบัน:</label>
+                                <div id="existing-files-list">
+                                    <?php
+                                    $existing_files_for_form = json_decode($detail_item['files'], true) ?: [];
+                                    if (!empty($existing_files_for_form)): ?>
+                                        <?php foreach ($existing_files_for_form as $idx => $filePath): ?>
+                                            <div class="input-group mb-2 existing-file-item">
+                                                <a href="<?php echo htmlspecialchars($filePath); ?>" target="_blank" class="form-control text-truncate">
+                                                    <?php echo htmlspecialchars(basename($filePath)); ?>
+                                                </a>
+                                                <!-- This hidden input sends the path if the file is retained -->
+                                                <input type="hidden" name="existing_file_paths_retained[]" value="<?php echo htmlspecialchars($filePath); ?>">
+                                                <button type="button" class="btn btn-outline-danger remove-existing-file" data-file-path="<?php echo htmlspecialchars($filePath); ?>">ลบ</button>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    <?php else: ?>
+                                        <p class="text-muted small">ไม่มีไฟล์เดิม</p>
+                                    <?php endif; ?>
+                                </div>
+                                <label for="files" class="form-label mt-3">อัปโหลดไฟล์ใหม่ (เพิ่มเติม):</label>
+                                <!-- IMPORTANT CHANGE: Add name="files[]" and multiple attribute -->
+                                <input type="file" class="form-control" id="files" name="files[]" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx">
                             </div>
                             <div class="row mb-3">
                                 <div class="col-md-6">
@@ -2552,7 +2640,7 @@ $modal_message = $_GET['message'] ?? '';
                 <div class="row mb-3">
                     <div class="col">
                         <div class="card shadow-sm p-3">
-                            <h5 class="card-title mb-3">คำร้องขอใช้อาคารสถานที่ทั้งหมดของคุณ: 
+                            <h5 class="card-title mb-3">คำร้องขอใช้อาคารสถานที่ทั้งหมดของคุณ:
                                 <?php if ($mode == 'buildings_list') : ?> <?php echo $dashboard_data['facilities_request_counts']['total']; ?> คำร้อง</h5>
                                 <?php elseif ($mode == 'equipments_list') : ?> <?php echo $dashboard_data['equipments_request_counts']['total']; ?> คำร้อง</h5>
                                 <?php endif; ?>
@@ -2635,7 +2723,7 @@ $modal_message = $_GET['message'] ?? '';
                                                         </h6>
                                                         <div class="text-end">
                                                             <?php if ($request['approve'] === 'อนุมัติ' || $request['approve'] === 'ไม่อนุมัติ' || $request['approve'] === 'ยกเลิก'): ?>
-                                                                <h6 class="card-title">การอนุมัติคำร้อง: <span class="badge <?php echo getStatusBadgeClass($request['writed_status'], $request['approve']); ?>"><?php echo htmlspecialchars($request['approve']); ?></span> 
+                                                                <h6 class="card-title">การอนุมัติคำร้อง: <span class="badge <?php echo getStatusBadgeClass($request['writed_status'], $request['approve']); ?>"><?php echo htmlspecialchars($request['approve']); ?></span>
                                                                 </h6>
                                                             <?php endif; ?>
                                                             <p class="text-muted">ยื่นเมื่อ: <?php echo formatThaiDate($request['request_date']); ?></p>
@@ -2727,21 +2815,24 @@ $modal_message = $_GET['message'] ?? '';
                                 <p class="text-danger mt-2">คุณยังไม่มีโครงการที่สร้างไว้ กรุณาสร้างโครงการก่อน.</p>
                             <?php endif; ?>
                         </div>
+
+                        <!-- Building dropdown -->
                         <div class="mb-3">
-                            <label for="facility_id" class="form-label">สถานที่/อาคารที่ต้องการขอใช้:</label>
-                            <select class="form-select" id="facility_id" name="facility_id" required>
-                                <option value="">-- เลือกสถานที่/อาคาร --</option>
-                                <?php foreach ($facilities as $facility): ?>
-                                    <option value="<?php echo htmlspecialchars($facility['facility_id']); ?>"
-                                        <?php echo (isset($_POST['facility_id']) && $_POST['facility_id'] == $facility['facility_id']) ? 'selected' : ''; ?>>
-                                        <?php echo htmlspecialchars($facility['facility_name']); ?>
-                                    </option>
-                                <?php endforeach; ?>
+                            <label for="facility_id" class="form-label">สถานที่ที่ต้องการขอใช้:</label>
+                            <!-- CHANGE HERE: Added data-initial-facility-id-from-post -->
+                            <select class="form-select" id="facility_id" name="facility_id" required disabled
+                                data-initial-facility-id-from-post="<?php echo htmlspecialchars($_POST['facility_id'] ?? ''); ?>">
+                                <option value="">-- เลือกอาคารก่อน --</option>
                             </select>
-                            <?php if (empty($facilities)): ?>
-                                <p class="text-danger mt-2">ยังไม่มีข้อมูลสถานที่/อาคารในระบบ</p>
-                            <?php endif; ?>
                         </div>
+
+                        <div class="mb-3">
+                            <label for="facility_id" class="form-label">สถานที่ที่ต้องการขอใช้:</label>
+                            <select class="form-select" id="facility_id" name="facility_id" required disabled>
+                                <option value="">-- เลือกอาคารก่อน --</option>
+                            </select>
+                        </div>
+
                         <div class="row mb-3">
                             <div class="col-md-6">
                                 <label for="prepare_start_date" class="form-label">วันเริ่มต้นเตรียมการ:</label>
@@ -2812,7 +2903,7 @@ $modal_message = $_GET['message'] ?? '';
                                 <p><strong>วันที่เตรียมการ: </strong> <?php echo formatThaiDate($detail_item['prepare_start_date'], false); ?></p>
                             <?php endif; ?>
 
-                            <p><strong>ตั้งแต่เวลา: </strong> 
+                            <p><strong>ตั้งแต่เวลา: </strong>
                             <?php if($detail_item['prepare_start_time'] !== $detail_item['prepare_end_time']): ?>
                                 <?php echo (new DateTime($detail_item['prepare_start_time']))->format('H:i'); ?> น. ถึง <?php echo (new DateTime($detail_item['prepare_end_time']))->format('H:i'); ?></p>
                             <?php else: ?>
@@ -2863,9 +2954,9 @@ $modal_message = $_GET['message'] ?? '';
                         </a>
                         <div>
                             <?php
-                                $can_edit = (($detail_item['writed_status'] == 'ร่างคำร้องขอ' || $detail_item['writed_status'] == 'ส่งคำร้องขอ') && ($detail_item['start_date_compare'] >= $limited_date && $detail_item['approve'] == ''));
+                                $can_edit = (($detail_item['writed_status'] == 'ร่างคำร้องขอ' || $detail_item['writed_status'] == 'ส่งคำร้องขอ') && ($detail_item['start_date_compare'] >= strtotime(date('Y-m-d', strtotime('+3 days'))) && ($detail_item['approve'] === null || $detail_item['approve'] === ''))); // Changed limited_date to +3 days for requests
                                 $can_delete = ($detail_item['writed_status'] == 'ร่างคำร้องขอ');
-                                $can_cancel = ($detail_item['writed_status'] == 'ส่งคำร้องขอ'); 
+                                $can_cancel = ($detail_item['writed_status'] == 'ส่งคำร้องขอ');
                             ?>
                             <?php if ($can_edit): ?>
                                 <a href="?main_tab=user_requests&mode=buildings_edit&facility_re_id=<?php echo $detail_item['facility_re_id']; ?>" class="btn btn-warning me-2">
@@ -2953,22 +3044,36 @@ $modal_message = $_GET['message'] ?? '';
                                     <p class="text-danger mt-2">คุณยังไม่มีโครงการที่สร้างไว้ กรุณาสร้างโครงการก่อน.</p>
                                 <?php endif; ?>
                             </div>
+
+                            <!-- NEW: Building dropdown for edit mode -->
                             <div class="mb-3">
-                                <label for="facility_id" class="form-label">สถานที่/อาคารที่ต้องการขอใช้:</label>
-                                <select class="form-select" id="facility_id" name="facility_id" required>
-                                    <option value="">-- เลือกสถานที่/อาคาร --</option>
-                                    <?php foreach ($facilities as $facility): ?>
-                                        <option value="<?php echo htmlspecialchars($facility['facility_id']); ?>"
-                                            <?php echo (isset($_POST['facility_id']) && $_POST['facility_id'] == $facility['facility_id']) ? 'selected' : ''; ?>
-                                            <?php echo (!isset($_POST['facility_id']) && $detail_item['facility_id'] == $facility['facility_id']) ? 'selected' : ''; ?>>
-                                            <?php echo htmlspecialchars($facility['facility_name']); ?>
+                                <label for="building_id" class="form-label">อาคารที่ต้องการขอใช้:</label>
+                                <select class="form-select" id="building_id" name="building_id" required
+                                    data-initial-building-id="<?php echo htmlspecialchars($detail_item['building_id'] ?? ''); ?>">
+                                    <option value="">-- เลือกอาคาร --</option>
+                                    <?php foreach ($buildings as $building): ?>
+                                        <option value="<?php echo htmlspecialchars($building['building_id']); ?>"
+                                            <?php
+                                            $selected_building = $_POST['building_id'] ?? ($detail_item['building_id'] ?? null);
+                                            if ($building['building_id'] == $selected_building) { echo 'selected'; }
+                                            ?>>
+                                            <?php echo htmlspecialchars($building['building_id'] . ' ' . $building['building_name']); ?>
                                         </option>
                                     <?php endforeach; ?>
                                 </select>
-                                <?php if (empty($facilities)): ?>
-                                    <p class="text-danger mt-2">ยังไม่มีข้อมูลสถานที่/อาคารในระบบ</p>
+                                <?php if (empty($buildings)): ?>
+                                    <p class="text-danger mt-2">ยังไม่มีข้อมูลอาคารในระบบ</p>
                                 <?php endif; ?>
                             </div>
+
+                            <div class="mb-3">
+                                <label for="facility_id" class="form-label">สถานที่ที่ต้องการขอใช้:</label>
+                                <select class="form-select" id="facility_id" name="facility_id" required disabled
+                                    data-initial-facility-id="<?php echo htmlspecialchars($detail_item['facility_id'] ?? ''); ?>">
+                                    <option value="">-- เลือกอาคารก่อน --</option>
+                                </select>
+                            </div>
+
                             <div class="row mb-3">
                                 <div class="col-md-6">
                                     <label for="prepare_start_date" class="form-label">วันเริ่มต้นเตรียมการ:</label>
@@ -3006,7 +3111,7 @@ $modal_message = $_GET['message'] ?? '';
                                 </div>
                                 <div class="col-md-6">
                                     <label for="end_time" class="form-label">เวลาสิ้นสุดใช้การ:</label>
-                                    <input type="time" class="form-control" id="end_time" name="end_time" value="<?php echo htmlspecialchars($_POST['end_time'] ?? $detail_item['end_time']); ?>" required>
+                                    <input type="time" class="form-control" id="end_time" name="end_time" value="<?php echo htmlspecialchars($_POST['end_time'] ?? $detail_item['end_time']); ?>">
                                 </div>
                             </div>
                             <div class="mb-3 form-check">
@@ -3107,7 +3212,7 @@ $modal_message = $_GET['message'] ?? '';
                                 <p><strong>สถานะคำร้อง: </strong> <span class="badge <?php echo getStatusBadgeClass($detail_item['writed_status'], $detail_item['approve']); ?>"><?php echo htmlspecialchars($detail_item['writed_status']); ?></span></p>
                                 <p><strong>อุปกรณ์ที่ขอใช้งาน: </strong> <?php echo htmlspecialchars($detail_item['equip_name']); ?> จำนวน <?php echo htmlspecialchars($detail_item['quantity']);?> <?php echo htmlspecialchars($detail_item['measure']); ?></p>
                                 <p><strong>สถานที่ที่นำอุปกรณ์ไปใช้งาน: </strong> <?php echo htmlspecialchars($detail_item['facility_name'] ?? 'ไม่ระบุ'); ?></p>
-                                <p><strong>ระยะเวลาใช้การ: </strong> 
+                                <p><strong>ระยะเวลาใช้การ: </strong>
                                 <?php if (($detail_item['start_date']) !== ($detail_item['end_date'])):?> ตั้งแต่วันที่ <?php echo formatThaiDate($detail_item['start_date'], false); ?> ถึง วันที่ <?php echo formatThaiDate($detail_item['end_date'], false); ?></p>
                                 <?php else: ?> วันที่ <?php echo formatThaiDate($detail_item['start_date'], false); ?>
                                 <?php endif; ?>
@@ -3142,7 +3247,7 @@ $modal_message = $_GET['message'] ?? '';
                             </a>
                             <div>
                             <?php
-                                $can_edit = ($detail_item['writed_status'] == 'ร่างคำร้องขอ');
+                                $can_edit = (($detail_item['writed_status'] == 'ร่างคำร้องขอ' || $detail_item['writed_status'] == 'ส่งคำร้องขอ') && ($detail_item['start_date_compare'] >= strtotime(date('Y-m-d', strtotime('+3 days'))) && ($detail_item['approve'] === null || $detail_item['approve'] === '')));
                                 $can_delete = ($detail_item['writed_status'] == 'ร่างคำร้องขอ');
                                 $can_cancel_request = ($detail_item['writed_status'] !== 'ร่างคำร้องขอ' && $detail_item['writed_status'] !== 'เริ่มดำเนินการ' && $detail_item['writed_status'] !== 'สิ้นสุดดำเนินการ' && $detail_item['writed_status'] !== 'ยกเลิกคำร้องขอ');
                             ?>
@@ -3260,19 +3365,9 @@ $modal_message = $_GET['message'] ?? '';
                                 data-initial-facility-id="<?php echo htmlspecialchars($detail_item['facility_id'] ?? ''); ?>">
                                 <option value="">-- เลือกโครงการเพื่อดูสถานที่ --</option>
                                 <?php
-                                // Populate current facility if in edit mode (from $facilities array loaded in PHP)
-                                foreach ($facilities as $facility):
-                                    ?>
-                                    <option value="<?php echo htmlspecialchars($facility['facility_id']); ?>"
-                                        <?php
-                                        // Pre-select the original facility if it matches
-                                        if (isset($detail_item['facility_id']) && $detail_item['facility_id'] == $facility['facility_id']) {
-                                            echo 'selected';
-                                        }
-                                        ?>>
-                                        <?php echo htmlspecialchars($facility['facility_name']); ?>
-                                    </option>
-                                <?php endforeach; ?>
+                                // This part will now be handled by JavaScript AJAX
+                                // The initial options here are just a fallback or for non-JS scenarios
+                                ?>
                             </select>
                         </div>
                         <div class="row mb-3">
@@ -3317,10 +3412,12 @@ $modal_message = $_GET['message'] ?? '';
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
 <script>
+    // These are already available globally due to being defined outside the DOMContentLoaded in the PHP output.
     const phpCurrentMode = "<?php echo $mode; ?>";
     const phpCurrentMainTab = "<?php echo $main_tab; ?>";
-    console.log("PHP values injected:", phpCurrentMainTab, phpCurrentMode); 
+    // console.log("PHP values injected:", phpCurrentMainTab, phpCurrentMode);
 </script>
 <script src="./js/building_dropdown.js"></script>
+<script src="./js/file_upload.js"></script>
 </body>
 </html>

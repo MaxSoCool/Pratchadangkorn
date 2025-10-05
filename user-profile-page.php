@@ -10,8 +10,8 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
 // ใช้ชื่อ session variable ใหม่ที่กำหนดใน login.php
 // ตรวจสอบทั้ง nontri_id และ staff_id
 $nontri_id = htmlspecialchars($_SESSION['nontri_id'] ?? ($_SESSION['staff_id'] ?? 'N/A')); 
-$user_THname = htmlspecialchars($_SESSION['user_display_THname'] ?? 'N/A');
-$user_THsur = htmlspecialchars($_SESSION['user_display_THsur'] ?? 'N/A');
+$user_name = htmlspecialchars($_SESSION['user_display_name'] ?? 'N/A');
+$user_sur = htmlspecialchars($_SESSION['user_display_sur'] ?? 'N/A');
 $user_role = htmlspecialchars($_SESSION['role'] ?? 'N/A');
 $fa_de_name = htmlspecialchars($_SESSION['fa_de_name'] ?? 'ไม่ระบุ'); 
 
@@ -40,7 +40,7 @@ $fa_de_name = htmlspecialchars($_SESSION['fa_de_name'] ?? 'ไม่ระบุ
             <div class="d-flex align-items-center ms-auto gap-2">
                 <div class="d-flex flex-column text-end">
                     <!-- ใช้ชื่อ session variable ใหม่สำหรับชื่อที่แสดงผล -->
-                    <span class="navbar-brand mb-0 fs-5 fs-md-4"><?php echo $user_THname . ' ' . $user_THsur; ?></span>
+                    <span class="navbar-brand mb-0 fs-5 fs-md-4"><?php echo $user_name . ' ' . $user_sur; ?></span>
                     <span class="navbar-brand mb-0 fs-6 fs-md-5"><?php echo $user_role; ?></span>
                 </div>
                 <img src="./images/user_button.png" class="img-fluid logo" style="width:40px; height:40px; object-fit:cover;" alt="User Button">
@@ -55,8 +55,8 @@ $fa_de_name = htmlspecialchars($_SESSION['fa_de_name'] ?? 'ไม่ระบุ
                     <h2 class="mb-4">ข้อมูลผู้ใช้ KU-ALL</h2>
                     <div class="profile-info">
                         <p><strong>ชื่อผู้ใช้:</strong> <?php echo $nontri_id; ?></p>
-                        <p><strong>ชื่อ (ไทย):</strong> <?php echo $user_THname; ?></p>
-                        <p><strong>นามสกุล (ไทย):</strong> <?php echo $user_THsur; ?></p>
+                        <p><strong>ชื่อ (ไทย):</strong> <?php echo $user_name; ?></p>
+                        <p><strong>นามสกุล (ไทย):</strong> <?php echo $user_sur; ?></p>
                         <p><strong>ประเภทผู้ใช้:</strong> <?php echo $user_role; ?></p>
                         <p><strong>หน่วยงาน/คณะ:</strong> <?php echo $fa_de_name; ?></p>
                     </div>

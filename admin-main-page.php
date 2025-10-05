@@ -10,6 +10,7 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true || $_SESSI
 include 'database/database.php';
 include 'php/sorting.php';
 include 'php/admin-sorting.php';
+include 'php/chart-sorting.php'; // เพิ่มการเรียกใช้ chart_sorting.php
 
 // Helper functions for Thai date formatting (These are now for screen display in admin-main-page.php)
 if (!function_exists('formatThaiDate')) {
@@ -65,8 +66,8 @@ if (!function_exists('getStatusBadgeClass')) {
 
 
 $staff_id_for_db = $_SESSION['staff_id'] ?? null;
-$staff_THname = htmlspecialchars($_SESSION['user_display_THname'] ?? 'N/A');
-$staff_THsur = htmlspecialchars($_SESSION['user_display_THsur'] ?? 'N/A');
+$staff_name = htmlspecialchars($_SESSION['user_display_name'] ?? 'N/A');
+$staff_sur = htmlspecialchars($_SESSION['user_display_sur'] ?? 'N/A');
 $user_role = htmlspecialchars($_SESSION['role'] ?? 'N/A');
 
 if (empty($staff_id_for_db) || $staff_id_for_db === 'N/A') {
@@ -85,10 +86,7 @@ $specific_year_select = $_GET['specific_year'] ?? null;
 $specific_month_select = $_GET['specific_month'] ?? null;
 $specific_day_select = $_GET['specific_day'] ?? null;
 
-// เพิ่มตัวแปรสำหรับ Faculty Filtering
-$fa_de_id_select = $_GET['fa_de_id'] ?? null;
-
-// --- จบการเพิ่มตัวแปรสำหรับ Date Filtering ---
+$fa_de_id_filter_global = $_GET['fa_de_id_global'] ?? null; // Changed name to avoid conflict with chart drilldown
 
 $main_tab = isset($_GET['main_tab']) ? $_GET['main_tab'] : 'dashboard_admin';
 $mode = isset($_GET['mode']) ? $_GET['mode'] : 'list';
@@ -99,6 +97,10 @@ $total_items = 0;
 $errors = [];
 $success_message = '';
 
+// New chart-specific sorting parameters
+$chart_sort_mode = $_GET['chart_sort_mode'] ?? 'faculty_overview';
+$drilldown_type = $_GET['drilldown_type'] ?? null; // Still in URL for potential direct access, but not used by UI clicks
+$drilldown_id = $_GET['drilldown_id'] ?? null;     // Still in URL for potential direct access, but not used by UI clicks
 
 $activity_types = [];
 $result_activity = $conn->query("SELECT activity_type_id, activity_type_name FROM activity_type ORDER BY activity_type_name");
@@ -124,7 +126,6 @@ if ($result_equipments_dropdown) {
     }
 }
 
-// เพิ่มการดึงข้อมูลคณะสำหรับ Dropdown กรองคณะ
 $faculties_for_chart_filter = [];
 $result_fa_de = $conn->query("SELECT fa_de_id, fa_de_name FROM faculties_department ORDER BY fa_de_name ASC");
 if ($result_fa_de) {
@@ -248,9 +249,9 @@ $sql_upcoming_projects = "SELECT p.project_id AS id, 'โครงการ' AS 
 $upcoming_proj_params = [$current_date_php, $upcoming_date_limit];
 $upcoming_proj_param_types = "ss";
 
-if (!empty($fa_de_id_select)) {
+if (!empty($fa_de_id_filter_global)) { // ใช้ fa_de_id_filter_global
     $sql_upcoming_projects .= " AND u.fa_de_id = ?";
-    $upcoming_proj_params[] = (int)$fa_de_id_select;
+    $upcoming_proj_params[] = (int)$fa_de_id_filter_global;
     $upcoming_proj_param_types .= "i";
 }
 $sql_upcoming_projects .= " ORDER BY p.start_date ASC";
@@ -304,13 +305,12 @@ $sql_recent_fr = "SELECT fr.facility_re_id AS id, 'คำร้องขอส�
 
 $recent_fr_params = [];
 $recent_fr_param_types = "";
-if (!empty($fa_de_id_select)) {
+if (!empty($fa_de_id_filter_global)) { // ใช้ fa_de_id_filter_global
     $sql_recent_fr .= " AND u.fa_de_id = ?";
-    $recent_fr_params[] = (int)$fa_de_id_select;
+    $recent_fr_params[] = (int)$fa_de_id_filter_global;
     $recent_fr_param_types .= "i";
 }
 $sql_recent_fr .= " ORDER BY fr.request_date DESC LIMIT 5";
-
 
 $stmt_recent_fr = $conn->prepare($sql_recent_fr);
 if ($stmt_recent_fr) {
@@ -338,9 +338,9 @@ $sql_recent_er = "SELECT er.equip_re_id AS id, 'คำร้องขออุ�
 
 $recent_er_params = [];
 $recent_er_param_types = "";
-if (!empty($fa_de_id_select)) {
+if (!empty($fa_de_id_filter_global)) { // ใช้ fa_de_id_filter_global
     $sql_recent_er .= " AND u.fa_de_id = ?";
-    $recent_er_params[] = (int)$fa_de_id_select;
+    $recent_er_params[] = (int)$fa_de_id_filter_global;
     $recent_er_param_types .= "i";
 }
 $sql_recent_er .= " ORDER BY er.request_date DESC LIMIT 5";
@@ -378,17 +378,20 @@ try {
     $date_filter_params_er = getDateFilteringClauses('dashboard_equipments_requests', $predefined_range_select, $specific_year_select, $specific_month_select, $specific_day_select);
 
     // โครงการทั้งหมด (ยกเว้นร่างโครงการ)
-    // ปรับปรุง Query เพื่อรวมการกรองตามคณะ
-    $sql_proj_count = "SELECT COUNT(*) FROM project p LEFT JOIN user u ON p.nontri_id = u.nontri_id WHERE p.writed_status != 'ร่างโครงการ' " . $date_filter_params_proj['where_sql'];
+    $sql_proj_count = "SELECT COUNT(*) FROM project p LEFT JOIN user u ON p.nontri_id = u.nontri_id WHERE p.writed_status != 'ร่างโครงการ' " . ($date_filter_params_proj['where_sql'] ?? '');
     $count_params_proj = [];
     $count_param_types_proj = '';
 
-    $count_params_proj = array_merge($count_params_proj, $date_filter_params_proj['param_values']);
-    $count_param_types_proj .= $date_filter_params_proj['param_types'];
+    if (!empty($date_filter_params_proj['param_values'])) {
+        $count_params_proj = array_merge($count_params_proj, $date_filter_params_proj['param_values']);
+    }
+    if (!empty($date_filter_params_proj['param_types'])) {
+        $count_param_types_proj .= $date_filter_params_proj['param_types'];
+    }
     
-    if (!empty($fa_de_id_select)) {
+    if (!empty($fa_de_id_filter_global)) { // ใช้ fa_de_id_filter_global
         $sql_proj_count .= " AND u.fa_de_id = ?";
-        $count_params_proj[] = (int)$fa_de_id_select;
+        $count_params_proj[] = (int)$fa_de_id_filter_global;
         $count_param_types_proj .= 'i';
     }
 
@@ -406,17 +409,20 @@ try {
     }
 
     // คำร้องขอใช้สถานที่ทั้งหมด (ยกเว้นร่างคำร้องขอ)
-    // ปรับปรุง Query เพื่อรวมการกรองตามคณะ
-    $sql_fac_req_count = "SELECT COUNT(*) FROM facilities_requests fr JOIN project p ON fr.project_id = p.project_id LEFT JOIN user u ON p.nontri_id = u.nontri_id WHERE fr.writed_status != 'ร่างคำร้องขอ' " . $date_filter_params_fr['where_sql'];
+    $sql_fac_req_count = "SELECT COUNT(*) FROM facilities_requests fr JOIN project p ON fr.project_id = p.project_id LEFT JOIN user u ON p.nontri_id = u.nontri_id WHERE fr.writed_status != 'ร่างคำร้องขอ' " . ($date_filter_params_fr['where_sql'] ?? '');
     $count_params_fr = [];
     $count_param_types_fr = '';
 
-    $count_params_fr = array_merge($count_params_fr, $date_filter_params_fr['param_values']);
-    $count_param_types_fr .= $date_filter_params_fr['param_types'];
+    if (!empty($date_filter_params_fr['param_values'])) {
+        $count_params_fr = array_merge($count_params_fr, $date_filter_params_fr['param_values']);
+    }
+    if (!empty($date_filter_params_fr['param_types'])) {
+        $count_param_types_fr .= $date_filter_params_fr['param_types'];
+    }
 
-    if (!empty($fa_de_id_select)) {
+    if (!empty($fa_de_id_filter_global)) { // ใช้ fa_de_id_filter_global
         $sql_fac_req_count .= " AND u.fa_de_id = ?";
-        $count_params_fr[] = (int)$fa_de_id_select;
+        $count_params_fr[] = (int)$fa_de_id_filter_global;
         $count_param_types_fr .= 'i';
     }
 
@@ -434,17 +440,20 @@ try {
     }
 
     // คำร้องขอใช้อุปกรณ์ทั้งหมด (ยกเว้นร่างคำร้องขอ)
-    // ปรับปรุง Query เพื่อรวมการกรองตามคณะ
-    $sql_equip_req_count = "SELECT COUNT(*) FROM equipments_requests er JOIN project p ON er.project_id = p.project_id LEFT JOIN user u ON p.nontri_id = u.nontri_id WHERE er.writed_status != 'ร่างคำร้องขอ' " . $date_filter_params_er['where_sql'];
+    $sql_equip_req_count = "SELECT COUNT(*) FROM equipments_requests er JOIN project p ON er.project_id = p.project_id LEFT JOIN user u ON p.nontri_id = u.nontri_id WHERE er.writed_status != 'ร่างคำร้องขอ' " . ($date_filter_params_er['where_sql'] ?? '');
     $count_params_er = [];
     $count_param_types_er = '';
     
-    $count_params_er = array_merge($count_params_er, $date_filter_params_er['param_values']);
-    $count_param_types_er .= $date_filter_params_er['param_types'];
+    if (!empty($date_filter_params_er['param_values'])) {
+        $count_params_er = array_merge($count_params_er, $date_filter_params_er['param_values']);
+    }
+    if (!empty($date_filter_params_er['param_types'])) {
+        $count_param_types_er .= $date_filter_params_er['param_types'];
+    }
 
-    if (!empty($fa_de_id_select)) {
+    if (!empty($fa_de_id_filter_global)) { // ใช้ fa_de_id_filter_global
         $sql_equip_req_count .= " AND u.fa_de_id = ?";
-        $count_params_er[] = (int)$fa_de_id_select;
+        $count_params_er[] = (int)$fa_de_id_filter_global;
         $count_param_types_er .= 'i';
     }
 
@@ -534,35 +543,36 @@ try {
             $sort_filter = $_GET['sort_filter'] ?? 'date_desc';
             $sorting = getSortingClauses('projects_admin', $sort_filter);
 
-            // --- เริ่มต้นเพิ่มการกรองวันที่ ---
             $date_filtering = getDateFilteringClauses('projects_admin', $predefined_range_select, $specific_year_select, $specific_month_select, $specific_day_select);
-            // --- สิ้นสุดการเพิ่มการกรองวันที่ ---
 
             $base_where = " WHERE p.project_name LIKE ? AND p.writed_status != 'ร่างโครงการ'";
-            // รวมเงื่อนไข WHERE จาก sorting และ date filtering
-            $full_where_sql = $base_where . $sorting['where_sql'] . $date_filtering['where_sql'];
+            $full_where_sql = $base_where . ($sorting['where_sql'] ?? '') . ($date_filtering['where_sql'] ?? ''); // Null coalescing
 
-            // เพิ่ม LEFT JOIN user U และ fa_de_id filter
             $join_user_faculty = " LEFT JOIN user u ON p.nontri_id = u.nontri_id";
-            if (!empty($fa_de_id_select)) {
+            if (!empty($fa_de_id_filter_global)) { // ใช้ fa_de_id_filter_global
                 $full_where_sql .= " AND u.fa_de_id = ?";
             }
 
+            // --- COUNT QUERY for PROJECTS ---
             $count_sql = "SELECT COUNT(*) FROM project p" . $join_user_faculty . $full_where_sql;
             $stmt_count = $conn->prepare($count_sql);
 
             $count_params = [$search_param];
             $count_param_types = "s";
-            if ($sorting['where_param_value'] !== null) {
+            if (!empty($sorting['where_param_value'])) { // Check if not empty
                 $count_params[] = $sorting['where_param_value'];
                 $count_param_types .= $sorting['where_param_type'];
             }
             // เพิ่ม params จาก date filtering
-            $count_params = array_merge($count_params, $date_filtering['param_values']);
-            $count_param_types .= $date_filtering['param_types'];
-            // เพิ่ม param จาก fa_de_id_select
-            if (!empty($fa_de_id_select)) {
-                $count_params[] = (int)$fa_de_id_select;
+            if (!empty($date_filtering['param_values'])) {
+                $count_params = array_merge($count_params, $date_filtering['param_values']);
+            }
+            if (!empty($date_filtering['param_types'])) {
+                $count_param_types .= $date_filtering['param_types'];
+            }
+            // เพิ่ม param จาก fa_de_id_filter_global
+            if (!empty($fa_de_id_filter_global)) {
+                $count_params[] = (int)$fa_de_id_filter_global;
                 $count_param_types .= 'i';
             }
 
@@ -572,14 +582,15 @@ try {
             $stmt_count->fetch();
             $stmt_count->close();
 
+            // --- DATA QUERY for PROJECTS ---
             $sql_data = "SELECT
                             p.project_id, p.project_name, p.start_date, p.end_date, p.project_des, p.files, p.attendee, p.phone_num, p.advisor_name, p.writed_status, p.created_date,
-                            at.activity_type_name, CONCAT(u.user_THname, ' ', u.user_THsur) AS user_name
+                            at.activity_type_name, CONCAT(u.user_name, ' ', u.user_sur) AS user_name
                         FROM project p
                         LEFT JOIN user u ON p.nontri_id = u.nontri_id
                         LEFT JOIN activity_type at ON p.activity_type_id = at.activity_type_id"
-                        . $full_where_sql // ใช้ $full_where_sql ที่รวมเงื่อนไขแล้ว
-                        . $sorting['order_by_sql'] . " LIMIT ? OFFSET ?";
+                        . $full_where_sql
+                        . ($sorting['order_by_sql'] ?? '') . " LIMIT ? OFFSET ?"; // Null coalescing
 
             $stmt_data = $conn->prepare($sql_data);
 
@@ -600,7 +611,7 @@ try {
             $project_id = (int)$_GET['id'];
             $sql_detail = "SELECT
                                 p.project_id, p.project_name, p.start_date, p.end_date, p.project_des, p.files, p.attendee, p.phone_num, p.advisor_name, p.writed_status, p.created_date,
-                                at.activity_type_name AS activity_type_name, CONCAT(u.user_THname, ' ', u.user_THsur) AS user_name, u.nontri_id
+                                at.activity_type_name AS activity_type_name, CONCAT(u.user_name, ' ', u.user_sur) AS user_name, u.nontri_id
                            FROM project p
                            JOIN user u ON p.nontri_id = u.nontri_id
                            JOIN activity_type at ON p.activity_type_id = at.activity_type_id
@@ -640,8 +651,8 @@ try {
                                 fr.prepare_start_date, fr.prepare_end_date, fr.start_time, fr.end_time,
                                 fr.start_date , fr.end_date , fr.agree,
                                 fr.writed_status, fr.request_date, fr.approve, fr.approve_date, fr.approve_detail,
-                                f.facility_name, p.project_name, CONCAT(u.user_THname, ' ', u.user_THsur) AS user_name,
-                                CONCAT(s.staff_THname, ' ', s.staff_THsur) AS staff_name
+                                f.facility_name, p.project_name, CONCAT(u.user_name, ' ', u.user_sur) AS user_name,
+                                CONCAT(s.staff_name, ' ', s.staff_sur) AS staff_name
                             FROM facilities_requests fr
                             JOIN facilities f ON fr.facility_id = f.facility_id
                             JOIN project p ON fr.project_id = p.project_id
@@ -683,8 +694,8 @@ try {
                     $sql_er_print_detail = "SELECT
                                 er.equip_re_id, er.project_id, er.start_date, er.end_date, er.quantity, er.transport,
                                 er.writed_status, er.request_date, er.approve, er.approve_date, er.approve_detail, er.agree,
-                                e.equip_name, e.measure, f.facility_name, p.project_name, CONCAT(u.user_THname, ' ', u.user_THsur) AS user_name,
-                                CONCAT(s.staff_THname, ' ', s.staff_THsur) AS staff_name
+                                e.equip_name, e.measure, f.facility_name, p.project_name, CONCAT(u.user_name, ' ', u.user_sur) AS user_name,
+                                CONCAT(s.staff_name, ' ', s.staff_sur) AS staff_name
                             FROM equipments_requests er
                             JOIN equipments e ON er.equip_id = e.equip_id
                             JOIN project p ON er.project_id = p.project_id
@@ -710,17 +721,13 @@ try {
             $sort_filter = $_GET['sort_filter'] ?? 'date_desc';
             $sorting = getSortingClauses('buildings_admin', $sort_filter);
 
-            // --- เริ่มต้นเพิ่มการกรองวันที่ ---
             $date_filtering = getDateFilteringClauses('buildings_admin', $predefined_range_select, $specific_year_select, $specific_month_select, $specific_day_select);
-            // --- สิ้นสุดการเพิ่มการกรองวันที่ ---
 
             $base_where = " WHERE fr.writed_status != 'ร่างคำร้องขอ' AND (p.project_name LIKE ? OR f.facility_name LIKE ?)";
-            // รวมเงื่อนไข WHERE จาก sorting และ date filtering
-            $full_where_sql = $base_where . $sorting['where_sql'] . $date_filtering['where_sql'];
+            $full_where_sql = $base_where . ($sorting['where_sql'] ?? '') . ($date_filtering['where_sql'] ?? ''); // Null coalescing
 
-            // เพิ่ม LEFT JOIN user U และ fa_de_id filter
             $join_user_faculty = " LEFT JOIN user u ON p.nontri_id = u.nontri_id";
-            if (!empty($fa_de_id_select)) {
+            if (!empty($fa_de_id_filter_global)) { // ใช้ fa_de_id_filter_global
                 $full_where_sql .= " AND u.fa_de_id = ?";
             }
 
@@ -729,16 +736,20 @@ try {
 
             $count_params = [$search_param, $search_param];
             $count_param_types = "ss";
-            if ($sorting['where_param_value'] !== null) {
+            if (!empty($sorting['where_param_value'])) { // Check if not empty
                 $count_params[] = $sorting['where_param_value'];
                 $count_param_types .= $sorting['where_param_type'];
             }
             // เพิ่ม params จาก date filtering
-            $count_params = array_merge($count_params, $date_filtering['param_values']);
-            $count_param_types .= $date_filtering['param_types'];
-            // เพิ่ม param จาก fa_de_id_select
-            if (!empty($fa_de_id_select)) {
-                $count_params[] = (int)$fa_de_id_select;
+            if (!empty($date_filtering['param_values'])) {
+                $count_params = array_merge($count_params, $date_filtering['param_values']);
+            }
+            if (!empty($date_filtering['param_types'])) {
+                $count_param_types .= $date_filtering['param_types'];
+            }
+            // เพิ่ม param จาก fa_de_id_filter_global
+            if (!empty($fa_de_id_filter_global)) {
+                $count_params[] = (int)$fa_de_id_filter_global;
                 $count_param_types .= 'i';
             }
 
@@ -750,13 +761,13 @@ try {
 
             $sql_data = "SELECT
                             fr.facility_re_id, fr.request_date, fr.writed_status, fr.start_date, fr.end_date, fr.prepare_start_date, fr.prepare_end_date, fr.start_time, fr.end_time, fr.approve,
-                            f.facility_name, p.project_name, CONCAT(u.user_THname, ' ', u.user_THsur) AS user_name
+                            f.facility_name, p.project_name, CONCAT(u.user_name, ' ', u.user_sur) AS user_name
                         FROM facilities_requests fr
                         JOIN facilities f ON fr.facility_id = f.facility_id
                         JOIN project p ON fr.project_id = p.project_id"
                         . $join_user_faculty // <-- ใช้ $join_user_faculty
                         . $full_where_sql // ใช้ $full_where_sql ที่รวมเงื่อนไขแล้ว
-                        . $sorting['order_by_sql'] . " LIMIT ? OFFSET ?";
+                        . ($sorting['order_by_sql'] ?? '') . " LIMIT ? OFFSET ?"; // Null coalescing
 
             $stmt_data = $conn->prepare($sql_data);
             if ($stmt_data === false) { // <-- เพิ่มเช็คข้อผิดพลาดตรงนี้
@@ -789,9 +800,9 @@ try {
                                 fr.writed_status, fr.request_date, fr.approve, fr.approve_date, fr.approve_detail,
                                 f.facility_name, f.building_id, b.building_name,
                                 p.project_name, p.project_des, p.activity_type_id, at.activity_type_name, p.advisor_name,
-                                CONCAT(u.user_THname, ' ', u.user_THsur) AS user_name, u.nontri_id,
+                                CONCAT(u.user_name, ' ', u.user_sur) AS user_name, u.nontri_id,
                                 p.phone_num AS user_phone_num, fd.fa_de_name,
-                                CONCAT(s.staff_THname, ' ', s.staff_THsur) AS staff_name, s.staff_id
+                                CONCAT(s.staff_name, ' ', s.staff_sur) AS staff_name, s.staff_id
                             FROM facilities_requests fr
                             JOIN facilities f ON fr.facility_id = f.facility_id
                             LEFT JOIN buildings b ON f.building_id = b.building_id
@@ -824,17 +835,13 @@ try {
             $sort_filter = $_GET['sort_filter'] ?? 'date_desc';
             $sorting = getSortingClauses('equipments_admin', $sort_filter);
 
-            // --- เริ่มต้นเพิ่มการกรองวันที่ ---
             $date_filtering = getDateFilteringClauses('equipments_admin', $predefined_range_select, $specific_year_select, $specific_month_select, $specific_day_select);
-            // --- สิ้นสุดการเพิ่มการกรองวันที่ ---
 
             $base_where = " WHERE er.writed_status != 'ร่างคำร้องขอ' AND (p.project_name LIKE ? OR e.equip_name LIKE ?)";
-            // รวมเงื่อนไข WHERE จาก sorting และ date filtering
-            $full_where_sql = $base_where . $sorting['where_sql'] . $date_filtering['where_sql'];
+            $full_where_sql = $base_where . ($sorting['where_sql'] ?? '') . ($date_filtering['where_sql'] ?? ''); // Null coalescing
 
-            // เพิ่ม LEFT JOIN user U และ fa_de_id filter
             $join_user_faculty = " LEFT JOIN user u ON p.nontri_id = u.nontri_id";
-            if (!empty($fa_de_id_select)) {
+            if (!empty($fa_de_id_filter_global)) { // ใช้ fa_de_id_filter_global
                 $full_where_sql .= " AND u.fa_de_id = ?";
             }
 
@@ -849,16 +856,20 @@ try {
             } else {
                 $count_params = [$search_param, $search_param];
                 $count_param_types = "ss";
-                if ($sorting['where_param_value'] !== null) {
+                if (!empty($sorting['where_param_value'])) { // Check if not empty
                     $count_params[] = $sorting['where_param_value'];
                     $count_param_types .= $sorting['where_param_type'];
                 }
                 // เพิ่ม params จาก date filtering
-                $count_params = array_merge($count_params, $date_filtering['param_values']);
-                $count_param_types .= $date_filtering['param_types'];
-                // เพิ่ม param จาก fa_de_id_select
-                if (!empty($fa_de_id_select)) {
-                    $count_params[] = (int)$fa_de_id_select;
+                if (!empty($date_filtering['param_values'])) {
+                    $count_params = array_merge($count_params, $date_filtering['param_values']);
+                }
+                if (!empty($date_filtering['param_types'])) {
+                    $count_param_types .= $date_filtering['param_types'];
+                }
+                // เพิ่ม param จาก fa_de_id_filter_global
+                if (!empty($fa_de_id_filter_global)) {
+                    $count_params[] = (int)$fa_de_id_filter_global;
                     $count_param_types .= 'i';
                 }
 
@@ -872,14 +883,14 @@ try {
             // --- DATA QUERY ---
             $sql_data = "SELECT
                             er.equip_re_id, er.request_date, er.writed_status, er.start_date, er.end_date, er.quantity, er.transport, er.approve,
-                            e.equip_name, e.measure, f.facility_name, p.project_name, CONCAT(u.user_THname, ' ', u.user_THsur) AS user_name
+                            e.equip_name, e.measure, f.facility_name, p.project_name, CONCAT(u.user_name, ' ', u.user_sur) AS user_name
                         FROM equipments_requests er
                         JOIN equipments e ON er.equip_id = e.equip_id
                         JOIN project p ON er.project_id = p.project_id
                         LEFT JOIN facilities f ON er.facility_id = f.facility_id"
                         . $join_user_faculty // <-- ใช้ $join_user_faculty
                         . $full_where_sql // ใช้ $full_where_sql ที่รวมเงื่อนไขแล้ว
-                        . $sorting['order_by_sql'] . " LIMIT ? OFFSET ?";
+                        . ($sorting['order_by_sql'] ?? '') . " LIMIT ? OFFSET ?"; // Null coalescing
 
             $stmt_data = $conn->prepare($sql_data);
             if ($stmt_data === false) { // <-- เพิ่มเช็คข้อผิดพลาดตรงนี้
@@ -907,8 +918,8 @@ try {
             $sql_detail = "SELECT
                                 er.equip_re_id, er.project_id, er.start_date, er.end_date, er.quantity, er.transport,
                                 er.writed_status, er.request_date, er.approve, er.approve_date, er.approve_detail, er.agree,
-                                e.equip_name, e.measure, f.facility_name, p.project_name, CONCAT(u.user_THname, ' ', u.user_THsur) AS user_name,
-                                CONCAT(s.staff_THname, ' ', s.staff_THsur) AS staff_name
+                                e.equip_name, e.measure, f.facility_name, p.project_name, CONCAT(u.user_name, ' ', u.user_sur) AS user_name,
+                                CONCAT(s.staff_name, ' ', s.staff_sur) AS staff_name
                             FROM equipments_requests er
                             JOIN equipments e ON er.equip_id = e.equip_id
                             JOIN project p ON er.project_id = p.project_id
@@ -942,11 +953,12 @@ try {
 }
 
 // Ensure $detail_item is available and initialized for all scenarios where it might be used
-if ($main_tab == 'buildings_admin' && $mode == 'detail' && !isset($detail_item)) {
+if (($main_tab == 'buildings_admin' || $main_tab == 'equipments_admin') && $mode == 'detail' && !isset($detail_item)) {
     // This block helps if the initial fetch for $detail_item failed but $mode is still 'detail'
     $errors[] = "ไม่สามารถโหลดรายละเอียดคำร้องขอได้ โปรดลองอีกครั้ง.";
     $detail_item = []; // Initialize to an empty array to prevent further errors
 }
+
 
 $conn->close();
 
@@ -985,7 +997,7 @@ $total_pages = ceil($total_items / $items_per_page);
             </div>
             <div class="d-flex align-items-center ms-auto gap-2">
                 <div class="d-flex flex-column text-end">
-                    <span class="navbar-brand mb-0 fs-5 fs-md-4"><?php echo $staff_THname . ' ' . $staff_THsur; ?></span>
+                    <span class="navbar-brand mb-0 fs-5 fs-md-4"><?php echo $staff_name . ' ' . $staff_sur; ?></span>
                     <span class="navbar-brand mb-0 fs-6 fs-md-5"><?php echo $user_role; ?></span>
                 </div>
                 <a href="admin-profile-page.php">
@@ -1061,6 +1073,11 @@ $total_pages = ceil($total_items / $items_per_page);
                     <div class="col-md-auto">
                         <form id="dateFilterFormDashboard" class="d-inline-flex gap-2 align-items-center" action="" method="GET">
                             <input type="hidden" name="main_tab" value="<?php echo htmlspecialchars($main_tab); ?>">
+                            <!-- Keep chart sorting parameters if they are set, to be reapplied after date filter -->
+                            <?php if ($chart_sort_mode): ?><input type="hidden" name="chart_sort_mode" value="<?php echo htmlspecialchars($chart_sort_mode); ?>"><?php endif; ?>
+                            <?php if ($drilldown_type): ?><input type="hidden" name="drilldown_type" value="<?php echo htmlspecialchars($drilldown_type); ?>"><?php endif; ?>
+                            <?php if ($drilldown_id): ?><input type="hidden" name="drilldown_id" value="<?php echo htmlspecialchars($drilldown_id); ?>"><?php endif; ?>
+
 
                             <!-- ดรอปดาวน์สำหรับช่วงเวลาที่กำหนดไว้ล่วงหน้า -->
                             <select name="predefined_range" id="predefined_range_select" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
@@ -1075,7 +1092,7 @@ $total_pages = ceil($total_items / $items_per_page);
                             <select name="specific_year" id="specific_year_select" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
                                 <option value="">ปี</option>
                                 <?php for ($y = date('Y') + 1; $y >= 2021; $y--): ?>
-                                    <option value="<?php echo $y; ?>" <?php echo ($specific_year_select == $y) ? 'selected' : ''; ?>><?php echo $y; ?></option>
+                                    <option value="<?php echo $y; ?>" <?php echo ($specific_year_select == $y) ? 'selected' : ''; ?>><?php echo $y + 543; ?></option>
                                 <?php endfor; ?>
                             </select>
                             <select name="specific_month" id="specific_month_select" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
@@ -1097,18 +1114,35 @@ $total_pages = ceil($total_items / $items_per_page);
                                 <?php endfor; ?>
                             </select>
 
-                            <!-- เพิ่ม Dropdown สำหรับกรองตามคณะ -->
-                            <select name="fa_de_id" id="fa_de_id_select_dashboard" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+                            <!-- เพิ่ม Dropdown สำหรับกรองตามคณะ (ใช้สำหรับ dashboard cards และ Upcoming/Recent activity) -->
+                            <select name="fa_de_id_global" id="fa_de_id_select_dashboard" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
                                 <option value="">กรองตามคณะ...</option>
                                 <?php foreach ($faculties_for_chart_filter as $faculty): ?>
-                                    <option value="<?php echo $faculty['fa_de_id']; ?>" <?php echo ($fa_de_id_select == $faculty['fa_de_id']) ? 'selected' : ''; ?>>
+                                    <option value="<?php echo $faculty['fa_de_id']; ?>" <?php echo (($fa_de_id_filter_global ?? null) == $faculty['fa_de_id']) ? 'selected' : ''; ?>>
                                         <?php echo htmlspecialchars($faculty['fa_de_name']); ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>
 
-                            <?php if (!empty($predefined_range_select) || !empty($specific_year_select) || !empty($specific_month_select) || !empty($specific_day_select) || !empty($fa_de_id_select)): ?>
-                                <a href="?main_tab=<?php echo htmlspecialchars($main_tab); ?>" class="btn btn-outline-secondary btn-sm">ล้าง</a>
+                            <?php
+                                // Link to clear all date/global faculty filters, but keep chart-specific filters if active
+                                $clear_url_params = ['main_tab' => 'dashboard_admin'];
+                                // If chart_sort_mode is top_facilities or top_equipments, keep it (no drilldown anymore)
+                                if (in_array($chart_sort_mode, ['top_facilities', 'top_equipments'])) {
+                                    $clear_url_params['chart_sort_mode'] = $chart_sort_mode;
+                                }
+                                // If in a drilldown mode (accessed manually or old link), clear to its parent Top N view
+                                elseif ($chart_sort_mode === 'drilldown_facility_by_faculty') {
+                                    $clear_url_params['chart_sort_mode'] = 'top_facilities';
+                                } elseif ($chart_sort_mode === 'drilldown_equipment_by_faculty') {
+                                    $clear_url_params['chart_sort_mode'] = 'top_equipments';
+                                }
+                                // For 'faculty_overview' or any other state, just clear everything.
+                                
+                                $clear_url = '?' . http_build_query(array_filter($clear_url_params, fn($value) => $value !== null && $value !== ''));
+                            ?>
+                            <?php if (!empty($predefined_range_select) || !empty($specific_year_select) || !empty($specific_month_select) || !empty($specific_day_select) || !empty($fa_de_id_filter_global) || (in_array($chart_sort_mode, ['top_facilities', 'top_equipments'])) || ($drilldown_type && $drilldown_id)): ?>
+                                <a href="<?php echo $clear_url; ?>" class="btn btn-outline-secondary btn-sm">ล้าง</a>
                             <?php endif; ?>
                         </form>
                     </div>
@@ -1129,7 +1163,7 @@ $total_pages = ceil($total_items / $items_per_page);
                                     if (!empty($specific_year_select)) $link_params['specific_year'] = $specific_year_select;
                                     if (!empty($specific_month_select)) $link_params['specific_month'] = $specific_month_select;
                                     if (!empty($specific_day_select)) $link_params['specific_day'] = $specific_day_select;
-                                    if (!empty($fa_de_id_select)) $link_params['fa_de_id'] = $fa_de_id_select;
+                                    if (!empty($fa_de_id_filter_global)) $link_params['fa_de_id_global'] = $fa_de_id_filter_global; // ใช้ fa_de_id_global
                                 ?>
                                 <a href="?<?php echo http_build_query($link_params); ?>" class="stretched-link text-white text-decoration-none footer-text">ดูรายละเอียด <i class="bi bi-arrow-right"></i></a>
                             </div>
@@ -1149,7 +1183,7 @@ $total_pages = ceil($total_items / $items_per_page);
                                     if (!empty($specific_year_select)) $link_params['specific_year'] = $specific_year_select;
                                     if (!empty($specific_month_select)) $link_params['specific_month'] = $specific_month_select;
                                     if (!empty($specific_day_select)) $link_params['specific_day'] = $specific_day_select;
-                                    if (!empty($fa_de_id_select)) $link_params['fa_de_id'] = $fa_de_id_select;
+                                    if (!empty($fa_de_id_filter_global)) $link_params['fa_de_id_global'] = $fa_de_id_filter_global; // ใช้ fa_de_id_global
                                 ?>
                                 <a href="?<?php echo http_build_query($link_params); ?>" class="stretched-link text-white text-decoration-none footer-text">ดูรายละเอียด <i class="bi bi-arrow-right"></i></a>
                             </div>
@@ -1169,7 +1203,7 @@ $total_pages = ceil($total_items / $items_per_page);
                                     if (!empty($specific_year_select)) $link_params['specific_year'] = $specific_year_select;
                                     if (!empty($specific_month_select)) $link_params['specific_month'] = $specific_month_select;
                                     if (!empty($specific_day_select)) $link_params['specific_day'] = $specific_day_select;
-                                    if (!empty($fa_de_id_select)) $link_params['fa_de_id'] = $fa_de_id_select;
+                                    if (!empty($fa_de_id_filter_global)) $link_params['fa_de_id_global'] = $fa_de_id_filter_global; // ใช้ fa_de_id_global
                                 ?>
                                 <a href="?<?php echo http_build_query($link_params); ?>" class="stretched-link text-dark text-decoration-none footer-text">ดูรายละเอียด <i class="bi bi-arrow-right"></i></a>
                             </div>
@@ -1270,14 +1304,66 @@ $total_pages = ceil($total_items / $items_per_page);
                 <div class="row g-4 mb-4 screen-only">
                     <div class="col-12">
                         <div class="card h-100 shadow-sm p-4">
-                            <h4 class="mb-3">สถิติคำร้องและโครงการจำแนกตามคณะ</h4>
+                            <h4 class="mb-3" id="chartTitle"></h4> <!-- Dynamic title for chart -->
+                            <div class="d-flex justify-content-end mb-3 chart-sorting-controls">
+                                <form id="chartSortForm" class="d-inline-flex gap-2 align-items-center" action="" method="GET">
+                                    <input type="hidden" name="main_tab" value="<?php echo htmlspecialchars($main_tab); ?>">
+                                    <!-- Keep existing date/global faculty filters for continuity -->
+                                    <?php if (!empty($predefined_range_select)): ?><input type="hidden" name="predefined_range" value="<?php echo htmlspecialchars($predefined_range_select); ?>"><?php endif; ?>
+                                    <?php if (!empty($specific_year_select)): ?><input type="hidden" name="specific_year" value="<?php echo htmlspecialchars($specific_year_select); ?>"><?php endif; ?>
+                                    <?php if (!empty($specific_month_select)): ?><input type="hidden" name="specific_month" value="<?php echo htmlspecialchars($specific_month_select); ?>"><?php endif; ?>
+                                    <?php if (!empty($specific_day_select)): ?><input type="hidden" name="specific_day" value="<?php echo htmlspecialchars($specific_day_select); ?>"><?php endif; ?>
+                                    <?php if (!empty($fa_de_id_filter_global)): ?><input type="hidden" name="fa_de_id_global" value="<?php echo htmlspecialchars($fa_de_id_filter_global); ?>"><?php endif; ?>
+                                    <!-- drilldown parameters are not needed for this form's submission, as changing chart_sort_mode implies clearing them -->
+
+                                    <label for="chart_sort_mode_select" class="form-label mb-0">จำแนกตาม:</label>
+                                    <select name="chart_sort_mode" id="chart_sort_mode_select" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+                                        <option value="faculty_overview" <?php echo ($chart_sort_mode == 'faculty_overview') ? 'selected' : ''; ?>>คณะ</option>
+                                        <option value="top_facilities" <?php echo ($chart_sort_mode == 'top_facilities') ? 'selected' : ''; ?>>อาคารสถานที่ 10 อันดับแรก</option>
+                                        <option value="top_equipments" <?php echo ($chart_sort_mode == 'top_equipments') ? 'selected' : ''; ?>>อุปกรณ์ 10 อันดับแรก</option>
+                                    </select>
+                                    <?php
+                                        // Generate back button URL based on current drilldown state
+                                        $back_button_url_parts = [
+                                            'main_tab' => 'dashboard_admin',
+                                            'predefined_range' => $predefined_range_select,
+                                            'specific_year' => $specific_year_select,
+                                            'specific_month' => $specific_month_select,
+                                            'specific_day' => $specific_day_select,
+                                            'fa_de_id_global' => $fa_de_id_filter_global,
+                                        ];
+
+                                        // The back button should only appear if the chart_sort_mode is a 'drilldown'
+                                        // which is not triggered by UI clicks anymore, but could be accessed via URL
+                                        if (in_array($chart_sort_mode, ['drilldown_facility_by_faculty', 'drilldown_equipment_by_faculty'])) {
+                                            // Go back to the corresponding top-level view
+                                            $back_button_url_parts['chart_sort_mode'] = ($chart_sort_mode === 'drilldown_facility_by_faculty') ? 'top_facilities' : 'top_equipments';
+                                        } else {
+                                            // If not in a drilldown mode, ensure drilldown params are cleared and back button doesn't show
+                                            unset($back_button_url_parts['drilldown_type']);
+                                            unset($back_button_url_parts['drilldown_id']);
+                                        }
+
+                                        // Filter out null/empty values for cleaner URL
+                                        $back_button_url_parts = array_filter($back_button_url_parts, function($value) {
+                                            return $value !== null && $value !== '';
+                                        });
+
+                                        $back_button_url = '?' . http_build_query($back_button_url_parts);
+                                    ?>
+                                    <?php if (in_array($chart_sort_mode, ['drilldown_facility_by_faculty', 'drilldown_equipment_by_faculty'])): // Show back button only if in a drilldown state ?>
+                                        <a href="<?php echo htmlspecialchars($back_button_url); ?>" class="btn btn-outline-secondary btn-sm">
+                                            <i class="bi bi-arrow-left"></i> ย้อนกลับ
+                                        </a>
+                                    <?php endif; ?>
+                                </form>
+                            </div>
                             <div style="height: 400px;"><!-- กำหนดความสูงเพื่อให้กราฟแสดงผลได้ดี -->
-                                <canvas id="facultyRequestsChart"></canvas>
+                                <canvas id="dashboardChartCanvas"></canvas>
                             </div>
                         </div>
                     </div>
                 </div>
-
 
             <?php elseif ($mode == 'list'): ?>
                 <h1 class="mb-4">
@@ -1352,11 +1438,11 @@ $total_pages = ceil($total_items / $items_per_page);
                             <?php endfor; ?>
                         </select>
                         
-                        <!-- เพิ่ม Dropdown สำหรับกรองตามคณะ -->
-                        <select name="fa_de_id" id="fa_de_id_select_list" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+                        <!-- เพิ่ม Dropdown สำหรับกรองตามคณะ (ใช้สำหรับ list views) -->
+                        <select name="fa_de_id_global" id="fa_de_id_select_list" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
                             <option value="">กรองตามคณะ...</option>
                             <?php foreach ($faculties_for_chart_filter as $faculty): ?>
-                                <option value="<?php echo $faculty['fa_de_id']; ?>" <?php echo ($fa_de_id_select == $faculty['fa_de_id']) ? 'selected' : ''; ?>>
+                                <option value="<?php echo $faculty['fa_de_id']; ?>" <?php echo (($fa_de_id_filter_global ?? null) == $faculty['fa_de_id']) ? 'selected' : ''; ?>>
                                     <?php echo htmlspecialchars($faculty['fa_de_name']); ?>
                                 </option>
                             <?php endforeach; ?>
@@ -1365,7 +1451,7 @@ $total_pages = ceil($total_items / $items_per_page);
                         <?php
                         // สร้าง URL สำหรับปุ่ม 'ล้าง' ทั้งหมด
                         $clear_all_params = ['main_tab' => $main_tab, 'mode' => 'list'];
-                        if (!empty($search_query) || !empty($_GET['sort_filter']) || !empty($predefined_range_select) || !empty($specific_year_select) || !empty($specific_month_select) || !empty($specific_day_select) || !empty($fa_de_id_select)): ?>
+                        if (!empty($search_query) || !empty($_GET['sort_filter']) || !empty($predefined_range_select) || !empty($specific_year_select) || !empty($specific_month_select) || !empty($specific_day_select) || !empty($fa_de_id_filter_global)): ?>
                             <a href="?<?php echo http_build_query($clear_all_params); ?>" class="btn btn-outline-secondary btn-sm">ล้างทั้งหมด</a>
                         <?php endif; ?>
                     </form>
@@ -1518,8 +1604,8 @@ $total_pages = ceil($total_items / $items_per_page);
                                 $date_filter_params_for_pagination .= '&specific_day=' . urlencode($specific_day_select);
                             }
                             // เพิ่มพารามิเตอร์สำหรับ Faculty Filtering
-                            if (!empty($fa_de_id_select)) {
-                                $date_filter_params_for_pagination .= '&fa_de_id=' . urlencode($fa_de_id_select);
+                            if (!empty($fa_de_id_filter_global)) { // ใช้ fa_de_id_filter_global
+                                $date_filter_params_for_pagination .= '&fa_de_id_global=' . urlencode($fa_de_id_filter_global);
                             }
                             // --- จบการเพิ่มพารามิเตอร์สำหรับ Date Filtering ---
                             ?>
@@ -1534,7 +1620,7 @@ $total_pages = ceil($total_items / $items_per_page);
                                 <li class="page-item <?php echo ($i == $current_page) ? 'active' : ''; ?>">
                                     <a class="page-link" href="?main_tab=<?php echo htmlspecialchars($main_tab); ?>&mode=list&page=<?php echo $i; ?><?php echo $search_param; ?><?php echo $sort_param; ?><?php echo $date_filter_params_for_pagination; ?>"><?php echo $i; ?></a>
                                 </li>
-                            <?php endfor; ?>
+                            <?php endfor; ?> <!-- Corrected from endif; to endfor; -->
                         </ul>
                     </nav>
                 <?php endif; ?>
@@ -1669,13 +1755,6 @@ $total_pages = ceil($total_items / $items_per_page);
                         </div>
                     </div><!-- End of screen-only card -->
 
-                    <!-- Print-only section for Facility Request details is entirely removed -->
-                    <div class="print-only">
-                         <div class="alert alert-info">
-                            หน้านี้จะไม่มีเนื้อหาแสดงในโหมดพิมพ์แล้ว, โปรดใช้ปุ่ม "พิมพ์รายงาน" ด้านล่างเพื่อไปยังหน้าพิมพ์เฉพาะ
-                        </div>
-                    </div>
-
                 <?php elseif ($main_tab == 'equipments_admin'): ?>
                     <h2 class="mb-4 screen-only">รายละเอียดคำร้องขอใช้อุปกรณ์สำหรับโครงการ: <?php echo htmlspecialchars($detail_item['project_name']); ?></h2>
                     <div class="card shadow-sm p-4 admin-details screen-only">
@@ -1717,16 +1796,8 @@ $total_pages = ceil($total_items / $items_per_page);
                         </div>
                     </div><!-- End of screen-only card -->
 
-                    <!-- Print-only section for Equipment Request details is entirely removed -->
-                    <div class="print-only">
-                         <div class="alert alert-info">
-                            หน้านี้จะไม่มีเนื้อหาแสดงในโหมดพิมพ์แล้ว, โปรดใช้ปุ่ม "พิมพ์รายงาน" ด้านล่างเพื่อไปยังหน้าพิมพ์เฉพาะ
-                        </div>
-                    </div>
-
                 <?php endif; // Closes if ($main_tab == 'projects_admin') / elseif ($main_tab == 'buildings_admin') / elseif ($main_tab == 'equipments_admin') ?>
 
-                <?php // The approval/rejection buttons and modals should only appear for buildings_admin and equipments_admin ?>
                 <?php if ($main_tab == 'buildings_admin' || $main_tab == 'equipments_admin'): ?>
                     <div class="d-flex justify-content-between mt-4 screen-only">
                         <div>
@@ -1737,12 +1808,12 @@ $total_pages = ceil($total_items / $items_per_page);
                             </a>
                             <!-- เปลี่ยนปุ่มพิมพ์สำหรับ Buildings Admin -->
                             <?php if ($main_tab == 'buildings_admin' && $detail_item): ?>
-                                <a href="admin-print-page.php?id=<?php echo htmlspecialchars($detail_item['facility_re_id']); ?>" target="_blank" class="btn btn-info me-2">
+                                <a href="admin-print-page.php?id=<?php echo htmlspecialchars($detail_item['facility_re_id']); ?>&type=facility" target="_blank" class="btn btn-info me-2">
                                     <i class="bi bi-printer"></i> พิมพ์รายงาน
                                 </a>
                             <?php elseif ($main_tab == 'equipments_admin' && $detail_item): ?>
-                                <!-- เพิ่มลิงก์สำหรับ Equipments Admin ด้วย ถ้าคุณจะสร้าง admin-print-equip-page.php -->
-                                <a href="admin-print-equip-page.php?id=<?php echo htmlspecialchars($detail_item['equip_re_id']); ?>" target="_blank" class="btn btn-info me-2">
+                                <!-- แก้ไขลิงก์สำหรับ Equipments Admin ให้ชี้ไปที่ admin-print-page.php พร้อมพารามิเตอร์ type=equipment -->
+                                <a href="admin-print-page.php?id=<?php echo htmlspecialchars($detail_item['equip_re_id']); ?>&type=equipment" target="_blank" class="btn btn-info me-2">
                                     <i class="bi bi-printer"></i> พิมพ์รายงาน
                                 </a>
                             <?php else: ?>
@@ -1831,4 +1902,3 @@ $total_pages = ceil($total_items / $items_per_page);
 <script src="./js/chart.js"></script>
 </body>
 </html>
-

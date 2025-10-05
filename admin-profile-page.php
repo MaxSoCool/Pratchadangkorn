@@ -7,8 +7,8 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
 }
 
 $user_id = htmlspecialchars($_SESSION['staff_id'] ?? null);
-$staff_THname = htmlspecialchars($_SESSION['user_display_THname'] ?? null);
-$staff_THsur = htmlspecialchars($_SESSION['user_display_THsur'] ?? null);
+$staff_name = htmlspecialchars($_SESSION['user_display_name'] ?? null);
+$staff_sur = htmlspecialchars($_SESSION['user_display_sur'] ?? null);
 $user_role = htmlspecialchars($_SESSION['role'] ?? null);
 
 ?>
@@ -35,7 +35,7 @@ $user_role = htmlspecialchars($_SESSION['role'] ?? null);
             </div>
             <div class="d-flex align-items-center ms-auto gap-2">
                 <div class="d-flex flex-column text-end">
-                    <span class="navbar-brand mb-0 fs-5 fs-md-4"><?php echo $staff_THname . ' ' . $staff_THsur; ?></span>
+                    <span class="navbar-brand mb-0 fs-5 fs-md-4"><?php echo $staff_name . ' ' . $staff_sur; ?></span>
                     <span class="navbar-brand mb-0 fs-6 fs-md-5"><?php echo $user_role; ?></span>
                 </div>
                 <img src="./images/user_button.png" class="img-fluid logo" style="width:40px; height:40px; object-fit:cover;" alt="User Button">
@@ -50,8 +50,8 @@ $user_role = htmlspecialchars($_SESSION['role'] ?? null);
                     <h2 class="mb-4">ข้อมูลผู้ใช้ KU-ALL</h2>
                     <div class="profile-info">
                         <p><strong>ชื่อผู้ใช้:</strong> <?php echo $user_id; ?></p>
-                        <p><strong>ชื่อ (ไทย):</strong> <?php echo $staff_THname; ?></p>
-                        <p><strong>นามสกุล (ไทย):</strong> <?php echo $staff_THsur; ?></p>
+                        <p><strong>ชื่อ (ไทย):</strong> <?php echo $staff_name; ?></p>
+                        <p><strong>นามสกุล (ไทย):</strong> <?php echo $staff_sur; ?></p>
                         <p><strong>ประเภทผู้ใช้:</strong> <?php echo $user_role; ?></p>
                     </div>
                     <hr>
