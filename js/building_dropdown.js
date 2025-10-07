@@ -1,4 +1,4 @@
-console.log("building_dropdown.js loaded and executing. v2");
+console.log("building_dropdown.js loaded and executing. v3"); // Updated version for debugging
 
 document.addEventListener('DOMContentLoaded', function() {
     // --- Modal Status Display Logic (keep as is) ---
@@ -35,8 +35,171 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-
     // phpCurrentMode and phpCurrentMainTab are assumed to be globally available from PHP injection
+
+    // --- Date Validation Logic ---
+    // Store project dates for client-side validation
+    let projectValidationDates = {
+        start_date: null,
+        end_date: null
+    };
+
+    const form = document.querySelector('form[action*="buildings"], form[action*="equipments"]');
+    const projectIdSelect = form ? form.querySelector('#project_id') : null;
+
+    // Helper function to fetch project dates
+    async function fetchProjectDates(projectId) {
+        if (!projectId) {
+            projectValidationDates = { start_date: null, end_date: null };
+            return;
+        }
+
+        try {
+            const response = await fetch(`?main_tab=${phpCurrentMainTab}&action=get_project_dates&project_id=${projectId}`);
+            if (!response.ok) {
+                throw new Error('Network response was not ok ' + response.statusText);
+            }
+            const data = await response.json();
+            projectValidationDates = {
+                start_date: data.start_date,
+                end_date: data.end_date
+            };
+            console.log("Fetched project dates:", projectValidationDates);
+        } catch (error) {
+            console.error('Error fetching project dates:', error);
+            projectValidationDates = { start_date: null, end_date: null };
+        }
+    }
+
+    // Helper function for date validation
+    function validateDateInput(inputElement) {
+        const dateValue = inputElement.value;
+        const inputId = inputElement.id;
+        let errorMessage = '';
+
+        // Only validate against project dates if a date is actually entered
+        if (!dateValue) {
+            clearValidationError(inputElement);
+            return true;
+        }
+
+        if (projectValidationDates.start_date && projectValidationDates.end_date) {
+            const projectStartDate = new Date(projectValidationDates.start_date);
+            const projectEndDate = new Date(projectValidationDates.end_date);
+            const requestDate = new Date(dateValue);
+
+            if (requestDate < projectStartDate || requestDate > projectEndDate) {
+                const dateType = inputId.includes('prepare_') ? 'เตรียมการ' : 'ใช้งาน';
+                errorMessage = `วันที่${dateType}ต้องอยู่ภายในช่วงเวลาของโครงการ (${projectValidationDates.start_date} ถึง ${projectValidationDates.end_date})`;
+                showValidationError(inputElement, errorMessage);
+                return false;
+            }
+        } else if (projectIdSelect && projectIdSelect.value) {
+            // Project selected but dates not loaded yet (or error in loading)
+            errorMessage = 'ไม่สามารถตรวจสอบวันที่โครงการได้ กรุณาลองเลือกโครงการใหม่อีกครั้ง';
+            showValidationError(inputElement, errorMessage);
+            return false;
+        }
+
+        clearValidationError(inputElement);
+        return true;
+    }
+
+    function showValidationError(inputElement, message) {
+        let errorDiv = inputElement.nextElementSibling;
+        if (!errorDiv || !errorDiv.classList.contains('invalid-feedback')) {
+            errorDiv = document.createElement('div');
+            errorDiv.classList.add('invalid-feedback');
+            // Insert after the input element, but before the next sibling if it's not the error div
+            inputElement.parentNode.insertBefore(errorDiv, inputElement.nextSibling);
+        }
+        errorDiv.textContent = message;
+        inputElement.classList.add('is-invalid');
+    }
+
+    function clearValidationError(inputElement) {
+        inputElement.classList.remove('is-invalid');
+        const errorDiv = inputElement.nextElementSibling;
+        if (errorDiv && errorDiv.classList.contains('invalid-feedback')) {
+            errorDiv.remove();
+        }
+    }
+
+    if (form && projectIdSelect) {
+        const dateInputs = form.querySelectorAll('input[type="date"]');
+
+        projectIdSelect.addEventListener('change', async function() {
+            await fetchProjectDates(this.value);
+            // Re-validate all date inputs after project dates are loaded/changed
+            dateInputs.forEach(input => validateDateInput(input));
+        });
+
+        dateInputs.forEach(input => {
+            input.addEventListener('change', function() {
+                validateDateInput(this);
+            });
+            input.addEventListener('blur', function() { // Also validate on blur
+                validateDateInput(this);
+            });
+        });
+
+        // Initial load for edit forms: Get project dates from data attributes
+        if (phpCurrentMode === 'buildings_edit' || phpCurrentMode === 'equipments_edit') {
+            const initialProjectStartDate = form.dataset.projectStartDate;
+            const initialProjectEndDate = form.dataset.projectEndDate;
+            if (initialProjectStartDate && initialProjectEndDate) {
+                projectValidationDates = {
+                    start_date: initialProjectStartDate,
+                    end_date: initialProjectEndDate
+                };
+                console.log("JS Debug: Initial project dates from form data attribute:", projectValidationDates);
+                // After setting initial dates, immediately validate existing date inputs
+                dateInputs.forEach(input => validateDateInput(input));
+            } else if (projectIdSelect.value) {
+                // If no data attributes, but project is selected, fetch dates
+                fetchProjectDates(projectIdSelect.value).then(() => {
+                    dateInputs.forEach(input => validateDateInput(input));
+                });
+            }
+        } else if (projectIdSelect.value) { // For create form with initial project selection (e.g., after POST-back)
+            fetchProjectDates(projectIdSelect.value).then(() => {
+                dateInputs.forEach(input => validateDateInput(input));
+            });
+        }
+
+
+        // Prevent form submission if any date input has an error or disabled option is selected
+        form.addEventListener('submit', function(event) {
+            let hasError = false;
+
+            // Validate all date inputs
+            dateInputs.forEach(input => {
+                if (!validateDateInput(input)) {
+                    hasError = true;
+                }
+            });
+
+            // Check if any disabled dropdown option (that is *not* a placeholder) is selected
+            const allSelects = form.querySelectorAll('select');
+            allSelects.forEach(select => {
+                const selectedOption = select.options[select.selectedIndex];
+                if (selectedOption && selectedOption.disabled && selectedOption.value !== "") { // Check if disabled and has a value
+                    showValidationError(select, 'ตัวเลือกนี้ไม่พร้อมใช้งาน');
+                    hasError = true;
+                } else {
+                    clearValidationError(select); // Clear if it was an error before
+                }
+            });
+
+
+            if (hasError) {
+                event.preventDefault();
+                event.stopPropagation();
+                alert('โปรดแก้ไขข้อผิดพลาดในการกรอกข้อมูลวันที่หรือเลือกตัวเลือกที่ไม่พร้อมใช้งานก่อนบันทึก/ส่งคำร้อง.');
+            }
+        });
+    }
+
 
     // --- Logic for Equipment Requests (Project -> Facilities) ---
     const equipProjectIdSelect = document.querySelector('form[action*="equipments"] #project_id');
@@ -70,6 +233,10 @@ document.addEventListener('DOMContentLoaded', function() {
                             const option = document.createElement('option');
                             option.value = facility.facility_id;
                             option.textContent = facility.facility_name;
+                            if (facility.available === 'no') {
+                                option.disabled = true;
+                                option.textContent += ' (ไม่พร้อมใช้งาน)';
+                            }
                             if (initialFacilityId && facility.facility_id == initialFacilityId) {
                                 option.selected = true;
                             }
@@ -90,7 +257,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         const initialEquipProjectId = equipProjectIdSelect.value;
-        const initialEquipFacilityId = equipFacilityIdSelect.dataset.initialFacilityId;
+        const initialEquipFacilityId = equipFacilityIdSelect.dataset.initialFacilityId; // Corrected to use data-initial-facility-id
         if (initialEquipProjectId) {
             loadEquipFacilitiesForProject(initialEquipProjectId, initialEquipFacilityId);
         } else {
@@ -130,6 +297,10 @@ document.addEventListener('DOMContentLoaded', function() {
                             const option = document.createElement('option');
                             option.value = facility.facility_id;
                             option.textContent = facility.facility_name;
+                            if (facility.available === 'no') {
+                                option.disabled = true;
+                                option.textContent += ' (ไม่พร้อมใช้งาน)';
+                            }
                             // Check if this facility should be selected
                             if (facilityToSelect && facility.facility_id == facilityToSelect) {
                                 option.selected = true;
@@ -166,7 +337,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 else if (phpCurrentMode === 'buildings_create') {
                     facilityToSelect = facilityIdSelect.dataset.initialFacilityIdFromPost;
                 }
-                
+
                 console.log(`JS Debug (Building): Calling loadFacilitiesByBuilding with building=${currentlySelectedBuilding}, facilityToSelect=${facilityToSelect}`);
                 loadFacilitiesByBuilding(currentlySelectedBuilding, facilityToSelect);
             } else {
@@ -174,7 +345,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.log("JS Debug (Building): No building selected initially. Facility dropdown is disabled.");
             }
         }
-        
+
         // Run the initialization function
         initializeBuildingForm();
     }

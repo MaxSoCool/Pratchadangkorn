@@ -6,7 +6,7 @@ function getCalendarEventsAsJson($db_conn, $view_mode = 'buildings', $building_i
         return json_encode([]);
     }
     $events = [];
-    $sql = "SELECT p.project_name, b.building_name, b.building_id, f.facility_name, fr.start_date, fr.end_date, fr.start_time, fr.end_time, CONCAT(u.user_THname, ' ', u.user_THsur) AS user_full_name, fr.approve, fr.writed_status, fr.request_date
+    $sql = "SELECT p.project_name, b.building_name, b.building_id, f.facility_name, fr.start_date, fr.end_date, fr.start_time, fr.end_time, CONCAT(u.user_name, ' ', u.user_sur) AS user_full_name, fr.approve, fr.writed_status, fr.request_date
             FROM facilities_requests fr
             JOIN project p ON fr.project_id = p.project_id
             JOIN facilities f ON fr.facility_id = f.facility_id
@@ -104,7 +104,7 @@ $calendar_events_json = getCalendarEventsAsJson($conn, $calendar_mode, $building
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body list-text">
                 <div id="bookingCalendar"></div>
             </div>
             <!-- Modal Footer -->
@@ -123,4 +123,4 @@ $calendar_events_json = getCalendarEventsAsJson($conn, $calendar_mode, $building
 <script>
     window.calendarEvents = <?php echo $calendar_events_json; ?>;
 </script>
-<script src="calendar.js"></script>
+<script src="../js/calendar.js"></script>

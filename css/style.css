@@ -384,9 +384,11 @@ h1 {
 }
 
 /* Color definitions using classes */
-.event-approved { background-color: #198754 !important; }
-.event-rejected { background-color: #dc3545 !important; }
-.event-pending { background-color: #6c757d !important; }
+.event-approved { background-color: #198754 !important; color: #fff; } /* เพิ่ม color: #fff; เพื่อให้อ่านง่าย */
+.event-rejected { background-color: #dc3545 !important; color: #fff; } /* เพิ่ม color: #fff; */
+.event-pending { background-color: #17a2b8 !important; color: #212529; } /* เพิ่ม color: #fff; */
+.event-in-progress { background-color: #ffc107 !important; color: #212529; } /* สีเหลือง มักจะใช้ text สีดำ */
+.event-completed { background-color: #6c757d !important; color: #fff; } /* เพิ่ม color: #fff; */
 
 /* Bootstrap Popover Customization */
 .popover {
@@ -626,4 +628,10 @@ h1 {
     max-width: 100%;
     max-height: 100%; /* ทำให้ canvas ไม่เกิน container */
     display: block; /* ลบช่องว่างที่อาจเกิดขึ้นด้านล่าง canvas */
+}
+
+.containter-size{
+    max-width: 2480px;
+    max-height: 3508px;
+    margin: auto;
 }

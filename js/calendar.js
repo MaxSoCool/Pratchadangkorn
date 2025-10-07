@@ -32,7 +32,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // สร้าง HTML Content สำหรับ Popover
                 const contentHtml = `
-                    <div class="fw-bold calendar-pro mb-2">${props.projectName}</div>
+                    <div class="fw-bold calendar-pro mb-2 inbox-text">${props.projectName}</div>
                     <p class="mb-1"><i class="bi bi-building me-2"></i><strong>อาคาร:</strong> ${props.buildingName}</p>
                     <p class="mb-1"><i class="bi bi-geo-alt-fill me-2"></i><strong>สถานที่:</strong> ${props.facilityName}</p>
                     <p class="mb-1"><i class="bi bi-clock-fill me-2"></i><strong>เวลา:</strong> ${props.timeRange}</p>
