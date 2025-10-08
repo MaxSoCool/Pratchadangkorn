@@ -1,7 +1,6 @@
 <?php
 session_start();
 
-// ตรวจสอบสถานะการ Login และ Role
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true || $_SESSION['role'] !== 'เจ้าหน้าที่') {
     header("Location: login.php");
     exit();
@@ -643,33 +642,9 @@ try {
                 $stmt_fr_summary->close();
 
                 // Fetch FULL details of facilities requests for PRINTING
-                $detailed_project_facility_requests = [];
-                foreach ($project_facility_requests as $summary_fr) {
-                    $fr_id = $summary_fr['facility_re_id'];
-                    $sql_fr_print_detail = "SELECT
-                                fr.facility_re_id, fr.project_id, fr.prepare_start_time, fr.prepare_end_time,
-                                fr.prepare_start_date, fr.prepare_end_date, fr.start_time, fr.end_time,
-                                fr.start_date , fr.end_date , fr.agree,
-                                fr.writed_status, fr.request_date, fr.approve, fr.approve_date, fr.approve_detail,
-                                f.facility_name, p.project_name, CONCAT(u.user_name, ' ', u.user_sur) AS user_name,
-                                CONCAT(s.staff_name, ' ', s.staff_sur) AS staff_name
-                            FROM facilities_requests fr
-                            JOIN facilities f ON fr.facility_id = f.facility_id
-                            JOIN project p ON fr.project_id = p.project_id
-                            LEFT JOIN user u ON p.nontri_id = u.nontri_id
-                            LEFT JOIN staff s ON fr.staff_id = s.staff_id
-                            WHERE fr.facility_re_id = ?";
-                    $stmt_fr_print = $conn->prepare($sql_fr_print_detail);
-                    if ($stmt_fr_print) {
-                        $stmt_fr_print->bind_param("i", $fr_id);
-                        $stmt_fr_print->execute();
-                        $detailed_fr_item = $stmt_fr_print->get_result()->fetch_assoc();
-                        if ($detailed_fr_item) {
-                            $detailed_project_facility_requests[] = $detailed_fr_item;
-                        }
-                        $stmt_fr_print->close();
-                    }
-                }
+                // This block is for screen display. Full print details are handled by admin-print-page.php directly.
+                $detailed_project_facility_requests = []; // Keep this empty or remove if not needed for screen
+                // foreach ($project_facility_requests as $summary_fr) { ... } // Removed or commented out
 
                 // Fetch summary of equipment requests for display (on-screen)
                 $project_equipment_requests = [];
@@ -688,32 +663,9 @@ try {
                 $stmt_er_summary->close();
 
                 // Fetch FULL details of equipment requests for PRINTING
-                $detailed_project_equipment_requests = [];
-                foreach ($project_equipment_requests as $summary_er) {
-                    $er_id = $summary_er['equip_re_id'];
-                    $sql_er_print_detail = "SELECT
-                                er.equip_re_id, er.project_id, er.start_date, er.end_date, er.quantity, er.transport,
-                                er.writed_status, er.request_date, er.approve, er.approve_date, er.approve_detail, er.agree,
-                                e.equip_name, e.measure, f.facility_name, p.project_name, CONCAT(u.user_name, ' ', u.user_sur) AS user_name,
-                                CONCAT(s.staff_name, ' ', s.staff_sur) AS staff_name
-                            FROM equipments_requests er
-                            JOIN equipments e ON er.equip_id = e.equip_id
-                            JOIN project p ON er.project_id = p.project_id
-                            LEFT JOIN facilities f ON er.facility_id = f.facility_id
-                            LEFT JOIN user u ON p.nontri_id = u.nontri_id
-                            LEFT JOIN staff s ON er.staff_id = s.staff_id
-                            WHERE er.equip_re_id = ?";
-                    $stmt_er_print = $conn->prepare($sql_er_print_detail);
-                    if ($stmt_er_print) {
-                        $stmt_er_print->bind_param("i", $er_id);
-                        $stmt_er_print->execute();
-                        $detailed_er_item = $stmt_er_print->get_result()->fetch_assoc();
-                        if ($detailed_er_item) {
-                            $detailed_project_equipment_requests[] = $detailed_er_item;
-                        }
-                        $stmt_er_print->close();
-                    }
-                }
+                // This block is for screen display. Full print details are handled by admin-print-page.php directly.
+                $detailed_project_equipment_requests = []; // Keep this empty or remove if not needed for screen
+                // foreach ($project_equipment_requests as $summary_er) { ... } // Removed or commented out
             }
         }
     } elseif ($main_tab == 'buildings_admin') {
@@ -978,6 +930,14 @@ $total_pages = ceil($total_items / $items_per_page);
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap" rel="stylesheet">
 
     <!-- ลบ CSS ที่เกี่ยวข้องกับการพิมพ์ออกจากส่วนนี้ -->
+    <style>
+        /* CSS ที่ใช้สำหรับหน้าจอเท่านั้น (ซ่อนเมื่อพิมพ์) */
+        @media print {
+            .screen-only {
+                display: none !important;
+            }
+        }
+    </style>
 </head>
 <body class="admin-body">
     <nav class="navbar navbar-dark navigator screen-only">
@@ -1664,9 +1624,10 @@ $total_pages = ceil($total_items / $items_per_page);
                             onclick="if(this.getAttribute('href') === '#'){ history.back(); return false; }">
                                 ย้อนกลับ
                             </a>
-                            <button type="button" class="btn btn-info me-2" onclick="window.print()">
-                                <i class="bi bi-printer"></i> พิมพ์รายงาน
-                            </button>
+                            <!-- เพิ่มปุ่มนี้: พิมพ์คำร้องทั้งหมดที่เกี่ยวข้องกับโครงการ -->
+                            <a href="admin-print-page.php?project_id=<?php echo htmlspecialchars($detail_item['project_id']); ?>&print_all=true" target="_blank" class="btn btn-info me-2">
+                                <i class="bi bi-printer"></i> พิมพ์คำร้องทั้งหมด
+                            </a>
                         </div>
 
                         <h4 class="mt-4 mb-3 screen-only">คำร้องขอใช้สถานที่ที่เกี่ยวข้อง (สรุป)</h4>
@@ -1711,8 +1672,6 @@ $total_pages = ceil($total_items / $items_per_page);
                             </ul>
                         <?php endif; ?>
                     </div><!-- End of screen-only card -->
-
-                    <!-- Print-only section for Project related requests is entirely removed -->
 
                 <?php elseif ($main_tab == 'buildings_admin'): ?>
                     <h2 class="mb-4 screen-only">รายละเอียดคำร้องขอใช้สถานที่สำหรับโครงการ: <?php echo htmlspecialchars($detail_item['project_name']); ?></h2>
