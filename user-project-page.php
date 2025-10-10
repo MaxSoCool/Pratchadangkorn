@@ -33,6 +33,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_facilities_by_building' &&
             $stmt->close();
         } else {
             error_log("AJAX SQL Error (get_facilities_by_building): " . $conn->error);
+            echo json_encode(['error' => 'Database error: ' . $conn->error]);
         }
     }
     echo json_encode($facilities_in_building);
@@ -66,6 +67,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_facilities_by_project' && 
             $stmt->close();
         } else {
             error_log("AJAX SQL Error (get_facilities_by_project): " . $conn->error);
+            echo json_encode(['error' => 'Database error: ' . $conn->error]);
         }
     }
     echo json_encode($facilities_for_project);
@@ -93,6 +95,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_project_dates' && isset($_
             $stmt->close();
         } else {
             error_log("AJAX SQL Error (get_project_dates): " . $conn->error);
+            echo json_encode(['error' => 'Database error: ' . $conn->error]);
         }
     }
     echo json_encode($project_dates);
@@ -114,8 +117,8 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : 'projects_list';
 
 $data = [];
 $detail_item = null;
-$errors = [];
-$success_message = '';
+$errors = []; // This array will hold client-side validation errors, displayed in a top alert.
+$success_message = ''; // Not used directly for page display anymore, only for URL param.
 
 $project_files_upload_dir = 'uploads/files/';
 if (!is_dir($project_files_upload_dir)) {
@@ -148,7 +151,7 @@ function uploadFile($file_input_name, $target_dir, &$errors, $allowed_ext = ['jp
             return false;
         }
     } elseif (isset($_FILES[$file_input_name]) && $_FILES[$file_input_name]['error'] != UPLOAD_ERR_NO_FILE) {
-        $errors[] = "เกิดข้อผิดพลาดในการอัปโหลดไฟล์ " . $file_input_name . ": Error Code " . $_FILES[$file_input_name]['error'];
+        $errors[] = "เกิดข้อผิดพลาดในการอัปโหลดไฟล์ " . $_FILES[$file_input_name]['name'] . ": Error Code " . $_FILES[$file_input_name]['error'];
         return false;
     }
     return null;
@@ -156,7 +159,6 @@ function uploadFile($file_input_name, $target_dir, &$errors, $allowed_ext = ['jp
 
 function handleMultipleFileUploads($file_input_name, $target_dir, &$errors, $allowed_ext = ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx', 'xls', 'xlsx']) {
     $uploaded_paths = [];
-    // Check if files were actually uploaded for this input name and it's an array (due to `multiple` attribute)
     if (isset($_FILES[$file_input_name]) && is_array($_FILES[$file_input_name]['name'])) {
         $file_names = $_FILES[$file_input_name]['name'];
         $file_tmp_names = $_FILES[$file_input_name]['tmp_name'];
@@ -170,29 +172,28 @@ function handleMultipleFileUploads($file_input_name, $target_dir, &$errors, $all
 
                 if (!in_array($file_ext, $allowed_ext)) {
                     $errors[] = "ประเภทไฟล์สำหรับ " . $file_name . " ไม่ถูกต้อง (ประเภทไฟล์ที่อนุญาต: " . implode(', ', $allowed_ext) . ")";
-                    continue; // Skip this file and try the next
+                    continue;
                 }
 
                 if ($file_sizes[$i] > 10 * 1024 * 1024) { // 10 MB
                     $errors[] = "ขนาดไฟล์สำหรับ " . $file_name . " ต้องมีขนาดไม่เกิน 10 MB เท่านั้น.";
-                    continue; // Skip this file
+                    continue;
                 }
 
-                $new_file_name = uniqid() . '.' . $file_ext; // Generate unique filename
+                $new_file_name = uniqid() . '.' . $file_ext;
                 $upload_path = $target_dir . $new_file_name;
 
                 if (move_uploaded_file($file_tmp_names[$i], $upload_path)) {
-                    $uploaded_paths[] = $upload_path; // Store the full path
+                    $uploaded_paths[] = $upload_path;
                 } else {
                     $errors[] = "เกิดข้อผิดพลาดในการอัปโหลดไฟล์ " . $file_name . ": Error Code " . $file_errors[$i];
                 }
             } elseif ($file_errors[$i] != UPLOAD_ERR_NO_FILE) {
-                // Only log/show error if it's not simply "no file was uploaded"
                 $errors[] = "เกิดข้อผิดพลาดในการอัปโหลดไฟล์ " . $file_names[$i] . ": Error Code " . $file_errors[$i];
             }
         }
     }
-    return $uploaded_paths; // Returns an array of paths or an empty array
+    return $uploaded_paths;
 }
 
 // Helper function for Server-Side Date Validation against Project Dates
@@ -232,26 +233,26 @@ function getStatusBadgeClass($status_text, $approve_status = null) {
         return 'bg-success';
     } elseif ($approve_status === 'ไม่อนุมัติ') {
         return 'bg-danger';
-    } elseif ($approve_status === 'ยกเลิก') { // NEW
-        return 'bg-dark'; // NEW
+    } elseif ($approve_status === 'ยกเลิก') {
+        return 'bg-dark';
     } else {
         switch ($status_text) {
             case 'ร่างโครงการ':
             case 'ร่างคำร้องขอ':
-                return 'bg-warning text-dark'; //
+                return 'bg-warning text-dark';
             case 'ส่งโครงการ':
             case 'ส่งคำร้องขอ':
-                return 'bg-primary'; // สีเหลืองสำหรับส่งแล้ว/รอดำเนินการ
+                return 'bg-primary';
             case 'เริ่มดำเนินการ':
-                return 'bg-info text-dark'; // สีน้ำเงินสำหรับกำลังดำเนินการ
+                return 'bg-info text-dark';
             case 'สิ้นสุดโครงการ':
             case 'สิ้นสุดดำเนินการ':
-                return 'bg-secondary'; // สีฟ้าสำหรับสิ้นสุด
-            case 'ยกเลิกโครงการ': // NEW
-            case 'ยกเลิกคำร้องขอ': // NEW
-                return 'bg-dark'; // สีดำสำหรับสถานะยกเลิก
+                return 'bg-secondary';
+            case 'ยกเลิกโครงการ':
+            case 'ยกเลิกคำร้องขอ':
+                return 'bg-dark';
             default:
-                return 'bg-secondary'; // สีดำสำหรับสถานะอื่น ๆ (changed default to secondary)
+                return 'bg-secondary';
         }
     }
 }
@@ -283,7 +284,7 @@ $dashboard_data = [
         'submitted' => 0,
         'in_progress' => 0,
         'completed' => 0,
-        'cancelled' => 0, // NEW
+        'cancelled' => 0,
     ],
     'facilities_request_counts' => [
         'total' => 0,
@@ -294,7 +295,7 @@ $dashboard_data = [
         'rejected' => 0,
         'in_progress' => 0,
         'completed' => 0,
-        'cancelled' => 0, // NEW
+        'cancelled' => 0,
     ],
     'equipments_request_counts' => [
         'total' => 0,
@@ -305,7 +306,7 @@ $dashboard_data = [
         'rejected' => 0,
         'in_progress' => 0,
         'completed' => 0,
-        'cancelled' => 0, // NEW
+        'cancelled' => 0,
     ],
     'upcoming_requests' => [],
     'recent_activity' => [],
@@ -326,7 +327,7 @@ if (!empty($user_id)) {
         else if ($row['writed_status'] == 'ส่งโครงการ') $status_key = 'submitted';
         else if ($row['writed_status'] == 'เริ่มดำเนินการ') $status_key = 'in_progress';
         else if ($row['writed_status'] == 'สิ้นสุดโครงการ') $status_key = 'completed';
-        else if ($row['writed_status'] == 'ยกเลิกโครงการ') $status_key = 'cancelled'; // NEW
+        else if ($row['writed_status'] == 'ยกเลิกโครงการ') $status_key = 'cancelled';
 
         if ($status_key) {
             $dashboard_data['project_counts'][$status_key] = $row['count'];
@@ -351,14 +352,14 @@ if (!empty($user_id)) {
             $dashboard_data['facilities_request_counts']['draft'] += $row['count'];
         } elseif ($row['writed_status'] == 'ส่งคำร้องขอ') {
             $dashboard_data['facilities_request_counts']['submitted'] += $row['count'];
-            if ($row['approve'] === null) { // สมมติว่า null คือรอดำเนินการ
+            if ($row['approve'] === null) {
                 $dashboard_data['facilities_request_counts']['pending_approval'] += $row['count'];
             }
         } elseif ($row['writed_status'] == 'เริ่มดำเนินการ') {
                 $dashboard_data['facilities_request_counts']['in_progress'] += $row['count'];
         } elseif ($row['writed_status'] == 'สิ้นสุดดำเนินการ') {
             $dashboard_data['facilities_request_counts']['completed'] += $row['count'];
-        } elseif ($row['writed_status'] == 'ยกเลิกคำร้องขอ') { // NEW
+        } elseif ($row['writed_status'] == 'ยกเลิกคำร้องขอ') {
             $dashboard_data['facilities_request_counts']['cancelled'] += $row['count'];
         }
 
@@ -392,7 +393,7 @@ if (!empty($user_id)) {
                 $dashboard_data['equipments_request_counts']['in_progress'] += $row['count'];
         } elseif ($row['writed_status'] == 'สิ้นสุดดำเนินการ') {
             $dashboard_data['equipments_request_counts']['completed'] += $row['count'];
-        } elseif ($row['writed_status'] == 'ยกเลิกคำร้องขอ') { // NEW
+        } elseif ($row['writed_status'] == 'ยกเลิกคำร้องขอ') {
             $dashboard_data['equipments_request_counts']['cancelled'] += $row['count'];
         }
 
@@ -420,31 +421,23 @@ if (!empty($user_id)) {
     $stmt_upcoming_projects->execute();
     $result_upcoming_projects = $stmt_upcoming_projects->get_result();
     while ($row = $result_upcoming_projects->fetch_assoc()) {
-        // ปรับโครงสร้างข้อมูลให้เข้ากับโครงสร้างของ $dashboard_data['upcoming_requests']
         $dashboard_data['upcoming_requests'][] = [
             'id' => $row['id'],
             'type' => $row['type'],
             'name' => $row['name'],
             'start_date' => $row['start_date'],
             'end_date' => $row['end_date'],
-            'start_time' => $row['start_time'], // จะเป็น NULL
-            'end_time' => $row['end_time'],     // จะเป็น NULL
-            'project_name' => $row['name'], // สำหรับโครงการเอง project_name ก็คือ name
+            'start_time' => $row['start_time'],
+            'end_time' => $row['end_time'],
+            'project_name' => $row['name'],
             'writed_status' => $row['writed_status_for_display'],
-            'approve' => $row['approve_for_display'], // จะเป็น NULL
+            'approve' => $row['approve_for_display'],
         ];
     }
     $stmt_upcoming_projects->close();
 
-    // จัดเรียงกิจกรรมที่กำลังจะมาถึง (ยังคงรวมการเรียงจากเก่าไปใหม่) และจำกัดจำนวน
-    usort($dashboard_data['upcoming_requests'], function($a, $b) {
-        return strtotime($a['start_date']) - strtotime($b['start_date']);
-    });
-    $dashboard_data['upcoming_requests'] = array_slice($dashboard_data['upcoming_requests'], 0, 5);
-
-
     // 5. กิจกรรมล่าสุด (5 รายการล่าสุดจากโครงการและคำร้องทั้งหมด)
-    $all_recent_activity_raw = [];
+    $all_recent_activity_raw = []; // Ensure it's initialized here
 
     // โครงการล่าสุด
     $sql_recent_p = "SELECT project_id AS id, 'โครงการ' AS item_type, project_name AS item_name,
@@ -494,11 +487,17 @@ if (!empty($user_id)) {
     }
     $stmt_recent_er->close();
 
+    // จัดเรียงกิจกรรมที่กำลังจะมาถึง
+    usort($dashboard_data['upcoming_requests'], function($a, $b) {
+        return strtotime($a['start_date']) - strtotime($b['start_date']);
+    });
+    $dashboard_data['upcoming_requests'] = array_slice($dashboard_data['upcoming_requests'], 0, 5); // Limit after sorting
+
     // จัดเรียงกิจกรรมล่าสุดทั้งหมดและจำกัดจำนวน
     usort($all_recent_activity_raw, function($a, $b) {
         return strtotime($b['activity_date']) - strtotime($a['activity_date']); // เรียงจากใหม่ไปเก่า
     });
-    $dashboard_data['recent_activity'] = array_slice($all_recent_activity_raw, 0, 5);
+    $dashboard_data['recent_activity'] = array_slice($all_recent_activity_raw, 0, 5); // Limit after sorting
 }
 
 $previous = $_SERVER['HTTP_REFERER'] ?? '';
@@ -547,9 +546,8 @@ if ($current_mode === 'projects_detail' &&
 }
 
 try {
-    $current_date = date('Y-m-d'); // This variable is for automatic status updates
+    $current_date = date('Y-m-d');
 
-    // Only end projects if they are not already completed or cancelled
     $stmt_project_end = $conn->prepare("UPDATE project SET writed_status = 'สิ้นสุดโครงการ' WHERE end_date < ? AND writed_status NOT IN ('สิ้นสุดโครงการ', 'ยกเลิกโครงการ')");
     if ($stmt_project_end) {
         $stmt_project_end->bind_param("s", $current_date);
@@ -559,7 +557,6 @@ try {
         error_log("Failed to prepare statement for ending projects: " . $conn->error);
     }
 
-    // Only start projects if they are 'ส่งโครงการ' (submitted), which implies not cancelled or already started/ended
     $stmt_project_start = $conn->prepare("UPDATE project SET writed_status = 'เริ่มดำเนินการ' WHERE start_date <= ? AND writed_status = 'ส่งโครงการ'");
     if ($stmt_project_start) {
         $stmt_project_start->bind_param("s", $current_date);
@@ -569,7 +566,6 @@ try {
         error_log("Failed to prepare statement for starting projects: " . $conn->error);
     }
 
-    // Only end building requests if not already completed or cancelled
     $stmt_building_end = $conn->prepare("UPDATE facilities_requests SET writed_status = 'สิ้นสุดดำเนินการ' WHERE end_date < ? AND writed_status NOT IN ('สิ้นสุดดำเนินการ', 'ยกเลิกคำร้องขอ')");
     if ($stmt_building_end) {
         $stmt_building_end->bind_param("s", $current_date);
@@ -579,7 +575,6 @@ try {
         error_log("Failed to prepare statement for ending buildings: " . $conn->error);
     }
 
-    // Only start building requests if 'ส่งคำร้องขอ' (submitted) and 'อนุมัติ' (approved)
     $stmt_building_start = $conn->prepare("UPDATE facilities_requests SET writed_status = 'เริ่มดำเนินการ' WHERE start_date <= ? AND writed_status = 'ส่งคำร้องขอ' AND approve = 'อนุมัติ'");
     if ($stmt_building_start) {
         $stmt_building_start->bind_param("s", $current_date);
@@ -589,7 +584,6 @@ try {
         error_log("Failed to prepare statement for starting buildings: " . $conn->error);
     }
 
-    // Only end equipment requests if not already completed or cancelled
     $stmt_equipment_end = $conn->prepare("UPDATE equipments_requests SET writed_status = 'สิ้นสุดดำเนินการ' WHERE end_date < ? AND writed_status NOT IN ('สิ้นสุดดำเนินการ', 'ยกเลิกคำร้องขอ')");
     if ($stmt_equipment_end) {
         $stmt_equipment_end->bind_param("s", $current_date);
@@ -599,7 +593,6 @@ try {
         error_log("Failed to prepare statement for ending equipments: " . $conn->error);
     }
 
-    // Only start equipment requests if 'ส่งคำร้องขอ' (submitted) and 'อนุมัติ' (approved)
     $stmt_equipment_start = $conn->prepare("UPDATE equipments_requests SET writed_status = 'เริ่มดำเนินการ' WHERE start_date <= ? AND writed_status = 'ส่งคำร้องขอ' AND approve = 'อนุมัติ'");
     if ($stmt_equipment_start) {
         $stmt_equipment_start->bind_param("s", $current_date);
@@ -622,8 +615,7 @@ if ($result_activity) {
     }
 }
 
-$user_projects = []; // Used for dropdowns in create forms
-// Exclude cancelled projects from dropdown for new requests
+$user_projects = [];
 $sql_user_projects = "SELECT project_id, project_name, writed_status FROM project WHERE nontri_id = ? AND writed_status NOT IN ('ร่างโครงการ', 'สิ้นสุดโครงการ', 'ยกเลิกโครงการ') ORDER BY project_name ASC";
 $stmt_user_projects = $conn->prepare($sql_user_projects);
 if ($stmt_user_projects) {
@@ -639,10 +631,8 @@ if ($stmt_user_projects) {
 }
 
 
-// NEW: Fetch all buildings for the first dropdown of building requests
 $buildings = [];
 if ($main_tab == 'user_requests' && ($mode == 'buildings_create' || $mode == 'buildings_edit')) {
-    // Modified: Added 'available' column
     $result_buildings = $conn->query("SELECT building_id, building_name, available FROM buildings ORDER BY building_id ASC");
     if ($result_buildings) {
         while ($row = $result_buildings->fetch_assoc()) {
@@ -653,14 +643,9 @@ if ($main_tab == 'user_requests' && ($mode == 'buildings_create' || $mode == 'bu
     }
 }
 
-// $facilities array is now mostly populated by AJAX in create/edit modes
-// The initial PHP load for $facilities is no longer strictly needed for create/edit forms,
-// as the JS will handle dynamic loading. It might be used for display modes.
-$facilities = []; // Initialize, actual data will be loaded via AJAX for forms.
-
+$facilities = [];
 
 $equipments = [];
-// Modified: Added 'available' column
 $result_equipments = $conn->query("SELECT equip_id, equip_name, measure, available FROM equipments ORDER BY equip_name ASC");
 if ($result_equipments) {
     while ($row = $result_equipments->fetch_assoc()) {
@@ -668,14 +653,8 @@ if ($result_equipments) {
     }
 }
 
-
 // <<<<< MODIFIED SECTION: POST Request Handling >>>>>
-// All POST requests will now explicitly set main_tab to user_requests
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    // Redirects after POST actions should now include main_tab=user_requests
-    // Example for projects_create:
-    // header("Location: ?main_tab=user_requests&mode=projects_detail&project_id=" . $new_project_id . "&status=success&message=" . urlencode($success_message));
-
     if ($mode == 'projects_create') {
         $project_name = trim($_POST['project_name'] ?? '');
         $start_date = trim($_POST['start_date'] ?? '');
@@ -684,20 +663,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $attendee = (int)($_POST['attendee'] ?? 0);
         $phone_num = trim($_POST['phone_num'] ?? '');
         
-        $advisor_name = null; // ตั้งค่าเริ่มต้นให้เป็น null สำหรับบุคลากร
+        $advisor_name = null;
         if ($user_role === 'นิสิต') {
-            // ถ้าเป็นนิสิต ให้ดึงค่าจาก POST
             $advisor_name = trim($_POST['advisor_name'] ?? '');
-            if (empty($advisor_name)) { // ตรวจสอบความว่างเปล่าสำหรับนิสิตเท่านั้น
+            if (empty($advisor_name)) {
                 $errors[] = "กรุณากรอกชื่อที่ปรึกษาโครงการ";
             }
         }
-        // ถ้าเป็นบุคลากร $advisor_name จะยังคงเป็น null
         
         $activity_type_id = (int)($_POST['activity_type_id'] ?? 0);
         $nontri_id = $_SESSION['nontri_id'] ?? '';
 
         $writed_status = 'ร่างโครงการ';
+        // The $_POST['action'] will now correctly contain 'submit_project' if the JS button was clicked
         if (isset($_POST['action']) && $_POST['action'] == 'submit_project') {
             $writed_status = 'ส่งโครงการ';
         }
@@ -707,7 +685,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if (empty($end_date)) $errors[] = "กรุณาระบุวันสิ้นสุดโครงการ";
         if ($attendee <= 0) $errors[] = "กรุณาจำนวนผู้เข้าร่วมให้ถูกต้อง";
         if (empty($phone_num)) $errors[] = "กรุณากรอกหมายเลขโทรศัพท์";
-        // REMOVED THE REDUNDANT if (empty($advisor_name)) check here
         if ($activity_type_id === 0) $errors[] = "กรุณาเลือกประเภทกิจกรรม";
 
         if (!empty($start_date) && !empty($end_date) && $start_date > $end_date) {
@@ -715,15 +692,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
 
         $uploaded_paths = handleMultipleFileUploads('files', $project_files_upload_dir, $errors);
-        $file_paths_json = json_encode($uploaded_paths); // Convert array of paths to JSON string
+        $file_paths_json = json_encode($uploaded_paths);
 
          if (empty($errors)) {
             $stmt = $conn->prepare("INSERT INTO project (project_name, start_date, end_date, project_des, files, attendee, phone_num, advisor_name, nontri_id, activity_type_id, writed_status, created_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
             if (!$stmt) {
-                $errors[] = "เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL: " . $conn->error;
+                header("Location: ?main_tab=user_requests&mode=projects_create&status=error&message=" . urlencode("เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL: " . $conn->error));
+                exit();
             } else {
                 $stmt->bind_param("sssssisssis",
-                    $project_name, $start_date, $end_date, $project_des, $file_paths_json, // Use the JSON string here
+                    $project_name, $start_date, $end_date, $project_des, $file_paths_json,
                     $attendee, $phone_num, $advisor_name, $nontri_id, $activity_type_id, $writed_status
                 );
                 if ($stmt->execute()) {
@@ -732,13 +710,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     header("Location: ?main_tab=user_requests&mode=projects_detail&project_id=" . $new_project_id . "&status=success&message=" . urlencode($success_message));
                     exit();
                 } else {
-                    $errors[] = "เกิดข้อผิดพลาดในการบันทึกโครงการ: " . $stmt->error;
-                    // If insert fails, delete any newly uploaded files to prevent orphaned files
-                    foreach ($uploaded_paths as $path) {
-                        if (file_exists($path)) {
-                            unlink($path);
-                        }
-                    }
+                    foreach ($uploaded_paths as $path) { if (file_exists($path)) { unlink($path); } } // Clean up uploaded files
+                    header("Location: ?main_tab=user_requests&mode=projects_create&status=error&message=" . urlencode("เกิดข้อผิดพลาดในการบันทึกโครงการ: " . $stmt->error));
+                    exit();
                 }
                 $stmt->close();
             }
@@ -754,10 +728,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $end_date = trim($_POST['end_date'] ?? '');
         $agree = isset($_POST['agree']) ? 1 : 0;
         $facility_id = (int)($_POST['facility_id']) ?? 0;
-        $project_id = (int)($_POST['project_id']) ?? 0; // Get project_id
+        $project_id = (int)($_POST['project_id']) ?? 0;
         $nontri_id = $_SESSION['nontri_id'] ?? '';
 
-        $writed_status = 'ร่างคำร้องขอ'; // Corrected default status for requests
+        $writed_status = 'ร่างคำร้องขอ';
+        // The $_POST['action'] will now correctly contain 'submit_building' if the JS button was clicked
         if (isset($_POST['action']) && $_POST['action'] == 'submit_building') {
             $writed_status = 'ส่งคำร้องขอ';
         }
@@ -770,7 +745,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if (empty($end_time)) $errors[] = "กรุณากรอกเวลาสิ้นสุดของวันใช้การ";
         if (empty($start_date)) $errors[] = "กรุณากรอกวันที่เริ่มต้นใช้การ";
         if (empty($end_date)) $errors[] = "กรุณากรอกวันที่สิ้นสุดใช้การ";
-        if (empty($facility_id)) $errors[] = "กรุณาเลือกสถานที่ที่ต้องการขอใช้"; // Changed message
+        if (empty($facility_id)) $errors[] = "กรุณาเลือกสถานที่ที่ต้องการขอใช้";
         if (empty($project_id)) $errors[] = "กรุณาเลือกโครงการของท่านที่ต้องการขอใช้สถานที่";
 
         $today = date('Y-m-d');
@@ -786,7 +761,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $errors[] = "วันสุดท้ายของวันเตรียมการห้ามสิ้นสุดก่อนวันเริ่มต้นของวันเตรียมการ";
         } elseif (!empty($start_date) && !empty($end_date) && $start_date > $end_date) {
             $errors[] = "วันสุดท้ายของวันใช้การห้ามสิ้นสุดก่อนวันเริ่มต้นของวันใช้การ";
-        } elseif (!empty($prepare_end_date) && $prepare_end_date > $start_date && (strtotime($prepare_start_date) < strtotime($start_date))) { // Adjusted logic for preparation end date vs. usage start date
+        } elseif (!empty($prepare_end_date) && $prepare_end_date > $start_date && (strtotime($prepare_start_date) < strtotime($start_date))) {
             $errors[] = "วันสิ้นสุดของวันเตรียมการต้องไม่เกินวันเริ่มต้นของวันใช้การ.";
         } elseif (!empty($prepare_start_time) && !empty($prepare_end_time) && $prepare_start_time > $prepare_end_time) {
             $errors[] = "เวลาสิ้นสุดของวันเตรียมการห้ามสิ้นสุดก่อนเวลาเริ่มต้นของวันเตรียมการ";
@@ -798,20 +773,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $pre_start_ts = strtotime($prepare_start_date);
         $start_ts    = strtotime($start_date);
 
-        if ( ($writed_status == 'ร่างคำร้องขอ') || ($pre_start_ts >= $approval_day && $start_ts >= $approval_day) ) { // Allow draft regardless of date, or submit if date is okay
-
-            // NEW: Server-side validation for dates against project dates
-            if (empty($errors)) {
-                if (!validateRequestDatesAgainstProject($start_date, $end_date, $project_id, $conn, $nontri_id, $errors, 'สถานที่ (ใช้งาน)')) {
-                    // Error already added by the function
-                }
-                if (!empty($prepare_start_date) && empty($errors)) { // Only validate if preparation dates are provided
-                    if (!validateRequestDatesAgainstProject($prepare_start_date, $prepare_end_date, $project_id, $conn, $nontri_id, $errors, 'สถานที่ (เตรียมการ)')) {
-                        // Error already added by the function
-                    }
+        if (empty($errors) && ( ($writed_status == 'ร่างคำร้องขอ') || ($pre_start_ts >= $approval_day && $start_ts >= $approval_day) ) ) {
+            if (!validateRequestDatesAgainstProject($start_date, $end_date, $project_id, $conn, $nontri_id, $errors, 'สถานที่ (ใช้งาน)')) {
+            }
+            if (!empty($prepare_start_date) && empty($errors)) {
+                if (!validateRequestDatesAgainstProject($prepare_start_date, $prepare_end_date, $project_id, $conn, $nontri_id, $errors, 'สถานที่ (เตรียมการ)')) {
                 }
             }
-            // เงื่อนไขผ่าน → ดำเนินการ INSERT
+
             if (empty($errors)) {
                 $stmt = $conn->prepare("INSERT INTO facilities_requests
                     (prepare_start_time, prepare_end_time, prepare_start_date, prepare_end_date,
@@ -819,7 +788,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
 
                 if (!$stmt) {
-                    $errors[] = "เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL: " . $conn->error;
+                    header("Location: ?main_tab=user_requests&mode=buildings_create&status=error&message=" . urlencode("เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL: " . $conn->error));
+                    exit();
                 } else {
                     $stmt->bind_param("ssssssssiiis",
                         $prepare_start_time, $prepare_end_time, $prepare_start_date, $prepare_end_date,
@@ -833,14 +803,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             . $new_building_id . "&status=success&message=" . urlencode($success_message));
                         exit();
                     } else {
-                        $errors[] = "เกิดข้อผิดพลาดในการบันทึกคำร้อง: " . $stmt->error;
+                        header("Location: ?main_tab=user_requests&mode=buildings_create&status=error&message=" . urlencode("เกิดข้อผิดพลาดในการบันทึกคำร้อง: " . $stmt->error));
+                        exit();
                     }
                     $stmt->close();
                 }
             }
-
-        } else {
-            $errors[] = "ขออภัย คำร้องขอใช้อาคารสถานที่ต้องดำเนินการล่วงหน้าอย่างน้อย 3 วันก่อนวันเริ่มต้นการใช้งาน";
+        } else if (empty($errors)){
+            header("Location: ?main_tab=user_requests&mode=buildings_create&status=error&message=" . urlencode("ขออภัย คำร้องขอใช้อาคารสถานที่ต้องดำเนินการล่วงหน้าอย่างน้อย 3 วันก่อนวันเริ่มต้นการใช้งาน"));
+            exit();
         }
 
     } elseif ($mode == 'equipments_create') {
@@ -851,10 +822,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $quantity = (int)($_POST['quantity'] ?? 0);
         $equip_id = (int)($_POST['equip_id']) ?? 0;
         $facility_id = (int)($_POST['facility_id']) ?? 0;
-        $project_id = (int)($_POST['project_id']) ?? 0; // Get project_id
+        $project_id = (int)($_POST['project_id']) ?? 0;
         $nontri_id = $_SESSION['nontri_id'] ?? '';
 
-        $writed_status = 'ร่างคำร้องขอ'; // Corrected default status for requests
+        $writed_status = 'ร่างคำร้องขอ';
+        // The $_POST['action'] will now correctly contain 'submit_equipment' if the JS button was clicked
         if (isset($_POST['action']) && $_POST['action'] == 'submit_equipment') {
             $writed_status = 'ส่งคำร้องขอ';
         }
@@ -863,8 +835,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if (empty($end_date)) $errors[] = "กรุณากรอกวันที่สิ้นสุดใช้การ";
         if ($quantity <= 0) $errors[] = "กรุณาระบุจำนวนอุปกรณ์ที่ต้องการขอใช้";
         if (empty($equip_id)) $errors[] = "กรุณาเลือกอุปกรณ์ที่ต้องการขอใช้";
-        // facility_id is optional for equipment requests
-        // if (empty($facility_id)) $errors[] = "กรุณาเลือกสถานที่หรืออาคารที่อุปกรณ์นำไปใช้งาน";
         if (empty($project_id)) $errors[] = "กรุณาเลือกโครงการของท่านที่ต้องการขอใช้อุปกรณ์";
 
         $today = date('Y-m-d');
@@ -879,17 +849,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $approval_day = strtotime('+3 days');
         $start_ts    = strtotime($start_date);
 
-        if ( ($writed_status == 'ร่างคำร้องขอ') || ($start_ts >= $approval_day) ) { // Allow draft regardless of date, or submit if date is okay
-            // NEW: Server-side validation for dates against project dates
-            if (empty($errors)) {
-                if (!validateRequestDatesAgainstProject($start_date, $end_date, $project_id, $conn, $nontri_id, $errors, 'อุปกรณ์')) {
-                    // Error already added by the function
-                }
+        if (empty($errors) && ( ($writed_status == 'ร่างคำร้องขอ') || ($start_ts >= $approval_day) ) ) {
+            if (!validateRequestDatesAgainstProject($start_date, $end_date, $project_id, $conn, $nontri_id, $errors, 'อุปกรณ์')) {
             }
+
             if (empty($errors)) {
                 $stmt = $conn->prepare("INSERT INTO equipments_requests (start_date, end_date, agree, transport, quantity, equip_id, facility_id, project_id, writed_status, request_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
                 if (!$stmt) {
-                    $errors[] = "เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL: " . $conn->error;
+                    header("Location: ?main_tab=user_requests&mode=equipments_create&status=error&message=" . urlencode("เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL: " . $conn->error));
+                    exit();
                 } else {
                     $stmt->bind_param("ssiiiiiis",
                     $start_date, $end_date, $agree, $transport, $quantity,
@@ -898,16 +866,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     if ($stmt->execute()) {
                         $new_equip_id = $conn->insert_id;
                         $success_message = "ส่งคำร้องขอใช้อุปกรณ์สำเร็จแล้ว!";
-                        header("Location: ?main_tab=user_requests&mode=equipments_detail&equip_re_id=" . $new_equip_id . "&status=success&message=" . urlencode($success_message)); // Redirect to project detail
+                        header("Location: ?main_tab=user_requests&mode=equipments_detail&equip_re_id=" . $new_equip_id . "&status=success&message=" . urlencode($success_message));
                         exit();
                     } else {
-                        $errors[] = "เกิดข้อผิดพลาดในการบันทึกคำร้อง: " . $stmt->error;
+                        header("Location: ?main_tab=user_requests&mode=equipments_create&status=error&message=" . urlencode("เกิดข้อผิดพลาดในการบันทึกคำร้อง: " . $stmt->error));
+                        exit();
                     }
                     $stmt->close();
                 }
             }
-        } else {
-            $errors[] = "ขออภัย คำร้องขอใช้อุปกรณ์ต้องดำเนินการล่วงหน้าอย่างน้อย 3 วันก่อนวันเริ่มต้นการใช้งาน";
+        } else if (empty($errors)){
+            header("Location: ?main_tab=user_requests&mode=equipments_create&status=error&message=" . urlencode("ขออภัย คำร้องขอใช้อุปกรณ์ต้องดำเนินการล่วงหน้าอย่างน้อย 3 วันก่อนวันเริ่มต้นการใช้งาน"));
+            exit();
         }
     } elseif ($mode == 'projects_edit') {
             $project_id = (int)$_POST['project_id'] ?? 0;
@@ -918,23 +888,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $attendee = (int)($_POST['attendee'] ?? 0);
             $phone_num = trim($_POST['phone_num'] ?? '');
             
-            $advisor_name = null; // ตั้งค่าเริ่มต้นให้เป็น null
+            $advisor_name = null;
             if ($user_role === 'นิสิต') {
-                // ถ้าเป็นนิสิต ให้ดึงค่าจาก POST หรือจาก detail_item หากไม่มีใน POST (เช่น ตอนโหลดฟอร์มครั้งแรก)
-                $advisor_name = trim($_POST['advisor_name'] ?? ($detail_item['advisor_name'] ?? ''));
+                $advisor_name = trim($_POST['advisor_name'] ?? '');
                 if (empty($advisor_name)) {
                     $errors[] = "กรุณากรอกชื่อที่ปรึกษาโครงการ";
                 }
             } else {
-                // ถ้าเป็นบุคลากร $advisor_name จะเป็น NULL เสมอ เพื่อให้บันทึก NULL ลง DB
-                $advisor_name = null; 
+                $advisor_name = null;
             }
             
             $activity_type_id = (int)($_POST['activity_type_id'] ?? 0);
             $nontri_id = $_SESSION['nontri_id'] ?? '';
-            $existing_file_path = trim($_POST['existing_file_path'] ?? '');
+            // existing_file_path is no longer needed directly from POST, handled by file_paths_json
+            // $existing_file_path = trim($_POST['existing_file_path'] ?? '');
 
-            $writed_status = 'ร่างโครงการ'; // Default for draft
+            $writed_status = 'ร่างโครงการ';
             if (isset($_POST['action']) && $_POST['action'] == 'submit_project_edit') {
                 $current_status_sql = "SELECT writed_status FROM project WHERE project_id = ? AND nontri_id = ?";
                 $stmt_status = $conn->prepare($current_status_sql);
@@ -948,13 +917,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     if ($current_project_status == 'ร่างโครงการ' || $current_project_status == 'ส่งโครงการ') {
                         $writed_status = 'ส่งโครงการ';
                     } else {
-                        $writed_status = $current_project_status; // Retain existing status
+                        $writed_status = $current_project_status;
                     }
                 } else {
-                    $errors[] = "เกิดข้อผิดพลาดในการตรวจสอบสถานะโครงการปัจจุบัน: " . $conn->error;
+                    $errors[] = "เกิดข้อผิดพลาดในการตรวจสอบสถานะโครงการปัจจุบัน: " . $conn->error; // Validation error, will show on page
                 }
             } elseif (isset($_POST['action']) && $_POST['action'] == 'save_draft_edit') {
-
                 $writed_status = 'ร่างโครงการ';
             }
 
@@ -963,7 +931,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             if (empty($end_date)) $errors[] = "กรุณาระบุวันสิ้นสุดโครงการ";
             if ($attendee <= 0) $errors[] = "กรุณาจำนวนผู้เข้าร่วมให้ถูกต้อง";
             if (empty($phone_num)) $errors[] = "กรุณากรอกหมายเลขโทรศัพท์";
-            // REMOVED THE REDUNDANT if (empty($advisor_name)) check here
             if ($activity_type_id === 0) $errors[] = "กรุณาเลือกประเภทกิจกรรม";
 
             $today = date('Y-m-d');
@@ -983,40 +950,36 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $stmt_get_original_files->bind_result($original_files_json_from_db);
                 $stmt_get_original_files->fetch();
                 $stmt_get_original_files->close();
+            } else {
+                 $errors[] = "เกิดข้อผิดพลาดในการดึงข้อมูลไฟล์เก่า: " . $conn->error;
             }
-            // Decode to an array. Use `?: []` to ensure it's always an array even if DB value is null/empty.
             $original_files_array_from_db = json_decode($original_files_json_from_db, true) ?: [];
 
-            // 2. Get files paths that the user chose to retain (from hidden inputs generated by JS)
-            $retained_file_paths_from_post = $_POST['existing_file_paths_retained'] ?? []; // These are paths user explicitly kept
+            $retained_file_paths_from_post = $_POST['existing_file_paths_retained'] ?? [];
 
-            // 3. Identify and delete files that were removed by the user (not in retained_file_paths_from_post but were in original_files_array_from_db)
             $files_to_actually_delete = array_diff($original_files_array_from_db, $retained_file_paths_from_post);
             foreach ($files_to_actually_delete as $file_path) {
                 if (file_exists($file_path)) {
-                    unlink($file_path); // Physically delete the file from the server
+                    unlink($file_path);
                 }
             }
 
-            // 4. Handle new file uploads
             $new_uploaded_paths = [];
-            // Check if new files were actually selected ($_FILES['files']['name'][0] would be empty if no files picked)
             if (isset($_FILES['files']) && !empty($_FILES['files']['name'][0])) {
                 $new_uploaded_paths = handleMultipleFileUploads('files', $project_files_upload_dir, $errors);
             }
 
-            // 5. Combine retained existing files and newly uploaded files
             $final_file_paths_array = array_merge($retained_file_paths_from_post, $new_uploaded_paths);
-            // Use array_values to re-index the array numerically after potential removals
-            $file_paths_json = json_encode(array_values($final_file_paths_array)); // Convert the final array back to JSON string
+            $file_paths_json = json_encode(array_values($final_file_paths_array));
 
             if (empty($errors)) {
                 $stmt = $conn->prepare("UPDATE project SET project_name = ?, start_date = ?, end_date = ?, project_des = ?, files = ?, attendee = ?, phone_num = ?, advisor_name = ?, activity_type_id = ?, writed_status = ? WHERE project_id = ? AND nontri_id = ?");
                 if (!$stmt) {
-                    $errors[] = "เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL สำหรับการอัปเดต: " . $conn->error;
+                    header("Location: ?main_tab=user_requests&mode=projects_edit&project_id=" . $project_id . "&status=error&message=" . urlencode("เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL สำหรับการอัปเดต: " . $conn->error));
+                    exit();
                 } else {
                     $stmt->bind_param("sssssissssis",
-                        $project_name, $start_date, $end_date, $project_des, $file_paths_json, // Use the new JSON string here
+                        $project_name, $start_date, $end_date, $project_des, $file_paths_json,
                         $attendee, $phone_num, $advisor_name, $activity_type_id, $writed_status,
                         $project_id, $nontri_id
                     );
@@ -1025,13 +988,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         header("Location: ?main_tab=user_requests&mode=projects_detail&project_id=" . $project_id . "&status=success&message=" . urlencode($success_message));
                         exit();
                     } else {
-                        $errors[] = "เกิดข้อผิดพลาดในการบันทึกการแก้ไขโครงการ: " . $stmt->error;
-                        // If update fails, delete any newly uploaded files to prevent orphaned files
-                        foreach ($new_uploaded_paths as $path) { // Only delete files that were *just* uploaded
-                            if (file_exists($path)) {
-                                unlink($path);
-                            }
-                        }
+                        foreach ($new_uploaded_paths as $path) { if (file_exists($path)) { unlink($path); } }
+                        header("Location: ?main_tab=user_requests&mode=projects_edit&project_id=" . $project_id . "&status=error&message=" . urlencode("เกิดข้อผิดพลาดในการบันทึกการแก้ไขโครงการ: " . $stmt->error));
+                        exit();
                     }
                     $stmt->close();
                 }
@@ -1049,11 +1008,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $end_date = trim($_POST['end_date'] ?? '');
         $agree = isset($_POST['agree']) ? 1 : 0;
         $facility_id = (int)($_POST['facility_id']) ?? 0;
-        $nontri_id = $_SESSION['nontri_id'] ?? ''; // ใช้ nontri_id จาก session เพื่อตรวจสอบสิทธิ์
+        $nontri_id = $_SESSION['nontri_id'] ?? '';
 
-        $writed_status = 'ร่างคำร้องขอ'; // Corrected default status for requests
+        $writed_status = 'ร่างคำร้องขอ';
         if (isset($_POST['action']) && $_POST['action'] == 'submit_building_edit') {
-            // Fetch current status to avoid overriding approved/rejected status
             $current_status_sql = "SELECT fr.writed_status FROM facilities_requests fr JOIN project p ON fr.project_id = p.project_id WHERE fr.facility_re_id = ? AND p.nontri_id = ?";
             $stmt_status = $conn->prepare($current_status_sql);
             if ($stmt_status) {
@@ -1066,13 +1024,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 if ($current_request_status == 'ร่างคำร้องขอ' || $current_request_status == 'ส่งคำร้องขอ') {
                     $writed_status = 'ส่งคำร้องขอ';
                 } else {
-                    $writed_status = $current_request_status; // Retain existing status (e.g., 'อนุมัติ', 'ไม่อนุมัติ')
+                    $writed_status = $current_request_status;
                 }
             } else {
-                $errors[] = "เกิดข้อผิดพลาดในการตรวจสอบสถานะคำร้องขอสถานที่ปัจจุบัน: " . $conn->error;
+                 $errors[] = "เกิดข้อผิดพลาดในการตรวจสอบสถานะคำร้องขอสถานที่ปัจจุบัน: " . $conn->error; // Validation error, will show on page
             }
         } elseif (isset($_POST['action']) && $_POST['action'] == 'save_draft_building_edit') {
-            $writed_status = 'ร่างคำร้องขอ'; // Keep as draft if explicitly saving draft
+            $writed_status = 'ร่างคำร้องขอ';
         }
 
         if (empty($prepare_start_time)) $errors[] = "กรุณากรอกเวลาเริ่มต้นของวันเตรียมการ";
@@ -1111,62 +1069,61 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $pre_start_ts = strtotime($prepare_start_date);
         $start_ts    = strtotime($start_date);
 
-        if ( ($writed_status == 'ร่างคำร้องขอ') || ($pre_start_ts >= $approval_day_ts && $start_ts >= $approval_day_ts) ) {
-            if (empty($errors)) {
-                // Ensure the project belongs to the current user before updating the request
-                $check_project_owner_sql = "SELECT nontri_id FROM project WHERE project_id = ?";
-                $stmt_proj_owner = $conn->prepare($check_project_owner_sql);
-                $stmt_proj_owner->bind_param("i", $project_id);
-                $stmt_proj_owner->execute();
-                $stmt_proj_owner->bind_result($project_owner_nontri_id);
-                $stmt_proj_owner->fetch();
-                $stmt_proj_owner->close();
-
-                if ($project_owner_nontri_id === $nontri_id) {
-                    // NEW: Server-side validation for dates against project dates
-                    if (empty($errors)) {
-                        if (!validateRequestDatesAgainstProject($start_date, $end_date, $project_id, $conn, $nontri_id, $errors, 'สถานที่ (ใช้งาน)')) {
-                            // Error already added by the function
-                        }
-                        if (!empty($prepare_start_date) && empty($errors)) { // Only validate if preparation dates are provided
-                            if (!validateRequestDatesAgainstProject($prepare_start_date, $prepare_end_date, $project_id, $conn, $nontri_id, $errors, 'สถานที่ (เตรียมการ)')) {
-                                // Error already added by the function
-                            }
-                        }
-                    }
-
-                    if (empty($errors)) {
-                        $stmt = $conn->prepare("UPDATE facilities_requests SET
-                            prepare_start_time = ?, prepare_end_time = ?, prepare_start_date = ?, prepare_end_date = ?,
-                            start_time = ?, end_time = ?, start_date = ?, end_date = ?, agree = ?, facility_id = ?,
-                            project_id = ?, writed_status = ? WHERE facility_re_id = ?");
-
-                        if (!$stmt) {
-                            $errors[] = "เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL สำหรับการอัปเดต: " . $conn->error;
-                        } else {
-                            $stmt->bind_param("ssssssssiiisi",
-                                $prepare_start_time, $prepare_end_time, $prepare_start_date, $prepare_end_date,
-                                $start_time, $end_time, $start_date, $end_date,
-                                $agree, $facility_id, $project_id, $writed_status, $facility_re_id
-                            );
-
-                            if ($stmt->execute()) {
-                                $success_message = "แก้ไขคำร้องขอสถานที่สำเร็จแล้ว!";
-                                header("Location: ?main_tab=user_requests&mode=buildings_detail&facility_re_id="
-                                    . $facility_re_id . "&status=success&message=" . urlencode($success_message));
-                                exit();
-                            } else {
-                                $errors[] = "เกิดข้อผิดพลาดในการบันทึกการแก้ไขคำร้อง: " . $stmt->error;
-                            }
-                            $stmt->close();
-                        }
-                    }
-                } else {
-                    $errors[] = "คุณไม่มีสิทธิ์แก้ไขคำร้องขอสถานที่นี้ (ไม่เป็นเจ้าของโครงการที่เกี่ยวข้อง).";
-                }
+        if (empty($errors) && ( ($writed_status == 'ร่างคำร้องขอ') || ($pre_start_ts >= $approval_day_ts && $start_ts >= $approval_day_ts) ) ) {
+            $check_project_owner_sql = "SELECT nontri_id FROM project WHERE project_id = ?";
+            $stmt_proj_owner = $conn->prepare($check_project_owner_sql);
+            if (!$stmt_proj_owner) {
+                header("Location: ?main_tab=user_requests&mode=buildings_edit&facility_re_id=" . $facility_re_id . "&status=error&message=" . urlencode("เกิดข้อผิดพลาดในการตรวจสอบเจ้าของโครงการ: " . $conn->error));
+                exit();
             }
-        } else {
-            $errors[] = "ขออภัย คำร้องขอใช้อาคารสถานที่ต้องดำเนินการล่วงหน้าอย่างน้อย 3 วันก่อนวันเริ่มต้นการใช้งาน";
+            $stmt_proj_owner->bind_param("i", $project_id);
+            $stmt_proj_owner->execute();
+            $stmt_proj_owner->bind_result($project_owner_nontri_id);
+            $stmt_proj_owner->fetch();
+            $stmt_proj_owner->close();
+
+            if ($project_owner_nontri_id === $nontri_id) {
+                if (!validateRequestDatesAgainstProject($start_date, $end_date, $project_id, $conn, $nontri_id, $errors, 'สถานที่ (ใช้งาน)')) {
+                }
+                if (!empty($prepare_start_date) && empty($errors)) {
+                    if (!validateRequestDatesAgainstProject($prepare_start_date, $prepare_end_date, $project_id, $conn, $nontri_id, $errors, 'สถานที่ (เตรียมการ)')) {
+                    }
+                }
+
+                if (empty($errors)) {
+                    $stmt = $conn->prepare("UPDATE facilities_requests SET
+                        prepare_start_time = ?, prepare_end_time = ?, prepare_start_date = ?, prepare_end_date = ?,
+                        start_time = ?, end_time = ?, start_date = ?, end_date = ?, agree = ?, facility_id = ?,
+                        project_id = ?, writed_status = ? WHERE facility_re_id = ?");
+
+                    if (!$stmt) {
+                        header("Location: ?main_tab=user_requests&mode=buildings_edit&facility_re_id=" . $facility_re_id . "&status=error&message=" . urlencode("เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL สำหรับการอัปเดต: " . $conn->error));
+                        exit();
+                    } else {
+                        $stmt->bind_param("ssssssssiiisi",
+                            $prepare_start_time, $prepare_end_time, $prepare_start_date, $prepare_end_date,
+                            $start_time, $end_time, $start_date, $end_date,
+                            $agree, $facility_id, $project_id, $writed_status, $facility_re_id
+                        );
+
+                        if ($stmt->execute()) {
+                            $success_message = "แก้ไขคำร้องขอสถานที่สำเร็จแล้ว!";
+                            header("Location: ?main_tab=user_requests&mode=buildings_detail&facility_re_id="
+                                . $facility_re_id . "&status=success&message=" . urlencode($success_message));
+                            exit();
+                        } else {
+                            header("Location: ?main_tab=user_requests&mode=buildings_edit&facility_re_id=" . $facility_re_id . "&status=error&message=" . urlencode("เกิดข้อผิดพลาดในการบันทึกการแก้ไขคำร้อง: " . $stmt->error));
+                            exit();
+                        }
+                        $stmt->close();
+                    }
+                }
+            } else {
+                $errors[] = "คุณไม่มีสิทธิ์แก้ไขคำร้องขอสถานที่นี้ (ไม่เป็นเจ้าของโครงการที่เกี่ยวข้อง).";
+            }
+        } else if (empty($errors)) {
+            header("Location: ?main_tab=user_requests&mode=buildings_edit&facility_re_id=" . $facility_re_id . "&status=error&message=" . urlencode("ขออภัย คำร้องขอใช้อาคารสถานที่ต้องดำเนินการล่วงหน้าอย่างน้อย 3 วันก่อนวันเริ่มต้นการใช้งาน"));
+            exit();
         }
     } elseif ($mode == 'equipments_edit') {
         $equip_re_id = (int)$_POST['equip_re_id'] ?? 0;
@@ -1177,12 +1134,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $transport = isset($_POST['transport']) ? 1 : 0;
         $quantity = (int)($_POST['quantity'] ?? 0);
         $equip_id = (int)($_POST['equip_id']) ?? 0;
-        $facility_id = (int)($_POST['facility_id']) ?? 0; // Optional
+        $facility_id = (int)($_POST['facility_id']) ?? 0;
         $nontri_id = $_SESSION['nontri_id'] ?? '';
 
-        $writed_status = 'ร่างคำร้องขอ'; // Corrected default status for requests
+        $writed_status = 'ร่างคำร้องขอ';
         if (isset($_POST['action']) && $_POST['action'] == 'submit_equipment_edit') {
-            // Fetch current status to avoid overriding approved/rejected status
             $current_status_sql = "SELECT er.writed_status FROM equipments_requests er JOIN project p ON er.project_id = p.project_id WHERE er.equip_re_id = ? AND p.nontri_id = ?";
             $stmt_status = $conn->prepare($current_status_sql);
             if ($stmt_status) {
@@ -1195,13 +1151,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 if ($current_request_status == 'ร่างคำร้องขอ' || $current_request_status == 'ส่งคำร้องขอ') {
                     $writed_status = 'ส่งคำร้องขอ';
                 } else {
-                    $writed_status = $current_request_status; // Retain existing status
+                    $writed_status = $current_request_status;
                 }
             } else {
-                $errors[] = "เกิดข้อผิดพลาดในการตรวจสอบสถานะคำร้องขออุปกรณ์ปัจจุบัน: " . $conn->error;
+                $errors[] = "เกิดข้อผิดพลาดในการตรวจสอบสถานะคำร้องขออุปกรณ์ปัจจุบัน: " . $conn->error; // Validation error, will show on page
             }
         } elseif (isset($_POST['action']) && $_POST['action'] == 'save_draft_equipment_edit') {
-            $writed_status = 'ร่างคำร้องขอ'; // Keep as draft if explicitly saving draft
+            $writed_status = 'ร่างคำร้องขอ';
         }
 
         if (empty($start_date)) $errors[] = "กรุณากรอกวันที่เริ่มต้นใช้การ";
@@ -1222,96 +1178,95 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $approval_day_ts = strtotime('+3 days');
         $start_ts    = strtotime($start_date);
 
-        // Allow editing if status is 'อนุมัติ' or 'ไม่อนุมัติ' or meets the 3-day approval criteria for 'ร่างคำร้องขอ' or 'ส่งคำร้องขอ'
-        if ($writed_status == 'อนุมัติ' || $writed_status == 'ไม่อนุมัติ' || ($writed_status == 'ร่างคำร้องขอ') || ($start_ts >= $approval_day_ts) ) {
-            if (empty($errors)) {
-                // Ensure the project belongs to the current user before updating the request
-                $check_project_owner_sql = "SELECT nontri_id FROM project WHERE project_id = ?";
-                $stmt_proj_owner = $conn->prepare($check_project_owner_sql);
-                $stmt_proj_owner->bind_param("i", $project_id);
-                $stmt_proj_owner->execute();
-                $stmt_proj_owner->bind_result($project_owner_nontri_id);
-                $stmt_proj_owner->fetch();
-                $stmt_proj_owner->close();
-
-                if ($project_owner_nontri_id === $nontri_id) {
-                    // NEW: Server-side validation for dates against project dates
-                    if (empty($errors)) {
-                        if (!validateRequestDatesAgainstProject($start_date, $end_date, $project_id, $conn, $nontri_id, $errors, 'อุปกรณ์')) {
-                            // Error already added by the function
-                        }
-                    }
-
-                    if (empty($errors)) {
-                        $stmt = $conn->prepare("UPDATE equipments_requests SET
-                            start_date = ?, end_date = ?, agree = ?, transport = ?, quantity = ?,
-                            equip_id = ?, facility_id = ?, project_id = ?, writed_status = ? WHERE equip_re_id = ?");
-
-                        if (!$stmt) {
-                            $errors[] = "เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL สำหรับการอัปเดต: " . $conn->error;
-                        } else {
-                            $stmt->bind_param("ssiiiiiisi",
-                                $start_date, $end_date, $agree, $transport, $quantity,
-                                $equip_id, $facility_id, $project_id, $writed_status, $equip_re_id
-                            );
-
-                            if ($stmt->execute()) {
-                                $success_message = "แก้ไขคำร้องขอใช้อุปกรณ์สำเร็จแล้ว!";
-                                header("Location: ?main_tab=user_requests&mode=equipments_detail&equip_re_id="
-                                    . $equip_re_id . "&status=success&message=" . urlencode($success_message));
-                                exit();
-                            } else {
-                                $errors[] = "เกิดข้อผิดผิดพลาดในการบันทึกการแก้ไขคำร้อง: " . $stmt->error;
-                            }
-                            $stmt->close();
-                        }
-                    }
-                } else {
-                    $errors[] = "คุณไม่มีสิทธิ์แก้ไขคำร้องขออุปกรณ์นี้ (ไม่เป็นเจ้าของโครงการที่เกี่ยวข้อง).";
-                }
+        if (empty($errors) && ($writed_status == 'อนุมัติ' || $writed_status == 'ไม่อนุมัติ' || ($writed_status == 'ร่างคำร้องขอ') || ($start_ts >= $approval_day_ts) ) ) {
+            $check_project_owner_sql = "SELECT nontri_id FROM project WHERE project_id = ?";
+            $stmt_proj_owner = $conn->prepare($check_project_owner_sql);
+            if (!$stmt_proj_owner) {
+                header("Location: ?main_tab=user_requests&mode=equipments_edit&equip_re_id=" . $equip_re_id . "&status=error&message=" . urlencode("เกิดข้อผิดพลาดในการตรวจสอบเจ้าของโครงการ: " . $conn->error));
+                exit();
             }
-        } else {
-            $errors[] = "ขออภัย คำร้องขอใช้อุปกรณ์ต้องดำเนินการล่วงหน้าอย่างน้อย 3 วันก่อนวันเริ่มต้นการใช้งาน";
+            $stmt_proj_owner->bind_param("i", $project_id);
+            $stmt_proj_owner->execute();
+            $stmt_proj_owner->bind_result($project_owner_nontri_id);
+            $stmt_proj_owner->fetch();
+            $stmt_proj_owner->close();
+
+            if ($project_owner_nontri_id === $nontri_id) {
+                if (!validateRequestDatesAgainstProject($start_date, $end_date, $project_id, $conn, $nontri_id, $errors, 'อุปกรณ์')) {
+                }
+
+                if (empty($errors)) {
+                    $stmt = $conn->prepare("UPDATE equipments_requests SET
+                        start_date = ?, end_date = ?, agree = ?, transport = ?, quantity = ?,
+                        equip_id = ?, facility_id = ?, project_id = ?, writed_status = ? WHERE equip_re_id = ?");
+
+                    if (!$stmt) {
+                        header("Location: ?main_tab=user_requests&mode=equipments_edit&equip_re_id=" . $equip_re_id . "&status=error&message=" . urlencode("เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL สำหรับการอัปเดต: " . $conn->error));
+                        exit();
+                    } else {
+                        $stmt->bind_param("ssiiiiiisi",
+                            $start_date, $end_date, $agree, $transport, $quantity,
+                            $equip_id, $facility_id, $project_id, $writed_status, $equip_re_id
+                        );
+
+                        if ($stmt->execute()) {
+                            $success_message = "แก้ไขคำร้องขอใช้อุปกรณ์สำเร็จแล้ว!";
+                            header("Location: ?main_tab=user_requests&mode=equipments_detail&equip_re_id="
+                                . $equip_re_id . "&status=success&message=" . urlencode($success_message));
+                            exit();
+                        } else {
+                            header("Location: ?main_tab=user_requests&mode=equipments_edit&equip_re_id=" . $equip_re_id . "&status=error&message=" . urlencode("เกิดข้อผิดผิดพลาดในการบันทึกการแก้ไขคำร้อง: " . $stmt->error));
+                            exit();
+                        }
+                        $stmt->close();
+                    }
+                }
+            } else {
+                $errors[] = "คุณไม่มีสิทธิ์แก้ไขคำร้องขออุปกรณ์นี้ (ไม่เป็นเจ้าของโครงการที่เกี่ยวข้อง).";
+            }
+        } else if (empty($errors)){
+            header("Location: ?main_tab=user_requests&mode=equipments_edit&equip_re_id=" . $equip_re_id . "&status=error&message=" . urlencode("ขออภัย คำร้องขอใช้อุปกรณ์ต้องดำเนินการล่วงหน้าอย่างน้อย 3 วันก่อนวันเริ่มต้นการใช้งาน"));
+            exit();
         }
     } elseif (isset($_POST['action']) && $_POST['action'] == 'delete_project') {
         $project_id = (int)$_POST['project_id'] ?? 0;
-        // The 'file_to_delete' input is now outdated. We need to fetch the files JSON from the DB.
         $nontri_id = $_SESSION['nontri_id'] ?? '';
 
         if ($project_id > 0) {
-            // Check current status - only allow deletion if 'ร่างโครงการ'
             $current_status_sql = "SELECT writed_status, files FROM project WHERE project_id = ? AND nontri_id = ?";
             $stmt_status = $conn->prepare($current_status_sql);
+            if (!$stmt_status) {
+                header("Location: ?main_tab=user_requests&mode=projects_list&status=error&message=" . urlencode("เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL สำหรับตรวจสอบสถานะ: " . $conn->error));
+                exit();
+            }
             $stmt_status->bind_param("is", $project_id, $nontri_id);
             $stmt_status->execute();
-            $stmt_status->bind_result($current_project_status, $files_json_from_db); // Fetch files here
+            $stmt_status->bind_result($current_project_status, $files_json_from_db);
             $stmt_status->fetch();
             $stmt_status->close();
 
-            if ($current_project_status === 'ร่างโครงการ') { // Only allow deletion for drafts
+            if ($current_project_status === 'ร่างโครงการ') {
                 $conn->begin_transaction();
                 try {
-                    // Decode files JSON to an array for physical deletion
                     $files_to_unlink = json_decode($files_json_from_db, true) ?: [];
 
-                    // 1. Delete associated facilities_requests for this project
                     $stmt_del_fr = $conn->prepare("DELETE FROM facilities_requests WHERE project_id = ?");
+                    if (!$stmt_del_fr) { throw new mysqli_sql_exception("Failed to prepare facilities_requests delete statement: " . $conn->error); }
                     $stmt_del_fr->bind_param("i", $project_id);
                     $stmt_del_fr->execute();
                     $stmt_del_fr->close();
 
-                    // 2. Delete associated equipments_requests for this project
                     $stmt_del_er = $conn->prepare("DELETE FROM equipments_requests WHERE project_id = ?");
+                    if (!$stmt_del_er) { throw new mysqli_sql_exception("Failed to prepare equipments_requests delete statement: " . $conn->error); }
                     $stmt_del_er->bind_param("i", $project_id);
                     $stmt_del_er->execute();
                     $stmt_del_er->close();
 
-                    // 3. Delete the project itself
                     $stmt_del_p = $conn->prepare("DELETE FROM project WHERE project_id = ? AND nontri_id = ?");
+                    if (!$stmt_del_p) { throw new mysqli_sql_exception("Failed to prepare project delete statement: " . $conn->error); }
                     $stmt_del_p->bind_param("is", $project_id, $nontri_id);
                     if ($stmt_del_p->execute()) {
                         if ($stmt_del_p->affected_rows > 0) {
-                            // 4. Delete all associated files from the server
                             foreach ($files_to_unlink as $file_path) {
                                 if (file_exists($file_path)) {
                                     unlink($file_path);
@@ -1322,37 +1277,44 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             header("Location: ?main_tab=user_requests&mode=projects_list&status=success&message=" . urlencode($success_message));
                             exit();
                         } else {
-                            $errors[] = "ไม่พบโครงการที่คุณต้องการลบ หรือคุณไม่มีสิทธิ์ลบโครงการนี้.";
                             $conn->rollback();
+                            header("Location: ?main_tab=user_requests&mode=projects_list&status=error&message=" . urlencode("ไม่พบโครงการที่คุณต้องการลบ หรือคุณไม่มีสิทธิ์ลบโครงการนี้."));
+                            exit();
                         }
                     } else {
-                        $errors[] = "เกิดข้อผิดพลาดในการลบโครงการ: " . $stmt_del_p->error;
                         $conn->rollback();
+                        header("Location: ?main_tab=user_requests&mode=projects_list&status=error&message=" . urlencode("เกิดข้อผิดพลาดในการลบโครงการ: " . $stmt_del_p->error));
+                        exit();
                     }
                     $stmt_del_p->close();
 
                 } catch (mysqli_sql_exception $e) {
                     $conn->rollback();
-                    $errors[] = "เกิดข้อผิดพลาดในการลบโครงการและข้อมูลที่เกี่ยวข้อง: " . $e->getMessage();
+                    header("Location: ?main_tab=user_requests&mode=projects_list&status=error&message=" . urlencode("เกิดข้อผิดพลาดในการลบโครงการและข้อมูลที่เกี่ยวข้อง: " . $e->getMessage()));
+                    exit();
                 }
             } else {
-                $errors[] = "ไม่สามารถลบโครงการที่ไม่ใช่ร่างโครงการได้ หากต้องการยกเลิกโปรดใช้ปุ่ม 'ยกเลิกโครงการ'.";
+                header("Location: ?main_tab=user_requests&mode=projects_detail&project_id=" . $project_id . "&status=error&message=" . urlencode("ไม่สามารถลบโครงการที่ไม่ใช่ร่างโครงการได้ หากต้องการยกเลิกโปรดใช้ปุ่ม 'ยกเลิกโครงการ'."));
+                exit();
             }
         } else {
-            $errors[] = "ไม่พบรหัสโครงการที่ถูกต้อง.";
+            header("Location: ?main_tab=user_requests&mode=projects_list&status=error&message=" . urlencode("ไม่พบรหัสโครงการที่ถูกต้อง."));
+            exit();
         }
 
-    } elseif (isset($_POST['action']) && $_POST['action'] == 'cancel_project') { // MODIFIED: Changed from delete to update status
+    } elseif (isset($_POST['action']) && $_POST['action'] == 'cancel_project') {
         $project_id = (int)$_POST['project_id'] ?? 0;
         $nontri_id = $_SESSION['nontri_id'] ?? '';
 
         if ($project_id > 0) {
-            // Start transaction to ensure data integrity
             $conn->begin_transaction();
             try {
-                // Get current project status to ensure it's not already completed or started
                 $current_status_sql = "SELECT writed_status FROM project WHERE project_id = ? AND nontri_id = ?";
                 $stmt_status = $conn->prepare($current_status_sql);
+                if (!$stmt_status) {
+                    header("Location: ?main_tab=user_requests&mode=projects_list&status=error&message=" . urlencode("เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL สำหรับตรวจสอบสถานะ: " . $conn->error));
+                    exit();
+                }
                 $stmt_status->bind_param("is", $project_id, $nontri_id);
                 $stmt_status->execute();
                 $stmt_status->bind_result($current_project_status);
@@ -1360,22 +1322,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $stmt_status->close();
 
                 if ($current_project_status !== 'เริ่มดำเนินการ' && $current_project_status !== 'สิ้นสุดโครงการ' && $current_project_status !== 'ยกเลิกโครงการ') {
-                    // 1. Update associated facilities_requests for this project
-                    // Only update requests that are not yet approved, rejected, started, or completed
                     $stmt_can_fr = $conn->prepare("UPDATE facilities_requests SET writed_status = 'ยกเลิกคำร้องขอ', approve = 'ยกเลิก' WHERE project_id = ? AND writed_status NOT IN ('เริ่มดำเนินการ', 'สิ้นสุดดำเนินการ', 'ยกเลิกคำร้องขอ') AND approve IS NULL");
+                    if (!$stmt_can_fr) { throw new mysqli_sql_exception("Failed to prepare facilities_requests cancel statement: " . $conn->error); }
                     $stmt_can_fr->bind_param("i", $project_id);
                     $stmt_can_fr->execute();
                     $stmt_can_fr->close();
 
-                    // 2. Update associated equipments_requests for this project
-                    // Only update requests that are not yet approved, rejected, started, or completed
                     $stmt_can_er = $conn->prepare("UPDATE equipments_requests SET writed_status = 'ยกเลิกคำร้องขอ', approve = 'ยกเลิก' WHERE project_id = ? AND writed_status NOT IN ('เริ่มดำเนินการ', 'สิ้นสุดดำเนินการ', 'ยกเลิกคำร้องขอ') AND approve IS NULL");
+                    if (!$stmt_can_er) { throw new mysqli_sql_exception("Failed to prepare equipments_requests cancel statement: " . $conn->error); }
                     $stmt_can_er->bind_param("i", $project_id);
                     $stmt_can_er->execute();
                     $stmt_can_er->close();
 
-                    // 3. Update the project itself, ensuring it belongs to the current user
                     $stmt_can_p = $conn->prepare("UPDATE project SET writed_status = 'ยกเลิกโครงการ' WHERE project_id = ? AND nontri_id = ?");
+                    if (!$stmt_can_p) { throw new mysqli_sql_exception("Failed to prepare project cancel statement: " . $conn->error); }
                     $stmt_can_p->bind_param("is", $project_id, $nontri_id);
                     if ($stmt_can_p->execute()) {
                         if ($stmt_can_p->affected_rows > 0) {
@@ -1384,33 +1344,41 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             header("Location: ?main_tab=user_requests&mode=projects_list&status=success&message=" . urlencode($success_message));
                             exit();
                         } else {
-                            $errors[] = "ไม่พบโครงการที่คุณต้องการยกเลิก หรือคุณไม่มีสิทธิ์ยกเลิกโครงการนี้.";
                             $conn->rollback();
+                            header("Location: ?main_tab=user_requests&mode=projects_list&status=error&message=" . urlencode("ไม่พบโครงการที่คุณต้องการยกเลิก หรือคุณไม่มีสิทธิ์ยกเลิกโครงการนี้."));
+                            exit();
                         }
                     } else {
-                        $errors[] = "เกิดข้อผิดพลาดในการยกเลิกโครงการ: " . $stmt_can_p->error;
                         $conn->rollback();
+                        header("Location: ?main_tab=user_requests&mode=projects_list&status=error&message=" . urlencode("เกิดข้อผิดพลาดในการยกเลิกโครงการ: " . $stmt_can_p->error));
+                        exit();
                     }
                     $stmt_can_p->close();
                 } else {
-                    $errors[] = "ไม่สามารถยกเลิกโครงการที่ 'เริ่มดำเนินการ', 'สิ้นสุดโครงการ' หรือ 'ยกเลิกโครงการ' แล้วได้.";
+                    header("Location: ?main_tab=user_requests&mode=projects_detail&project_id=" . $project_id . "&status=error&message=" . urlencode("ไม่สามารถยกเลิกโครงการที่ 'เริ่มดำเนินการ', 'สิ้นสุดโครงการ' หรือ 'ยกเลิกโครงการ' แล้วได้."));
+                    exit();
                 }
 
             } catch (mysqli_sql_exception $e) {
                 $conn->rollback();
-                $errors[] = "เกิดข้อผิดพลาดในการยกเลิกโครงการและข้อมูลที่เกี่ยวข้อง: " . $e->getMessage();
+                header("Location: ?main_tab=user_requests&mode=projects_detail&project_id=" . $project_id . "&status=error&message=" . urlencode("เกิดข้อผิดพลาดในการยกเลิกโครงการและข้อมูลที่เกี่ยวข้อง: " . $e->getMessage()));
+                exit();
             }
         } else {
-            $errors[] = "ไม่พบรหัสโครงการที่ถูกต้อง.";
+            header("Location: ?main_tab=user_requests&mode=projects_list&status=error&message=" . urlencode("ไม่พบรหัสโครงการที่ถูกต้อง."));
+            exit();
         }
     } elseif (isset($_POST['action']) && $_POST['action'] == 'delete_building_request') {
         $facility_re_id = (int)$_POST['facility_re_id'] ?? 0;
-        $nontri_id = $_SESSION['nontri_id'] ?? ''; // For security, ensure the user owns the project associated with this request
+        $nontri_id = $_SESSION['nontri_id'] ?? '';
 
         if ($facility_re_id > 0) {
-            // Verify ownership and status (only allow deletion if draft)
             $check_sql = "SELECT fr.writed_status, p.nontri_id FROM facilities_requests fr JOIN project p ON fr.project_id = p.project_id WHERE fr.facility_re_id = ?";
             $stmt_check = $conn->prepare($check_sql);
+            if (!$stmt_check) {
+                header("Location: ?main_tab=user_requests&mode=buildings_list&status=error&message=" . urlencode("เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL สำหรับตรวจสอบสิทธิ์: " . $conn->error));
+                exit();
+            }
             $stmt_check->bind_param("i", $facility_re_id);
             $stmt_check->execute();
             $stmt_check->bind_result($current_status, $owner_nontri_id);
@@ -1419,29 +1387,39 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
             if ($owner_nontri_id === $nontri_id && $current_status === 'ร่างคำร้องขอ') {
                 $stmt = $conn->prepare("DELETE FROM facilities_requests WHERE facility_re_id = ?");
+                if (!$stmt) {
+                    header("Location: ?main_tab=user_requests&mode=buildings_list&status=error&message=" . urlencode("เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL สำหรับลบคำร้องขอ: " . $conn->error));
+                    exit();
+                }
                 $stmt->bind_param("i", $facility_re_id);
                 if ($stmt->execute()) {
                     $success_message = "ลบคำร้องขอสถานที่สำเร็จแล้ว!";
                     header("Location: ?main_tab=user_requests&mode=buildings_list&status=success&message=" . urlencode($success_message));
                     exit();
                 } else {
-                    $errors[] = "เกิดข้อผิดพลาดในการลบคำร้องขอสถานที่: " . $stmt->error;
+                    header("Location: ?main_tab=user_requests&mode=buildings_list&status=error&message=" . urlencode("เกิดข้อผิดพลาดในการลบคำร้องขอสถานที่: " . $stmt->error));
+                    exit();
                 }
                 $stmt->close();
             } else {
-                $errors[] = "คุณไม่มีสิทธิ์ลบคำร้องขอสถานที่นี้ หรือคำร้องขอไม่ใช่ร่างคำร้อง.";
+                header("Location: ?main_tab=user_requests&mode=buildings_list&status=error&message=" . urlencode("คุณไม่มีสิทธิ์ลบคำร้องขอสถานที่นี้ หรือคำร้องขอไม่ใช่ร่างคำร้อง."));
+                exit();
             }
         } else {
-            $errors[] = "ไม่พบรหัสคำร้องขอสถานที่ที่ถูกต้อง.";
+            header("Location: ?main_tab=user_requests&mode=buildings_list&status=error&message=" . urlencode("ไม่พบรหัสคำร้องขอสถานที่ที่ถูกต้อง."));
+            exit();
         }
-    } elseif (isset($_POST['action']) && $_POST['action'] == 'cancel_building_request') { // NEW ACTION
+    } elseif (isset($_POST['action']) && $_POST['action'] == 'cancel_building_request') {
         $facility_re_id = (int)$_POST['facility_re_id'] ?? 0;
         $nontri_id = $_SESSION['nontri_id'] ?? '';
 
         if ($facility_re_id > 0) {
-            // Verify ownership and status
             $check_sql = "SELECT fr.writed_status, fr.approve, p.nontri_id FROM facilities_requests fr JOIN project p ON fr.project_id = p.project_id WHERE fr.facility_re_id = ?";
             $stmt_check = $conn->prepare($check_sql);
+            if (!$stmt_check) {
+                header("Location: ?main_tab=user_requests&mode=buildings_list&status=error&message=" . urlencode("เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL สำหรับตรวจสอบสถานะ: " . $conn->error));
+                exit();
+            }
             $stmt_check->bind_param("i", $facility_re_id);
             $stmt_check->execute();
             $stmt_check->bind_result($current_status, $current_approve, $owner_nontri_id);
@@ -1449,35 +1427,45 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $stmt_check->close();
 
             if ($owner_nontri_id === $nontri_id) {
-                // Only allow cancellation if not already started, completed, approved, rejected, or cancelled
                 if ($current_status !== 'เริ่มดำเนินการ' && $current_status !== 'สิ้นสุดดำเนินการ' && $current_approve !== 'อนุมัติ' && $current_approve !== 'ไม่อนุมัติ' && $current_status !== 'ยกเลิกคำร้องขอ') {
                     $stmt = $conn->prepare("UPDATE facilities_requests SET writed_status = 'ยกเลิกคำร้องขอ', approve = 'ยกเลิก' WHERE facility_re_id = ?");
+                    if (!$stmt) {
+                        header("Location: ?main_tab=user_requests&mode=buildings_list&status=error&message=" . urlencode("เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL สำหรับยกเลิกคำร้องขอ: " . $conn->error));
+                        exit();
+                    }
                     $stmt->bind_param("i", $facility_re_id);
                     if ($stmt->execute()) {
                         $success_message = "ยกเลิกคำร้องขอสถานที่สำเร็จแล้ว!";
                         header("Location: ?main_tab=user_requests&mode=buildings_list&status=success&message=" . urlencode($success_message));
                         exit();
                     } else {
-                        $errors[] = "เกิดข้อผิดพลาดในการยกเลิกคำร้องขอสถานที่: " . $stmt->error;
+                        header("Location: ?main_tab=user_requests&mode=buildings_list&status=error&message=" . urlencode("เกิดข้อผิดพลาดในการยกเลิกคำร้องขอสถานที่: " . $stmt->error));
+                        exit();
                     }
                     $stmt->close();
                 } else {
-                    $errors[] = "ไม่สามารถยกเลิกคำร้องที่ 'เริ่มดำเนินการ', 'สิ้นสุดดำเนินการ', 'อนุมัติ', 'ไม่อนุมัติ' หรือ 'ยกเลิก' แล้วได้";
+                    header("Location: ?main_tab=user_requests&mode=buildings_detail&facility_re_id=" . $facility_re_id . "&status=error&message=" . urlencode("ไม่สามารถยกเลิกคำร้องที่ 'เริ่มดำเนินการ', 'สิ้นสุดดำเนินการ', 'อนุมัติ', 'ไม่อนุมัติ' หรือ 'ยกเลิก' แล้วได้"));
+                    exit();
                 }
             } else {
-                $errors[] = "คุณไม่มีสิทธิ์ยกเลิกคำร้องขอสถานที่นี้.";
+                header("Location: ?main_tab=user_requests&mode=buildings_list&status=error&message=" . urlencode("คุณไม่มีสิทธิ์ยกเลิกคำร้องขอสถานที่นี้."));
+                exit();
             }
         } else {
-            $errors[] = "ไม่พบรหัสคำร้องขอสถานที่ที่ถูกต้อง.";
+            header("Location: ?main_tab=user_requests&mode=buildings_list&status=error&message=" . urlencode("ไม่พบรหัสคำร้องขอสถานที่ที่ถูกต้อง."));
+            exit();
         }
     } elseif (isset($_POST['action']) && $_POST['action'] == 'delete_equipment_request') {
         $equip_re_id = (int)$_POST['equip_re_id'] ?? 0;
-        $nontri_id = $_SESSION['nontri_id'] ?? ''; // For security
+        $nontri_id = $_SESSION['nontri_id'] ?? '';
 
         if ($equip_re_id > 0) {
-            // Verify ownership and status (only allow deletion if draft)
             $check_sql = "SELECT er.writed_status, p.nontri_id FROM equipments_requests er JOIN project p ON er.project_id = p.project_id WHERE er.equip_re_id = ?";
             $stmt_check = $conn->prepare($check_sql);
+            if (!$stmt_check) {
+                header("Location: ?main_tab=user_requests&mode=equipments_list&status=error&message=" . urlencode("เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL สำหรับตรวจสอบสิทธิ์: " . $conn->error));
+                exit();
+            }
             $stmt_check->bind_param("i", $equip_re_id);
             $stmt_check->execute();
             $stmt_check->bind_result($current_status, $owner_nontri_id);
@@ -1486,29 +1474,39 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
             if ($owner_nontri_id === $nontri_id && $current_status === 'ร่างคำร้องขอ') {
                 $stmt = $conn->prepare("DELETE FROM equipments_requests WHERE equip_re_id = ?");
+                if (!$stmt) {
+                    header("Location: ?main_tab=user_requests&mode=equipments_list&status=error&message=" . urlencode("เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL สำหรับลบคำร้องขอ: " . $conn->error));
+                    exit();
+                }
                 $stmt->bind_param("i", $equip_re_id);
                 if ($stmt->execute()) {
                     $success_message = "ลบคำร้องขออุปกรณ์สำเร็จแล้ว!";
                     header("Location: ?main_tab=user_requests&mode=equipments_list&status=success&message=" . urlencode($success_message));
                     exit();
                 } else {
-                    $errors[] = "เกิดข้อผิดพลาดในการลบคำร้องขออุปกรณ์: " . $stmt->error;
+                    header("Location: ?main_tab=user_requests&mode=equipments_list&status=error&message=" . urlencode("เกิดข้อผิดพลาดในการลบคำร้องขออุปกรณ์: " . $stmt->error));
+                    exit();
                 }
                 $stmt->close();
             } else {
-                $errors[] = "คุณไม่มีสิทธิ์ลบคำร้องขออุปกรณ์นี้ หรือคำร้องขอไม่ใช่ร่างคำร้อง.";
+                header("Location: ?main_tab=user_requests&mode=equipments_list&status=error&message=" . urlencode("คุณไม่มีสิทธิ์ลบคำร้องขออุปกรณ์นี้ หรือคำร้องขอไม่ใช่ร่างคำร้อง."));
+                exit();
             }
         } else {
-            $errors[] = "ไม่พบรหัสคำร้องขออุปกรณ์ที่ถูกต้อง.";
+            header("Location: ?main_tab=user_requests&mode=equipments_list&status=error&message=" . urlencode("ไม่พบรหัสคำร้องขออุปกรณ์ที่ถูกต้อง."));
+            exit();
         }
-    } elseif (isset($_POST['action']) && $_POST['action'] == 'cancel_equipment_request') { // NEW ACTION
+    } elseif (isset($_POST['action']) && $_POST['action'] == 'cancel_equipment_request') {
         $equip_re_id = (int)$_POST['equip_re_id'] ?? 0;
         $nontri_id = $_SESSION['nontri_id'] ?? '';
 
         if ($equip_re_id > 0) {
-            // Verify ownership and status
             $check_sql = "SELECT er.writed_status, er.approve, p.nontri_id FROM equipments_requests er JOIN project p ON er.project_id = p.project_id WHERE er.equip_re_id = ?";
             $stmt_check = $conn->prepare($check_sql);
+            if (!$stmt_check) {
+                header("Location: ?main_tab=user_requests&mode=equipments_list&status=error&message=" . urlencode("เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL สำหรับตรวจสอบสถานะ: " . $conn->error));
+                exit();
+            }
             $stmt_check->bind_param("i", $equip_re_id);
             $stmt_check->execute();
             $stmt_check->bind_result($current_status, $current_approve, $owner_nontri_id);
@@ -1516,29 +1514,38 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $stmt_check->close();
 
             if ($owner_nontri_id === $nontri_id) {
-                // Only allow cancellation if not already started, completed, approved, rejected, or cancelled
                 if ($current_status !== 'เริ่มดำเนินการ' && $current_status !== 'สิ้นสุดดำเนินการ' && $current_approve !== 'อนุมัติ' && $current_approve !== 'ไม่อนุมัติ' && $current_status !== 'ยกเลิกคำร้องขอ') {
                     $stmt = $conn->prepare("UPDATE equipments_requests SET writed_status = 'ยกเลิกคำร้องขอ', approve = 'ยกเลิก' WHERE equip_re_id = ?");
+                    if (!$stmt) {
+                        header("Location: ?main_tab=user_requests&mode=equipments_list&status=error&message=" . urlencode("เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL สำหรับยกเลิกคำร้องขอ: " . $conn->error));
+                        exit();
+                    }
                     $stmt->bind_param("i", $equip_re_id);
                     if ($stmt->execute()) {
                         $success_message = "ยกเลิกคำร้องขออุปกรณ์สำเร็จแล้ว!";
                         header("Location: ?main_tab=user_requests&mode=equipments_list&status=success&message=" . urlencode($success_message));
                         exit();
                     } else {
-                        $errors[] = "เกิดข้อผิดพลาดในการยกเลิกคำร้องขออุปกรณ์: " . $stmt->error;
+                        header("Location: ?main_tab=user_requests&mode=equipments_list&status=error&message=" . urlencode("เกิดข้อผิดพลาดในการยกเลิกคำร้องขออุปกรณ์: " . $stmt->error));
+                        exit();
                     }
                     $stmt->close();
                 } else {
-                    $errors[] = "ไม่สามารถยกเลิกคำร้องที่ 'เริ่มดำเนินการ', 'สิ้นสุดดำเนินการ', 'อนุมัติ', 'ไม่อนุมัติ' หรือ 'ยกเลิก' แล้วได้";
+                    header("Location: ?main_tab=user_requests&mode=equipments_detail&equip_re_id=" . $equip_re_id . "&status=error&message=" . urlencode("ไม่สามารถยกเลิกคำร้องที่ 'เริ่มดำเนินการ', 'สิ้นสุดดำเนินการ', 'อนุมัติ', 'ไม่อนุมัติ' หรือ 'ยกเลิก' แล้วได้"));
+                    exit();
                 }
             } else {
-                $errors[] = "คุณไม่มีสิทธิ์ยกเลิกคำร้องขออุปกรณ์นี้.";
+                header("Location: ?main_tab=user_requests&mode=equipments_list&status=error&message=" . urlencode("คุณไม่มีสิทธิ์ยกเลิกคำร้องขออุปกรณ์นี้."));
+                exit();
             }
         } else {
-            $errors[] = "ไม่พบรหัสคำร้องขออุปกรณ์ที่ถูกต้อง.";
+            header("Location: ?main_tab=user_requests&mode=equipments_list&status=error&message=" . urlencode("ไม่พบรหัสคำร้องขออุปกรณ์ที่ถูกต้อง."));
+            exit();
         }
     }
 }
+
+
 // <<<<< END MODIFIED SECTION: POST Request Handling >>>>>
 
 
@@ -1549,19 +1556,17 @@ if ($main_tab == 'user_requests') {
     $search_param = '%' . $search_query . '%';
     $sort_filter = $_GET['sort_filter'] ?? 'date_desc';
 
-    // Initialize these for list views
-    $items_per_page = 4; // Default items per page
+    $items_per_page = 4;
     $current_page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
     $offset = ($current_page - 1) * $items_per_page;
-    $total_items = 0; // Default total items
-    $total_pages = 1; // Default total pages
+    $total_items = 0;
+    $total_pages = 1;
 
     try {
         if ($mode == 'projects_list') {
             $sorting = getSortingClauses('projects_list', $sort_filter);
             $base_where = " WHERE p.nontri_id = ? AND p.project_name LIKE ?";
 
-            // --- COUNT QUERY ---
             $sql_count = "SELECT COUNT(*) FROM project p" . $base_where . $sorting['where_sql'];
             $stmt_count = $conn->prepare($sql_count);
 
@@ -1579,7 +1584,6 @@ if ($main_tab == 'user_requests') {
 
             $total_pages = ($items_per_page > 0) ? ceil($total_items / $items_per_page) : 1;
 
-            // --- DATA QUERY ---
             $sql_data = "SELECT
                             p.project_id, p.project_name, p.start_date, p.end_date, p.project_des, p.files, p.attendee, p.phone_num, p.advisor_name, p.writed_status, p.created_date,
                             at.activity_type_name AS activity_type_name
@@ -1619,21 +1623,21 @@ if ($main_tab == 'user_requests') {
                 $stmt_detail->bind_param("is", $project_id, $nontri_id);
                 $stmt_detail->execute();
                 $detail_item = $stmt_detail->get_result()->fetch_assoc();
-                $detail_item['start_date_compare'] = strtotime($detail_item['start_date']);
-                $limited_date = strtotime('+7 days');
+                if ($detail_item) {
+                    $detail_item['start_date_compare'] = strtotime($detail_item['start_date']);
+                }
                 $stmt_detail->close();
 
                 if (!$detail_item) {
                     $errors[] = "ไม่พบโครงการที่คุณร้องขอ หรือคุณไม่มีสิทธิ์เข้าถึงโครงการนี้.";
                     $mode = 'projects_list';
                 } else {
-                    // Fetch facilities requests for this project
                     $project_facility_requests = [];
                     $sql_fr = "SELECT fr.facility_re_id, fr.request_date, fr.writed_status, fr.start_date, fr.end_date, fr.prepare_start_date, fr.prepare_end_date, fr.start_time, fr.end_time, fr.prepare_start_time, fr.prepare_end_time, f.facility_name, fr.approve
                                FROM facilities_requests fr
                                JOIN facilities f ON fr.facility_id = f.facility_id
                                WHERE fr.project_id = ?
-                               ORDER BY fr.request_date DESC"; // Sorted by latest request date
+                               ORDER BY fr.request_date DESC";
                     $stmt_fr = $conn->prepare($sql_fr);
                     if ($stmt_fr) {
                         $stmt_fr->bind_param("i", $project_id);
@@ -1647,13 +1651,12 @@ if ($main_tab == 'user_requests') {
                         $errors[] = "เกิดข้อผิดพลาดในการดึงคำร้องขอสถานที่สำหรับโครงการนี้: " . $conn->error;
                     }
 
-                    // Fetch equipments requests for this project
                     $project_equipment_requests = [];
                     $sql_er = "SELECT er.equip_re_id, er.request_date, er.writed_status, er.start_date, er.end_date, er.quantity, e.equip_name, e.measure, er.approve
                                FROM equipments_requests er
                                JOIN equipments e ON er.equip_id = e.equip_id
                                WHERE er.project_id = ?
-                               ORDER BY er.request_date DESC"; // Sorted by latest request date
+                               ORDER BY er.request_date DESC";
                     $stmt_er = $conn->prepare($sql_er);
                     if ($stmt_er) {
                         $stmt_er->bind_param("i", $project_id);
@@ -1698,17 +1701,14 @@ if ($main_tab == 'user_requests') {
         } elseif ($mode == 'buildings_list') {
             $sorting = getSortingClauses('buildings_list', $sort_filter);
 
-            // สร้าง Subquery filter โดยใช้ EXISTS
             $subquery_filter = '';
             if ($sorting['where_param_value'] !== null) {
-                // แก้ไข: ใช้วิธีที่ถูกต้องในการลบ " AND " ที่นำหน้าออก
                 $condition = preg_replace('/^ AND /', '', $sorting['where_sql']);
                 $subquery_filter = " AND EXISTS (SELECT 1 FROM facilities_requests fr WHERE fr.project_id = p.project_id AND {$condition})";
             }
 
             $base_where = " WHERE p.nontri_id = ? AND p.project_name LIKE ?";
 
-            // --- COUNT QUERY ---
             $sql_count_projects = "SELECT COUNT(*) FROM project p" . $base_where . $subquery_filter;
             $stmt_count_projects = $conn->prepare($sql_count_projects);
 
@@ -1726,7 +1726,6 @@ if ($main_tab == 'user_requests') {
 
             $total_pages = ($items_per_page > 0) ? ceil($total_items / $items_per_page) : 1;
 
-            // --- DATA QUERY ---
             $sql_paginated_projects = "SELECT project_id, project_name, writed_status, created_date FROM project p"
                                     . $base_where . $subquery_filter
                                     . " ORDER BY p.created_date DESC LIMIT ? OFFSET ?";
@@ -1743,7 +1742,6 @@ if ($main_tab == 'user_requests') {
             $stmt_paginated_projects->execute();
             $result_paginated_projects = $stmt_paginated_projects->get_result();
 
-            // ส่วนที่เหลือในการดึง requests ของแต่ละ project ไม่ต้องแก้ไข
             $data = [];
             while ($project_row = $result_paginated_projects->fetch_assoc()) {
                 $project_id = $project_row['project_id'];
@@ -1798,8 +1796,9 @@ if ($main_tab == 'user_requests') {
                 $stmt_detail->bind_param("is", $facility_re_id, $user_id);
                 $stmt_detail->execute();
                 $detail_item = $stmt_detail->get_result()->fetch_assoc();
-                $detail_item['start_date_compare'] = strtotime($detail_item['start_date']); // แปลงเป็น timestamp เพื่อเปรียบเทียบ
-                $limited_date = strtotime('+3 days');
+                if ($detail_item) {
+                    $detail_item['start_date_compare'] = strtotime($detail_item['start_date']);
+                }
                 $stmt_detail->close();
 
                 if (!$detail_item) {
@@ -1818,12 +1817,12 @@ if ($main_tab == 'user_requests') {
                                 fr.prepare_start_date, fr.prepare_end_date, fr.start_time, fr.end_time,
                                 fr.start_date , fr.end_date , fr.agree,
                                 fr.writed_status, fr.request_date, p.nontri_id, CONCAT(u.user_name,' ', u.user_sur) AS user_name,
-                                p.project_name, f.facility_id, f.facility_name, f.building_id, p.start_date AS project_start_date, p.end_date AS project_end_date -- NEW: Get building_id and project dates
+                                p.project_name, f.facility_id, f.facility_name, f.building_id, p.start_date AS project_start_date, p.end_date AS project_end_date
                             FROM facilities_requests fr
                             JOIN project p ON fr.project_id = p.project_id
                             JOIN user u ON p.nontri_id = u.nontri_id
                             JOIN facilities f ON fr.facility_id = f.facility_id
-                            WHERE fr.facility_re_id = ? AND p.nontri_id = ?"; // Ensure user owns the project associated with request
+                            WHERE fr.facility_re_id = ? AND p.nontri_id = ?";
             $stmt_detail = $conn->prepare($sql_detail);
             if ($stmt_detail) {
                 $stmt_detail->bind_param("is", $facility_re_id, $nontri_id);
@@ -1844,14 +1843,12 @@ if ($main_tab == 'user_requests') {
 
             $subquery_filter = '';
             if ($sorting['where_param_value'] !== null) {
-                // แก้ไข: ใช้วิธีที่ถูกต้องในการลบ " AND " ที่นำหน้าออก
                 $condition = preg_replace('/^ AND /', '', $sorting['where_sql']);
                 $subquery_filter = " AND EXISTS (SELECT 1 FROM equipments_requests er WHERE er.project_id = p.project_id AND {$condition})";
             }
 
             $base_where = " WHERE p.nontri_id = ? AND p.project_name LIKE ?";
 
-            // --- COUNT QUERY ---
             $sql_count_projects = "SELECT COUNT(*) FROM project p" . $base_where . $subquery_filter;
             $stmt_count_projects = $conn->prepare($sql_count_projects);
 
@@ -1869,7 +1866,6 @@ if ($main_tab == 'user_requests') {
 
             $total_pages = ($items_per_page > 0) ? ceil($total_items / $items_per_page) : 1;
 
-            // --- DATA QUERY ---
             $sql_paginated_projects = "SELECT project_id, project_name, writed_status, created_date FROM project p"
                                     . $base_where . $subquery_filter
                                     . " ORDER BY p.created_date DESC LIMIT ? OFFSET ?";
@@ -1938,8 +1934,9 @@ if ($main_tab == 'user_requests') {
                             $stmt_detail->bind_param("is", $equip_re_id, $user_id);
                             $stmt_detail->execute();
                             $detail_item = $stmt_detail->get_result()->fetch_assoc();
-                            $detail_item['start_date_compare'] = strtotime($detail_item['start_date']);
-                            $limited_date = strtotime('+3 days');
+                            if ($detail_item) {
+                                $detail_item['start_date_compare'] = strtotime($detail_item['start_date']);
+                            }
                             $stmt_detail->close();
 
                             if (!$detail_item) {
@@ -1956,7 +1953,7 @@ if ($main_tab == 'user_requests') {
             $sql_detail = "SELECT
                                 er.equip_re_id, er.project_id, er.start_date, er.end_date, er.quantity, er.transport,
                                 er.writed_status, er.request_date, p.nontri_id, CONCAT(u.user_name,' ', u.user_sur) AS user_name,
-                                p.project_name, e.equip_id, e.equip_name, f.facility_id, f.facility_name, e.measure, er.agree, er.approve, er.approve_date, p.start_date AS project_start_date, p.end_date AS project_end_date -- NEW: Get project dates
+                                p.project_name, e.equip_id, e.equip_name, f.facility_id, f.facility_name, e.measure, er.agree, er.approve, er.approve_date, p.start_date AS project_start_date, p.end_date AS project_end_date
                             FROM equipments_requests er
                             JOIN project p ON er.project_id = p.project_id
                             JOIN user u ON p.nontri_id = u.nontri_id
@@ -1973,8 +1970,6 @@ if ($main_tab == 'user_requests') {
                     $errors[] = "ไม่พบคำร้องขออุปกรณ์ที่คุณต้องการแก้ไข หรือคุณไม่มีสิทธิ์เข้าถึงคำร้องนี้.";
                     $mode = 'equipments_list';
                 }
-                // Removed the PHP-side facility loading for equipments_edit.
-                // It will now rely on JS AJAX just like equipments_create.
             } else {
                 $errors[] = "เกิดข้อผิดพลาดในการดึงข้อมูลคำร้องขออุปกรณ์: " . $conn->error;
                 $mode = 'equipments_list';
@@ -1988,9 +1983,6 @@ if ($main_tab == 'user_requests') {
 }
 
 $conn->close();
-
-$modal_status = $_GET['status'] ?? '';
-$modal_message = $_GET['message'] ?? '';
 ?>
 
 <!DOCTYPE html>
@@ -2002,7 +1994,7 @@ $modal_message = $_GET['message'] ?? '';
     <nav class="navbar navbar-dark navigator">
         <div class="container-fluid">
             <div class="d-flex align-items-center gap-3">
-                <a href="?main_tab=user_dashboard"> <!-- <<<<< MODIFIED LINK >>>>> -->
+                <a href="?main_tab=user_dashboard">
                     <img src="./images/logo.png" class="img-fluid logo" alt="Logo">
                 </a>
                 <div class="d-flex flex-column">
@@ -2011,7 +2003,6 @@ $modal_message = $_GET['message'] ?? '';
                 </div>
             </div>
             <div class="d-flex flex-wrap gap-3 mx-auto">
-                <!-- <<<<< MODIFIED NAV LINKS >>>>> -->
                 <a class="navbar-brand mb-0 fs-5 fs-md-4" href="user-project-page.php">ข้อมูลคำร้อง</a>
                 <a class="navbar-brand mb-0 fs-5 fs-md-4" href="user-data_view-page.php">ตรวจสอบอุปกรณ์และสถานที่</a>
             </div>
@@ -2038,23 +2029,6 @@ $modal_message = $_GET['message'] ?? '';
                 </ul>
             </div>
         <?php endif; ?>
-
-        <div class="modal fade" id="statusModal" tabindex="-1" aria-labelledby="statusModalLabel" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
-                    <div class="modal-header <?php echo ($modal_status == 'success') ? 'bg-success' : 'bg-danger'; ?> text-white">
-                        <h5 class="modal-title" id="statusModalLabel"><?php echo ($modal_status == 'success') ? 'สำเร็จ!' : 'ข้อผิดพลาด!'; ?></h5>
-                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                        <?php echo htmlspecialchars($modal_message); ?>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn <?php echo ($modal_status == 'success') ? 'btn-success' : 'btn-danger'; ?>" data-bs-dismiss="modal">ตกลง</button>
-                    </div>
-                </div>
-            </div>
-        </div>
 
         <?php if ($main_tab == 'user_requests') : ?>
             <?php if ($mode == 'projects_list') : ?>
@@ -2113,7 +2087,7 @@ $modal_message = $_GET['message'] ?? '';
                                     <option value="ส่งโครงการ" <?php echo (($_GET['sort_filter'] ?? '') == 'ส่งโครงการ') ? 'selected' : ''; ?>>ส่งโครงการ</option>
                                     <option value="เริ่มดำเนินการ" <?php echo (($_GET['sort_filter'] ?? '') == 'เริ่มดำเนินการ') ? 'selected' : ''; ?>>เริ่มดำเนินการ</option>
                                     <option value="สิ้นสุดโครงการ" <?php echo (($_GET['sort_filter'] ?? '') == 'สิ้นสุดโครงการ') ? 'selected' : ''; ?>>สิ้นสุดโครงการ</option>
-                                    <option value="ยกเลิกโครงการ" <?php echo (($_GET['sort_filter'] ?? '') == 'ยกเลิกโครงการ') ? 'selected' : ''; ?>>ยกเลิกโครงการ</option> <!-- NEW -->
+                                    <option value="ยกเลิกโครงการ" <?php echo (($_GET['sort_filter'] ?? '') == 'ยกเลิกโครงการ') ? 'selected' : ''; ?>>ยกเลิกโครงการ</option>
                                 <?php elseif ($mode == 'buildings_list' || $mode == 'equipments_list'): ?>
                                     <option value="ร่างคำร้องขอ" <?php echo (($_GET['sort_filter'] ?? '') == 'ร่างคำร้องขอ') ? 'selected' : ''; ?>>ร่างคำร้องขอ</option>
                                     <option value="ส่งคำร้องขอ" <?php echo (($_GET['sort_filter'] ?? '') == 'ส่งคำร้องขอ') ? 'selected' : ''; ?>>ส่งคำร้องขอ</option>
@@ -2121,12 +2095,11 @@ $modal_message = $_GET['message'] ?? '';
                                     <option value="ไม่อนุมัติ" <?php echo (($_GET['sort_filter'] ?? '') == 'ไม่อนุมัติ') ? 'selected' : ''; ?>>ไม่อนุมัติ</option>
                                     <option value="เริ่มดำเนินการ" <?php echo (($_GET['sort_filter'] ?? '') == 'เริ่มดำเนินการ') ? 'selected' : ''; ?>>เริ่มดำเนินการ</option>
                                     <option value="สิ้นสุดดำเนินการ" <?php echo (($_GET['sort_filter'] ?? '') == 'สิ้นสุดดำเนินการ') ? 'selected' : ''; ?>>สิ้นสุดดำเนินการ</option>
-                                    <option value="ยกเลิกคำร้องขอ" <?php echo (($_GET['sort_filter'] ?? '') == 'ยกเลิกคำร้องขอ') ? 'selected' : ''; ?>>ยกเลิกคำร้องขอ</option> <!-- NEW -->
+                                    <option value="ยกเลิกคำร้องขอ" <?php echo (($_GET['sort_filter'] ?? '') == 'ยกเลิกคำร้องขอ') ? 'selected' : ''; ?>>ยกเลิกคำร้องขอ</option>
                                 <?php endif; ?>
                             </optgroup>
                         </select>
 
-                        <!-- Search Input and Buttons -->
                         <input class="form-control me-2" type="search" placeholder="ค้นหา..." aria-label="Search" name="search" value="<?php echo htmlspecialchars($search_query); ?>">
                         <button class="btn btn-outline-success" type="submit">ค้นหา</button>
                         <?php if (!empty($search_query) || !empty($_GET['sort_filter'])): ?>
@@ -2377,7 +2350,7 @@ $modal_message = $_GET['message'] ?? '';
             <?php elseif ($mode == 'projects_create'): ?>
                 <div class="form-section my-4">
                     <h2 class="mb-4 text-center">สร้างโครงการใหม่</h2>
-                    <form action="?main_tab=user_requests&mode=projects_create" method="POST" enctype="multipart/form-data">
+                    <form id="createProjectForm" action="?main_tab=user_requests&mode=projects_create" method="POST" enctype="multipart/form-data">
                         <div class="mb-3">
                             <label for="project_name" class="form-label">ชื่อโครงการ:</label>
                             <input type="text" class="form-control" id="project_name" name="project_name" value="<?php echo htmlspecialchars($_POST['project_name'] ?? ''); ?>" required>
@@ -2432,7 +2405,7 @@ $modal_message = $_GET['message'] ?? '';
                             <a href="?main_tab=user_requests&mode=projects_list" class="btn btn-secondary">ย้อนกลับ</a>
                             <div>
                                 <button type="submit" name="action" value="save_draft" class="btn btn-warning me-2">บันทึกแบบร่าง</button>
-                                <button type="submit" name="action" value="submit_project" class="btn btn-success">บันทึกและส่งโครงการ</button>
+                                <button type="button" id="submitCreateProject" name="action" value="submit_project" class="btn btn-success">บันทึกและส่งโครงการ</button>
                             </div>
                         </div>
                     </form>
@@ -2490,7 +2463,7 @@ $modal_message = $_GET['message'] ?? '';
                         </a>
                         <div>
                             <?php
-                                $can_edit = (($detail_item['writed_status'] == 'ร่างโครงการ' || $detail_item['writed_status'] == 'ส่งโครงการ') && $detail_item['start_date_compare'] >= strtotime(date('Y-m-d', strtotime('+7 days'))) ); // Adjusted for 7 days
+                                $can_edit = (($detail_item['writed_status'] == 'ร่างโครงการ' || $detail_item['writed_status'] == 'ส่งโครงการ') && strtotime($detail_item['start_date']) >= strtotime(date('Y-m-d', strtotime('+7 days'))) );
                                 $can_delete = ($detail_item['writed_status'] == 'ร่างโครงการ');
                                 $can_cancel = ($detail_item['writed_status'] == 'ส่งโครงการ');
                             ?>
@@ -2501,13 +2474,19 @@ $modal_message = $_GET['message'] ?? '';
                             <?php endif; ?>
 
                             <?php if ($can_delete): ?>
-                                <button type="button" class="btn btn-danger me-2" data-bs-toggle="modal" data-bs-target="#deleteProjectModal">
+                                <button type="button" class="btn btn-danger me-2" data-bs-toggle="modal" data-bs-target="#deleteProjectModal"
+                                        data-id="<?php echo $detail_item['project_id']; ?>"
+                                        data-project-name="<?php echo htmlspecialchars($detail_item['project_name']); ?>"
+                                        data-type="โครงการ">
                                     <i class="bi bi-trash"></i> ลบโครงการ
                                 </button>
                             <?php endif; ?>
 
                             <?php if ($can_cancel):?>
-                                <button type="button" class="btn btn-dark" data-bs-toggle="modal" data-bs-target="#cancelProjectModal">
+                                <button type="button" class="btn btn-dark" data-bs-toggle="modal" data-bs-target="#cancelProjectModal"
+                                        data-id="<?php echo $detail_item['project_id']; ?>"
+                                        data-project-name="<?php echo htmlspecialchars($detail_item['project_name']); ?>"
+                                        data-type="โครงการ">
                                     <i class="bi bi-x-circle"></i> ยกเลิกโครงการ
                                 </button>
                             <?php endif; ?>
@@ -2517,20 +2496,19 @@ $modal_message = $_GET['message'] ?? '';
                     <div class="modal fade" id="deleteProjectModal" tabindex="-1" aria-labelledby="deleteProjectModalLabel" aria-hidden="true">
                         <div class="modal-dialog modal-dialog-centered">
                             <div class="modal-content">
-                                <div class="modal-header bg-danger text-white">
-                                    <h5 class="modal-title" id="deleteProjectModalLabel">ยืนยันการลบโครงการ</h5>
-                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                                </div>
-                                <div class="modal-body">
-                                    คุณแน่ใจหรือไม่ว่าต้องการลบโครงการ "<strong><?php echo htmlspecialchars($detail_item['project_name']); ?></strong>" นี้?
-                                    การดำเนินการนี้ไม่สามารถย้อนกลับได้ และจะลบคำร้องขอที่เกี่ยวข้องทั้งหมดด้วย.
-                                </div>
-                                <div class="modal-footer">
-                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
-                                    <form action="?main_tab=user_requests" method="POST" style="display:inline;">
-                                        <input type="hidden" name="action" value="delete_project">
-                                        <input type="hidden" name="project_id" value="<?php echo $detail_item['project_id']; ?>">
-                                        <input type="hidden" name="file_to_delete" value="<?php echo htmlspecialchars($detail_item['files'] ?? ''); ?>">
+                                <form id="deleteProjectForm" action="?main_tab=user_requests" method="POST">
+                                    <div class="modal-header bg-danger text-white">
+                                        <h5 class="modal-title" id="deleteProjectModalLabel">ยืนยันการลบโครงการ</h5>
+                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <p class="details-text">คุณแน่ใจหรือไม่ว่าต้องการลบโครงการ "<strong><?php echo htmlspecialchars($detail_item['project_name']); ?></strong>" นี้?
+                                        การดำเนินการนี้ไม่สามารถย้อนกลับได้ และจะลบคำร้องขอที่เกี่ยวข้องทั้งหมดด้วย.</p>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+                                        <input type="hidden" name="action" id="delete_action_project" value="delete_project">
+                                        <input type="hidden" name="project_id" id="delete_project_id" value="">
                                         <button type="submit" class="btn btn-danger">ลบโครงการ</button>
                                     </form>
                                 </div>
@@ -2541,19 +2519,19 @@ $modal_message = $_GET['message'] ?? '';
                     <div class="modal fade" id="cancelProjectModal" tabindex="-1" aria-labelledby="cancelProjectModalLabel" aria-hidden="true">
                         <div class="modal-dialog modal-dialog-centered">
                             <div class="modal-content">
-                                <div class="modal-header bg-dark text-white">
-                                    <h5 class="modal-title" id="cancelProjectModalLabel">ยืนยันการยกเลิกโครงการ</h5>
-                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                                </div>
-                                <div class="modal-body">
-                                    คุณแน่ใจหรือไม่ว่าต้องการยกเลิกโครงการ "<strong><?php echo htmlspecialchars($detail_item['project_name']); ?></strong>" นี้?
-                                    การยกเลิกโครงการจะยกเลกคำร้องขอที่เกี่ยวข้องทั้งหมดด้วย.
-                                </div>
-                                <div class="modal-footer">
-                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ไม่</button>
-                                    <form action="?main_tab=user_requests" method="POST" style="display:inline;">
-                                        <input type="hidden" name="action" value="cancel_project">
-                                        <input type="hidden" name="project_id" value="<?php echo $detail_item['project_id']; ?>">
+                                <form id="cancelProjectForm" action="?main_tab=user_requests" method="POST">
+                                    <div class="modal-header bg-dark text-white">
+                                        <h5 class="modal-title" id="cancelProjectModalLabel">ยืนยันการยกเลิกโครงการ</h5>
+                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <p class="details-text">คุณแน่ใจหรือไม่ว่าต้องการยกเลิกโครงการ "<strong><?php echo htmlspecialchars($detail_item['project_name']); ?></strong>" นี้?
+                                        การยกเลิกโครงการจะยกเลิกคำร้องขอที่เกี่ยวข้องทั้งหมดด้วย.</p>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ไม่</button>
+                                        <input type="hidden" name="action" id="cancel_action_project" value="cancel_project">
+                                        <input type="hidden" name="project_id" id="cancel_project_id" value="">
                                         <button type="submit" class="btn btn-dark">ยืนยัน, ยกเลิกโครงการ</button>
                                     </form>
                                 </div>
@@ -2663,9 +2641,8 @@ $modal_message = $_GET['message'] ?? '';
             <?php elseif ($mode == 'projects_edit' && $detail_item): ?>
                 <div class="form-section my-4">
                     <h2 class="mb-4 text-center">แก้ไขโครงการ: <?php echo htmlspecialchars($detail_item['project_name']); ?></h2>
-                    <form action="?main_tab=user_requests&mode=projects_edit" method="POST" enctype="multipart/form-data">
+                    <form id="editProjectForm" action="?main_tab=user_requests&mode=projects_edit" method="POST" enctype="multipart/form-data">
                         <input type="hidden" name="project_id" value="<?php echo htmlspecialchars($detail_item['project_id']); ?>">
-                        <!-- This hidden input stores the original JSON array from DB for server-side comparison -->
                         <input type="hidden" name="existing_file_paths_json_from_db" value="<?php echo htmlspecialchars($detail_item['files'] ?? '[]'); ?>">
 
                             <div class="mb-3">
@@ -2697,7 +2674,6 @@ $modal_message = $_GET['message'] ?? '';
                                                 <a href="<?php echo htmlspecialchars($filePath); ?>" target="_blank" class="form-control text-truncate">
                                                     <?php echo htmlspecialchars(basename($filePath)); ?>
                                                 </a>
-                                                <!-- This hidden input sends the path if the file is retained -->
                                                 <input type="hidden" name="existing_file_paths_retained[]" value="<?php echo htmlspecialchars($filePath); ?>">
                                                 <button type="button" class="btn btn-outline-danger remove-existing-file" data-file-path="<?php echo htmlspecialchars($filePath); ?>">ลบ</button>
                                             </div>
@@ -2707,7 +2683,6 @@ $modal_message = $_GET['message'] ?? '';
                                     <?php endif; ?>
                                 </div>
                                 <label for="files" class="form-label mt-3">อัปโหลดไฟล์ใหม่ (เพิ่มเติม):</label>
-                                <!-- IMPORTANT CHANGE: Add name="files[]" and multiple attribute -->
                                 <input type="file" class="form-control" id="files" name="files[]" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx">
                             </div>
                             <div class="row mb-3">
@@ -2745,7 +2720,7 @@ $modal_message = $_GET['message'] ?? '';
                                     <?php if ($detail_item['writed_status'] == 'ร่างโครงการ') : ?>
                                         <button type="submit" name="action" value="save_draft_edit" class="btn btn-warning me-2">บันทึกแบบร่าง</button>
                                     <?php endif; ?>
-                                    <button type="submit" name="action" value="submit_project_edit" class="btn btn-success">บันทึกและส่งโครงการ</button>
+                                    <button type="button" id="submitEditProject" name="action" value="submit_project_edit" class="btn btn-success">บันทึกและส่งโครงการ</button>
                                 </div>
                             </div>
                         </form>
@@ -2799,7 +2774,7 @@ $modal_message = $_GET['message'] ?? '';
                             <?php endif; ?>
                         </div>
                     </div>
-                <?php if (empty($data)): // $data now holds projects for the current page ?>
+                <?php if (empty($data)): ?>
                     <div class="alert alert-info text-center mt-4">
                         <?php if (!empty($search_query)): ?>
                             ไม่พบโครงการที่มีคำร้องขอใช้<?php echo ($mode == 'buildings_list' ? 'สถานที่' : 'อุปกรณ์'); ?>ที่คุณค้นหา "<?php echo htmlspecialchars($search_query); ?>"
@@ -2811,7 +2786,7 @@ $modal_message = $_GET['message'] ?? '';
                     <div class="row row-cols-1 g-3">
                         <?php foreach ($data as $project): ?>
                             <div class="col">
-                                <div class="card shadow-sm p-3 mb-4"> <!-- Project Card -->
+                                <div class="card shadow-sm p-3 mb-4">
                                     <h4 class="card-title mb-2">โครงการ: <?php echo htmlspecialchars($project['project_name']); ?>
                                         <small class="text-muted">(สถานะ: <span class="badge <?php echo getStatusBadgeClass($project['writed_status']); ?>"><?php echo htmlspecialchars($project['writed_status']); ?></span>)</small>
                                     </h4>
@@ -2914,7 +2889,7 @@ $modal_message = $_GET['message'] ?? '';
             <?php elseif ($mode == 'buildings_create'):?>
                 <div class="form-section my-4">
                     <h2 class="mb-4 text-center">สร้างคำร้องขอใช้อาคารสถานที่</h2>
-                    <form action="?main_tab=user_requests&mode=buildings_create" method="POST">
+                    <form id="createBuildingForm" action="?main_tab=user_requests&mode=buildings_create" method="POST">
                         <div class="mb-3">
                             <label for="project_id" class="form-label">โครงการ:</label>
                             <select class="form-select" id="project_id" name="project_id" required>
@@ -2931,7 +2906,6 @@ $modal_message = $_GET['message'] ?? '';
                             <?php endif; ?>
                         </div>
 
-                        <!-- Building dropdown -->
                         <div class="mb-3">
                             <label for="building_id" class="form-label">อาคารที่ต้องการขอใช้:</label>
                             <select class="form-select" id="building_id" name="building_id" required>
@@ -3012,7 +2986,7 @@ $modal_message = $_GET['message'] ?? '';
                             <a href="?main_tab=user_requests&mode=buildings_list" class="btn btn-secondary">ย้อนกลับ</a>
                             <div>
                                 <button type="submit" name="action" value="save_draft_building" class="btn btn-warning me-2">บันทึกแบบร่าง</button>
-                                <button type="submit" name="action" value="submit_building" class="btn btn-success">บันทึกและส่งคำร้อง</button>
+                                <button type="button" id="submitCreateBuilding" name="action" value="submit_building" class="btn btn-success">บันทึกและส่งคำร้อง</button>
                             </div>
                         </div>
                     </form>
@@ -3084,7 +3058,7 @@ $modal_message = $_GET['message'] ?? '';
                         </a>
                         <div>
                             <?php
-                                $can_edit = (($detail_item['writed_status'] == 'ร่างคำร้องขอ' || $detail_item['writed_status'] == 'ส่งคำร้องขอ') && ($detail_item['start_date_compare'] >= strtotime(date('Y-m-d', strtotime('+3 days'))) && ($detail_item['approve'] === null || $detail_item['approve'] === ''))); // Changed limited_date to +3 days for requests
+                                $can_edit = (($detail_item['writed_status'] == 'ร่างคำร้องขอ' || $detail_item['writed_status'] == 'ส่งคำร้องขอ') && (strtotime($detail_item['start_date']) >= strtotime(date('Y-m-d', strtotime('+3 days'))) && ($detail_item['approve'] === null || $detail_item['approve'] === '')));
                                 $can_delete = ($detail_item['writed_status'] == 'ร่างคำร้องขอ');
                                 $can_cancel = ($detail_item['writed_status'] == 'ส่งคำร้องขอ');
                             ?>
@@ -3094,12 +3068,18 @@ $modal_message = $_GET['message'] ?? '';
                                 </a>
                             <?php endif; ?>
                             <?php if ($can_delete): ?>
-                                <button type="button" class="btn btn-danger me-2" data-bs-toggle="modal" data-bs-target="#deleteBuildingRequestModal">
+                                <button type="button" class="btn btn-danger me-2" data-bs-toggle="modal" data-bs-target="#deleteBuildingRequestModal"
+                                        data-id="<?php echo $detail_item['facility_re_id']; ?>"
+                                        data-facility-name="<?php echo htmlspecialchars($detail_item['facility_name']); ?>"
+                                        data-type="คำร้องขอสถานที่">
                                     <i class="bi bi-trash"></i> ลบคำร้องขอ
                                 </button>
                             <?php endif; ?>
                             <?php if ($can_cancel): ?>
-                                <button type="button" class="btn btn-dark" data-bs-toggle="modal" data-bs-target="#cancelBuildingRequestModal">
+                                <button type="button" class="btn btn-dark" data-bs-toggle="modal" data-bs-target="#cancelBuildingRequestModal"
+                                        data-id="<?php echo $detail_item['facility_re_id']; ?>"
+                                        data-facility-name="<?php echo htmlspecialchars($detail_item['facility_name']); ?>"
+                                        data-type="คำร้องขอสถานที่">
                                     <i class="bi bi-x-circle"></i> ยกเลิกคำร้องขอ
                                 </button>
                             <?php endif; ?>
@@ -3109,19 +3089,19 @@ $modal_message = $_GET['message'] ?? '';
                     <div class="modal fade" id="deleteBuildingRequestModal" tabindex="-1" aria-labelledby="deleteBuildingRequestModalLabel" aria-hidden="true">
                         <div class="modal-dialog modal-dialog-centered">
                             <div class="modal-content">
-                                <div class="modal-header bg-danger text-white">
-                                    <h5 class="modal-title" id="deleteBuildingRequestModalLabel">ยืนยันการลบคำร้องขอสถานที่</h5>
-                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                                </div>
-                                <div class="modal-body">
-                                    คุณแน่ใจหรือไม่ว่าต้องการลบคำร้องขอใช้สถานที่ "<strong><?php echo htmlspecialchars($detail_item['facility_name']); ?></strong>" ของโครงการ "<strong><?php echo htmlspecialchars($detail_item['project_name']); ?></strong>" นี้?
-                                    การดำเนินการนี้ไม่สามารถย้อนกลับได้.
-                                </div>
-                                <div class="modal-footer">
-                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
-                                    <form action="?main_tab=user_requests" method="POST" style="display:inline;">
-                                        <input type="hidden" name="action" value="delete_building_request">
-                                        <input type="hidden" name="facility_re_id" value="<?php echo $detail_item['facility_re_id']; ?>">
+                                <form id="deleteBuildingRequestForm" action="?main_tab=user_requests" method="POST">
+                                    <div class="modal-header bg-danger text-white">
+                                        <h5 class="modal-title" id="deleteBuildingRequestModalLabel">ยืนยันการลบคำร้องขอสถานที่</h5>
+                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <p class="details-text">คุณแน่ใจหรือไม่ว่าต้องการลบคำร้องขอใช้สถานที่ "<strong><?php echo htmlspecialchars($detail_item['facility_name']); ?></strong>" ของโครงการ "<strong><?php echo htmlspecialchars($detail_item['project_name']); ?></strong>" นี้?
+                                        การดำเนินการนี้ไม่สามารถย้อนกลับได้.</p>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+                                        <input type="hidden" name="action" id="delete_action_fr" value="delete_building_request">
+                                        <input type="hidden" name="facility_re_id" id="delete_fr_id" value="">
                                         <button type="submit" class="btn btn-danger">ยืนยันการลบ</button>
                                     </form>
                                 </div>
@@ -3132,19 +3112,19 @@ $modal_message = $_GET['message'] ?? '';
                     <div class="modal fade" id="cancelBuildingRequestModal" tabindex="-1" aria-labelledby="cancelBuildingRequestModalLabel" aria-hidden="true">
                         <div class="modal-dialog modal-dialog-centered">
                             <div class="modal-content">
-                                <div class="modal-header bg-dark text-white">
-                                    <h5 class="modal-title" id="cancelBuildingRequestModalLabel">ยืนยันการยกเลิกคำร้องขอสถานที่</h5>
-                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                                </div>
-                                <div class="modal-body">
-                                    คุณแน่ใจหรือไม่ว่าต้องการยกเลิกคำร้องขอใช้สถานที่ "<strong><?php echo htmlspecialchars($detail_item['facility_name']); ?></strong>" ของโครงการ "<strong><?php echo htmlspecialchars($detail_item['project_name']); ?></strong>" นี้?
-                                    การดำเนินการนี้จะเปลี่ยนสถานะคำร้องเป็น "ยกเลิกคำร้องขอ".
-                                </div>
-                                <div class="modal-footer">
-                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ไม่</button>
-                                    <form action="?main_tab=user_requests" method="POST" style="display:inline;">
-                                        <input type="hidden" name="action" value="cancel_building_request">
-                                        <input type="hidden" name="facility_re_id" value="<?php echo $detail_item['facility_re_id']; ?>">
+                                <form id="cancelBuildingRequestForm" action="?main_tab=user_requests" method="POST">
+                                    <div class="modal-header bg-dark text-white">
+                                        <h5 class="modal-title" id="cancelBuildingRequestModalLabel">ยืนยันการยกเลิกคำร้องขอสถานที่</h5>
+                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <p class="details-text">คุณแน่ใจหรือไม่ว่าต้องการยกเลิกคำร้องขอใช้สถานที่ "<strong><?php echo htmlspecialchars($detail_item['facility_name']); ?></strong>" ของโครงการ "<strong><?php echo htmlspecialchars($detail_item['project_name']); ?></strong>" นี้?
+                                        การดำเนินการนี้จะเปลี่ยนสถานะคำร้องเป็น "ยกเลิกคำร้องขอ".</p>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ไม่</button>
+                                        <input type="hidden" name="action" id="cancel_action_fr" value="cancel_building_request">
+                                        <input type="hidden" name="facility_re_id" id="cancel_fr_id" value="">
                                         <button type="submit" class="btn btn-dark">ใช่, ยกเลิกคำร้องขอ</button>
                                     </form>
                                 </div>
@@ -3156,7 +3136,7 @@ $modal_message = $_GET['message'] ?? '';
             <?php elseif ($mode == 'buildings_edit' && $detail_item): ?>
                     <div class="form-section my-4">
                         <h2 class="mb-4 text-center">แก้ไขคำร้องขอใช้อาคารสถานที่: <?php echo htmlspecialchars($detail_item['facility_name']); ?></h2>
-                        <form action="?main_tab=user_requests&mode=buildings_edit" method="POST"
+                        <form id="editBuildingForm" action="?main_tab=user_requests&mode=buildings_edit" method="POST"
                             data-project-start-date="<?php echo htmlspecialchars($detail_item['project_start_date'] ?? ''); ?>"
                             data-project-end-date="<?php echo htmlspecialchars($detail_item['project_end_date'] ?? ''); ?>">
                             <input type="hidden" name="facility_re_id" value="<?php echo htmlspecialchars($detail_item['facility_re_id']); ?>">
@@ -3179,7 +3159,6 @@ $modal_message = $_GET['message'] ?? '';
                                 <?php endif; ?>
                             </div>
 
-                            <!-- NEW: Building dropdown for edit mode -->
                             <div class="mb-3">
                                 <label for="building_id" class="form-label">อาคารที่ต้องการขอใช้:</label>
                                 <select class="form-select" id="building_id" name="building_id" required
@@ -3189,7 +3168,6 @@ $modal_message = $_GET['message'] ?? '';
                                         $is_disabled = ($building['available'] == 'no') ? 'disabled' : '';
                                         $status_text = ($building['available'] == 'no') ? ' (ไม่พร้อมใช้งาน)' : '';
                                         $is_selected = '';
-                                        // For POST-back or initial edit load
                                         if ((isset($_POST['building_id']) && $_POST['building_id'] == $building['building_id']) ||
                                             (!isset($_POST['building_id']) && isset($detail_item['building_id']) && $detail_item['building_id'] == $building['building_id'])) {
                                             $is_selected = 'selected';
@@ -3265,7 +3243,7 @@ $modal_message = $_GET['message'] ?? '';
                                     <?php if ($detail_item['writed_status'] == 'ร่างคำร้องขอ') : ?>
                                         <button type="submit" name="action" value="save_draft_building_edit" class="btn btn-warning me-2">บันทึกแบบร่าง</button>
                                     <?php endif; ?>
-                                    <button type="submit" name="action" value="submit_building_edit" class="btn btn-success">บันทึกและส่งคำร้อง</button>
+                                    <button type="button" id="submitEditBuilding" name="action" value="submit_building_edit" class="btn btn-success">บันทึกและส่งคำร้อง</button>
                                 </div>
                             </div>
                         </form>
@@ -3274,7 +3252,7 @@ $modal_message = $_GET['message'] ?? '';
             <?php elseif ($mode == 'equipments_create'): ?>
                 <div class="form-section my-4">
                     <h2 class="mb-4 text-center">สร้างคำร้องขอใช้อุปกรณ์</h2>
-                    <form action="?main_tab=user_requests&mode=equipments_create" method="POST">
+                    <form id="createEquipmentForm" action="?main_tab=user_requests&mode=equipments_create" method="POST">
                         <div class="mb-3">
                             <label for="project_id" class="form-label">โครงการ:</label>
                             <select class="form-select" id="project_id" name="project_id" required>
@@ -3345,7 +3323,7 @@ $modal_message = $_GET['message'] ?? '';
                             <a href="?main_tab=user_requests&mode=equipments_list" class="btn btn-secondary">ย้อนกลับ</a>
                             <div>
                                 <button type="submit" name="action" value="save_draft_equipment" class="btn btn-warning me-2">บันทึกแบบร่าง</button>
-                                <button type="submit" name="action" value="submit_equipment" class="btn btn-success">บันทึกและส่งคำร้อง</button>
+                                <button type="button" id="submitCreateEquipment" name="action" value="submit_equipment" class="btn btn-success">บันทึกและส่งคำร้อง</button>
                             </div>
                         </div>
                     </form>
@@ -3394,7 +3372,7 @@ $modal_message = $_GET['message'] ?? '';
                             </a>
                             <div>
                             <?php
-                                $can_edit = (($detail_item['writed_status'] == 'ร่างคำร้องขอ' || $detail_item['writed_status'] == 'ส่งคำร้องขอ') && ($detail_item['start_date_compare'] >= strtotime(date('Y-m-d', strtotime('+3 days'))) && ($detail_item['approve'] === null || $detail_item['approve'] === '')));
+                                $can_edit = (($detail_item['writed_status'] == 'ร่างคำร้องขอ' || $detail_item['writed_status'] == 'ส่งคำร้องขอ') && (strtotime($detail_item['start_date']) >= strtotime(date('Y-m-d', strtotime('+3 days'))) && ($detail_item['approve'] === null || $detail_item['approve'] === '')));
                                 $can_delete = ($detail_item['writed_status'] == 'ร่างคำร้องขอ');
                                 $can_cancel_request = ($detail_item['writed_status'] !== 'ร่างคำร้องขอ' && $detail_item['writed_status'] !== 'เริ่มดำเนินการ' && $detail_item['writed_status'] !== 'สิ้นสุดดำเนินการ' && $detail_item['writed_status'] !== 'ยกเลิกคำร้องขอ');
                             ?>
@@ -3404,12 +3382,18 @@ $modal_message = $_GET['message'] ?? '';
                                 </a>
                             <?php endif; ?>
                             <?php if ($can_delete): ?>
-                                <button type="button" class="btn btn-danger me-2" data-bs-toggle="modal" data-bs-target="#deleteEquipmentRequestModal">
+                                <button type="button" class="btn btn-danger me-2" data-bs-toggle="modal" data-bs-target="#deleteEquipmentRequestModal"
+                                        data-id="<?php echo $detail_item['equip_re_id']; ?>"
+                                        data-equip-name="<?php echo htmlspecialchars($detail_item['equip_name']); ?>"
+                                        data-type="คำร้องขออุปกรณ์">
                                     <i class="bi bi-trash"></i> ลบคำร้องขอ
                                 </button>
                             <?php endif; ?>
                             <?php if ($can_cancel_request): ?>
-                                <button type="button" class="btn btn-dark" data-bs-toggle="modal" data-bs-target="#cancelEquipmentRequestModal">
+                                <button type="button" class="btn btn-dark" data-bs-toggle="modal" data-bs-target="#cancelEquipmentRequestModal"
+                                        data-id="<?php echo $detail_item['equip_re_id']; ?>"
+                                        data-equip-name="<?php echo htmlspecialchars($detail_item['equip_name']); ?>"
+                                        data-type="คำร้องขออุปกรณ์">
                                     <i class="bi bi-x-circle"></i> ยกเลิกคำร้องขอ
                                 </button>
                             <?php endif; ?>
@@ -3419,22 +3403,21 @@ $modal_message = $_GET['message'] ?? '';
                         <div class="modal fade" id="deleteEquipmentRequestModal" tabindex="-1" aria-labelledby="deleteEquipmentRequestModalLabel" aria-hidden="true">
                             <div class="modal-dialog modal-dialog-centered">
                                 <div class="modal-content">
-                                    <div class="modal-header bg-danger text-white">
-                                        <h5 class="modal-title" id="deleteEquipmentRequestModalLabel">ยืนยันการลบคำร้องขออุปกรณ์</h5>
-                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                                    </div>
+                                    <form id="deleteEquipmentRequestForm" action="?main_tab=user_requests" method="POST">
+                                        <div class="modal-header bg-danger text-white">
+                                            <h5 class="modal-title" id="deleteEquipmentRequestModalLabel">ยืนยันการลบคำร้องขออุปกรณ์</h5>
+                                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                        </div>
                                     <div class="modal-body">
-                                        คุณแน่ใจหรือไม่ว่าต้องการลบคำร้องขอใช้อุปกรณ์ "<strong><?php echo htmlspecialchars($detail_item['equip_name']); ?></strong>" ของโครงการ "<strong><?php echo htmlspecialchars($detail_item['project_name']); ?></strong>" นี้?
-                                        การดำเนินการนี้ไม่สามารถย้อนกลับได้.
+                                        <p class="details-text">คุณแน่ใจหรือไม่ว่าต้องการลบคำร้องขอใช้อุปกรณ์ "<strong><?php echo htmlspecialchars($detail_item['equip_name']); ?></strong>" ของโครงการ "<strong><?php echo htmlspecialchars($detail_item['project_name']); ?></strong>" นี้?
+                                        การดำเนินการนี้ไม่สามารถย้อนกลับได้.</p>
                                     </div>
                                     <div class="modal-footer">
                                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
-                                        <form action="?main_tab=user_requests" method="POST" style="display:inline;">
-                                            <input type="hidden" name="action" value="delete_equipment_request">
-                                            <input type="hidden" name="equip_re_id" value="<?php echo $detail_item['equip_re_id']; ?>">
-                                            <button type="submit" class="btn btn-danger">ยืนยันการลบ</button>
-                                        </form>
-                                    </div>
+                                        <input type="hidden" name="action" id="delete_action_er" value="delete_equipment_request">
+                                        <input type="hidden" name="equip_re_id" id="delete_er_id" value="">
+                                        <button type="submit" class="btn btn-danger">ยืนยันการลบ</button>
+                                    </form>
                                 </div>
                             </div>
                         </div>
@@ -3442,22 +3425,21 @@ $modal_message = $_GET['message'] ?? '';
                         <div class="modal fade" id="cancelEquipmentRequestModal" tabindex="-1" aria-labelledby="cancelEquipmentRequestModalLabel" aria-hidden="true">
                             <div class="modal-dialog modal-dialog-centered">
                                 <div class="modal-content">
-                                    <div class="modal-header bg-dark text-white">
-                                        <h5 class="modal-title" id="cancelEquipmentRequestModalLabel">ยืนยันการยกเลิกคำร้องขออุปกรณ์</h5>
-                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                                    </div>
+                                    <form id="cancelEquipmentRequestForm" action="?main_tab=user_requests" method="POST">
+                                        <div class="modal-header bg-dark text-white">
+                                            <h5 class="modal-title" id="cancelEquipmentRequestModalLabel">ยืนยันการยกเลิกคำร้องขออุปกรณ์</h5>
+                                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                        </div>
                                     <div class="modal-body">
-                                        คุณแน่ใจหรือไม่ว่าต้องการยกเลิกคำร้องขอใช้อุปกรณ์ "<strong><?php echo htmlspecialchars($detail_item['equip_name']); ?></strong>" ของโครงการ "<strong><?php echo htmlspecialchars($detail_item['project_name']); ?></strong>" นี้?
-                                        การดำเนินการนี้จะเปลี่ยนสถานะคำร้องเป็น "ยกเลิกคำร้องขอ".
+                                        <p class="details-text">คุณแน่ใจหรือไม่ว่าต้องการยกเลิกคำร้องขอใช้อุปกรณ์ "<strong><?php echo htmlspecialchars($detail_item['equip_name']); ?></strong>" ของโครงการ "<strong><?php echo htmlspecialchars($detail_item['project_name']); ?></strong>" นี้?
+                                        การดำเนินการนี้จะเปลี่ยนสถานะคำร้องเป็น "ยกเลิกคำร้องขอ".</p>
                                     </div>
                                     <div class="modal-footer">
                                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ไม่</button>
-                                        <form action="?main_tab=user_requests" method="POST" style="display:inline;">
-                                            <input type="hidden" name="action" value="cancel_equipment_request">
-                                            <input type="hidden" name="equip_re_id" value="<?php echo $detail_item['equip_re_id']; ?>">
-                                            <button type="submit" class="btn btn-dark">ใช่, ยกเลิกคำร้องขอ</button>
-                                        </form>
-                                    </div>
+                                        <input type="hidden" name="action" id="cancel_action_er" value="cancel_equipment_request">
+                                        <input type="hidden" name="equip_re_id" id="cancel_er_id" value="">
+                                        <button type="submit" class="btn btn-dark">ใช่, ยกเลิกคำร้องขอ</button>
+                                    </form>
                                 </div>
                             </div>
                         </div>
@@ -3465,7 +3447,7 @@ $modal_message = $_GET['message'] ?? '';
             <?php elseif ($mode == 'equipments_edit' && $detail_item): ?>
                 <div class="form-section my-4">
                     <h2 class="mb-4 text-center">แก้ไขคำร้องขอใช้อุปกรณ์: <?php echo htmlspecialchars($detail_item['equip_name']); ?></h2>
-                    <form action="?main_tab=user_requests&mode=equipments_edit" method="POST"
+                    <form id="editEquipmentForm" action="?main_tab=user_requests&mode=equipments_edit" method="POST"
                         data-project-start-date="<?php echo htmlspecialchars($detail_item['project_start_date'] ?? ''); ?>"
                         data-project-end-date="<?php echo htmlspecialchars($detail_item['project_end_date'] ?? ''); ?>">
                         <input type="hidden" name="equip_re_id" value="<?php echo htmlspecialchars($detail_item['equip_re_id']); ?>">
@@ -3476,7 +3458,6 @@ $modal_message = $_GET['message'] ?? '';
                                 <?php foreach ($user_projects as $project): ?>
                                     <option value="<?php echo htmlspecialchars($project['project_id']); ?>"
                                         <?php
-                                        // Pre-select project_id for edit mode
                                         $selected_project_from_post = isset($_POST['project_id']) ? $_POST['project_id'] : null;
                                         $selected_project_from_detail = $detail_item['project_id'] ?? null;
 
@@ -3520,10 +3501,6 @@ $modal_message = $_GET['message'] ?? '';
                             <select class="form-select" id="facility_id" name="facility_id"
                                 data-initial-facility-id="<?php echo htmlspecialchars($detail_item['facility_id'] ?? ''); ?>">
                                 <option value="">-- เลือกโครงการเพื่อดูสถานที่ --</option>
-                                <?php
-                                // This part will now be handled by JavaScript AJAX
-                                // The initial options here are just a fallback or for non-JS scenarios
-                                ?>
                             </select>
                         </div>
                         <div class="row mb-3">
@@ -3555,7 +3532,7 @@ $modal_message = $_GET['message'] ?? '';
                                 <?php if ($detail_item['writed_status'] == 'ร่างคำร้องขอ') : ?>
                                     <button type="submit" name="action" value="save_draft_equipment_edit" class="btn btn-warning me-2">บันทึกแบบร่าง</button>
                                 <?php endif; ?>
-                                <button type="submit" name="action" value="submit_equipment_edit" class="btn btn-success">บันทึกและส่งคำร้อง</button>
+                                <button type="button" id="submitEditEquipment" name="action" value="submit_equipment_edit" class="btn btn-success">บันทึกและส่งคำร้อง</button>
                             </div>
                         </div>
                     </form>
@@ -3566,13 +3543,28 @@ $modal_message = $_GET['message'] ?? '';
 
     </div>
 
+<!-- Generic Modal (used by admin-modal.js for success/error/confirm) -->
+<div class="modal fade" id="genericModal" tabindex="-1" aria-labelledby="genericModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content details-text">
+            <div class="modal-header">
+                <h5 class="modal-title" id="genericModalLabel"></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center" id="genericModalBody">
+            </div>
+            <div class="modal-footer d-flex justify-content-center" id="genericModalFooter">
+            </div>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
 <script>
-    // These are already available globally due to being defined outside the DOMContentLoaded in the PHP output.
     const phpCurrentMode = "<?php echo $mode; ?>";
     const phpCurrentMainTab = "<?php echo $main_tab; ?>";
-    // console.log("PHP values injected:", phpCurrentMainTab, phpCurrentMode);
 </script>
+<script src="./js/admin-modal.js"></script>
 <script src="./js/building_dropdown.js"></script>
 <script src="./js/file_upload.js"></script>
 </body>

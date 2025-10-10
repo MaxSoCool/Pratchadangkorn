@@ -1,19 +1,20 @@
 <?php
 session_start();
 
-// *** จุดแก้ไข: ถ้าผู้ใช้ไม่ได้ล็อกอิน ให้เปลี่ยนเส้นทางไปยังหน้า Login Form จริงๆ (login-page.php) ***
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
-    header("Location: login-page.php"); // เปลี่ยนให้ชี้ไปที่หน้า Login Form
+    header("Location: login-page.php");
     exit();
 }
 
-// ใช้ชื่อ session variable ใหม่ที่กำหนดใน login.php
-// ตรวจสอบทั้ง nontri_id และ staff_id
 $nontri_id = htmlspecialchars($_SESSION['nontri_id'] ?? ($_SESSION['staff_id'] ?? 'N/A')); 
 $user_name = htmlspecialchars($_SESSION['user_display_name'] ?? 'N/A');
 $user_sur = htmlspecialchars($_SESSION['user_display_sur'] ?? 'N/A');
 $user_role = htmlspecialchars($_SESSION['role'] ?? 'N/A');
-$fa_de_name = htmlspecialchars($_SESSION['fa_de_name'] ?? 'ไม่ระบุ'); 
+$fa_de_name = htmlspecialchars($_SESSION['fa_de_name'] ?? 'ไม่ระบุ');
+
+// *** เพิ่มการดึง session สำหรับ position และ dept ***
+$user_position = htmlspecialchars($_SESSION['position'] ?? ''); // ใช้ empty string เป็นค่าเริ่มต้น
+$user_dept = htmlspecialchars($_SESSION['dept'] ?? '');         // ใช้ empty string เป็นค่าเริ่มต้น
 
 ?>
 <!DOCTYPE html>
@@ -39,7 +40,6 @@ $fa_de_name = htmlspecialchars($_SESSION['fa_de_name'] ?? 'ไม่ระบุ
             </div>
             <div class="d-flex align-items-center ms-auto gap-2">
                 <div class="d-flex flex-column text-end">
-                    <!-- ใช้ชื่อ session variable ใหม่สำหรับชื่อที่แสดงผล -->
                     <span class="navbar-brand mb-0 fs-5 fs-md-4"><?php echo $user_name . ' ' . $user_sur; ?></span>
                     <span class="navbar-brand mb-0 fs-6 fs-md-5"><?php echo $user_role; ?></span>
                 </div>
@@ -52,12 +52,23 @@ $fa_de_name = htmlspecialchars($_SESSION['fa_de_name'] ?? 'ไม่ระบุ
         <div class="row justify-content-center">
             <div class="col-md-8 col-lg-6">
                 <div class="profile-card">
-                    <h2 class="mb-4">ข้อมูลผู้ใช้ KU-ALL</h2>
+                    <h2 class="mb-4">ข้อมูลผู้ใช้</h2>
+                    <h4 class="mb-4">KU-LDAP-NONTRI-ACCOUNT</h4>
                     <div class="profile-info">
                         <p><strong>ชื่อผู้ใช้:</strong> <?php echo $nontri_id; ?></p>
                         <p><strong>ชื่อ (ไทย):</strong> <?php echo $user_name; ?></p>
                         <p><strong>นามสกุล (ไทย):</strong> <?php echo $user_sur; ?></p>
                         <p><strong>ประเภทผู้ใช้:</strong> <?php echo $user_role; ?></p>
+                        
+                        <!-- *** เพิ่มเงื่อนไขการแสดงผลสำหรับ ตำแหน่ง และ แผนก *** -->
+                        <?php if (!empty($user_position)): ?>
+                            <p><strong>ตำแหน่ง:</strong> <?php echo $user_position; ?></p>
+                        <?php endif; ?>
+
+                        <?php if (!empty($user_dept)): ?>
+                            <p><strong>แผนก:</strong> <?php echo $user_dept; ?></p>
+                        <?php endif; ?>
+                        
                         <p><strong>หน่วยงาน/คณะ:</strong> <?php echo $fa_de_name; ?></p>
                     </div>
                     <hr>

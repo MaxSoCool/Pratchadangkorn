@@ -1,3 +1,4 @@
+// js/admin-modal.js
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof bootstrap === 'undefined') {
         console.error("Bootstrap 5 is not loaded. admin-modal.js functionality may be impaired.");
@@ -25,9 +26,10 @@ document.addEventListener('DOMContentLoaded', function() {
         if (modalFooter) modalFooter.innerHTML = footerHtml;
 
         // Ensure only one hidden listener at a time
-        const oldHiddenCallback = genericModalElement.dataset.onHiddenCallback;
-        if (oldHiddenCallback) {
-             genericModalElement.removeEventListener('hidden.bs.modal', window[oldHiddenCallback]);
+        const oldHiddenCallbackName = genericModalElement.dataset.onHiddenCallback;
+        if (oldHiddenCallbackName && window[oldHiddenCallbackName]) {
+             genericModalElement.removeEventListener('hidden.bs.modal', window[oldHiddenCallbackName]);
+             delete window[oldHiddenCallbackName]; // Clean up old callback
         }
         if (onHiddenCallback) {
             // Store a unique name for the callback to remove it later if needed
@@ -42,18 +44,18 @@ document.addEventListener('DOMContentLoaded', function() {
         genericModal.show();
     }
 
-    window.showSuccessModal = function(message) {
+    window.showSuccessModal = function(message, onHiddenCallback = null) {
         const title = '<i class="bi bi-check-circle-fill text-success me-2"></i> สำเร็จ!';
         const body = `<p class="text-center">${message}</p>`;
         const footer = '<button type="button" class="btn btn-success" data-bs-dismiss="modal">ตกลง</button>';
-        showGenericModal(title, body, footer);
+        showGenericModal(title, body, footer, onHiddenCallback);
     };
 
-    window.showErrorModal = function(message) {
+    window.showErrorModal = function(message, onHiddenCallback = null) {
         const title = '<i class="bi bi-x-circle-fill text-danger me-2"></i> เกิดข้อผิดพลาด!';
         const body = `<p class="text-center text-danger">${message}</p>`;
         const footer = '<button type="button" class="btn btn-danger" data-bs-dismiss="modal">ปิด</button>';
-        showGenericModal(title, body, footer);
+        showGenericModal(title, body, footer, onHiddenCallback);
     };
 
     window.showConfirmModal = function(title, message, confirmCallback) {
@@ -62,20 +64,18 @@ document.addEventListener('DOMContentLoaded', function() {
             <button type="button" class="btn btn-primary" id="confirmActionButton">ยืนยัน</button>
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
         `;
-        showGenericModal(title, body, footer); // Don't pass hidden callback, handle button click directly
+        showGenericModal(title, body, footer);
 
         const confirmBtn = genericModalElement.querySelector('#confirmActionButton');
-        let confirmClickHandler; // Declare outside to make it accessible for removal
-        confirmClickHandler = function() {
+        let confirmClickHandler = function() {
             genericModal.hide();
             confirmCallback(true);
-            confirmBtn.removeEventListener('click', confirmClickHandler); // Remove listener after use
+            confirmBtn.removeEventListener('click', confirmClickHandler);
         };
         if (confirmBtn) confirmBtn.addEventListener('click', confirmClickHandler);
 
-        // Handle case where modal is closed without clicking confirm
         const handleModalHidden = () => {
-            confirmBtn.removeEventListener('click', confirmClickHandler);
+            if (confirmBtn) confirmBtn.removeEventListener('click', confirmClickHandler);
             genericModalElement.removeEventListener('hidden.bs.modal', handleModalHidden);
         };
         genericModalElement.addEventListener('hidden.bs.modal', handleModalHidden);
@@ -87,25 +87,22 @@ document.addEventListener('DOMContentLoaded', function() {
             <button type="button" class="btn btn-warning" id="warningConfirmButton">ยืนยัน</button>
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
         `;
-        showGenericModal(title, body, footer); // Don't pass hidden callback, handle button click directly
+        showGenericModal(title, body, footer);
 
         const warningConfirmBtn = genericModalElement.querySelector('#warningConfirmButton');
-        let warningConfirmClickHandler; // Declare outside
-        warningConfirmClickHandler = function() {
+        let warningConfirmClickHandler = function() {
             genericModal.hide();
             confirmCallback(true);
-            warningConfirmBtn.removeEventListener('click', warningConfirmClickHandler); // Remove listener
+            warningConfirmBtn.removeEventListener('click', warningConfirmClickHandler);
         };
         if (warningConfirmBtn) warningConfirmBtn.addEventListener('click', warningConfirmClickHandler);
 
-        // Handle case where modal is closed without clicking confirm
         const handleModalHidden = () => {
-            warningConfirmBtn.removeEventListener('click', warningConfirmClickHandler);
+            if (warningConfirmBtn) warningConfirmBtn.removeEventListener('click', warningConfirmClickHandler);
             genericModalElement.removeEventListener('hidden.bs.modal', handleModalHidden);
         };
         genericModalElement.addEventListener('hidden.bs.modal', handleModalHidden);
     };
-
 
     // --- Handle URL parameters for status messages (from PHP redirects) ---
     const urlParams = new URLSearchParams(window.location.search);
@@ -114,81 +111,124 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (status && message) {
         const decodedMessage = decodeURIComponent(message);
+        const onHiddenCallback = () => {
+             // Clean the URL to prevent the modal from reappearing on refresh
+             const currentUrl = new URL(window.location);
+             currentUrl.searchParams.delete('status');
+             currentUrl.searchParams.delete('message');
+             history.replaceState({}, document.title, currentUrl.toString());
+        };
+
         if (status === 'success') {
-            showSuccessModal(decodedMessage);
+            showSuccessModal(decodedMessage, onHiddenCallback);
         } else if (status === 'error') {
-            showErrorModal(decodedMessage);
+            showErrorModal(decodedMessage, onHiddenCallback);
         }
-        // Clean the URL to prevent the modal from reappearing on refresh
-        history.replaceState({}, document.title, window.location.pathname + window.location.search.replace(/(&|\?)status=[^&]*|&message=[^&]*/g, ''));
     }
 
-    // --- Logic for Add Form Confirmation Modals ---
-    function setupAddFormConfirmation(formId, submitBtnId, itemType, nameInputId) {
+    // --- Logic for Add/Edit Form Confirmation Modals ---
+    function setupFormConfirmation(formId, submitBtnId, actionType, itemType, nameElementId, additionalNameData = {}) {
         const form = document.getElementById(formId);
         const submitBtn = document.getElementById(submitBtnId);
-        const nameInput = document.getElementById(nameInputId); // Input field for the item's name
 
-        if (!form || !submitBtn || !nameInput) return;
+        if (!form || !submitBtn) return;
 
         submitBtn.addEventListener('click', function(e) {
-            e.preventDefault(); // Prevent default button action (which is none, since type="button")
+            e.preventDefault();
 
-            // Basic client-side validation for required fields before showing modal
+            // Perform client-side validation first
             if (!form.checkValidity()) {
-                form.reportValidity(); // Show native browser validation messages
+                form.reportValidity();
                 return;
             }
 
-            const itemName = nameInput.value;
-            const message = `คุณแน่ใจหรือไม่ที่จะสร้าง ${itemType} <strong>${itemName}</strong> นี้?`;
-            window.showConfirmModal(
-                `<i class="bi bi-plus-circle-fill text-primary me-2"></i> ยืนยันการสร้าง${itemType}`,
-                message,
-                function(confirmed) {
-                    if (confirmed) {
-                        form.submit(); // Programmatically submit the form if confirmed
-                    }
+            let itemName = '';
+            const nameElement = document.getElementById(nameElementId);
+
+            if (nameElement && nameElement.tagName === 'SELECT') {
+                itemName = nameElement.options[nameElement.selectedIndex].text;
+            } else if (nameElement) {
+                itemName = nameElement.value;
+            } else {
+                const h2Element = form.closest('.form-section')?.querySelector('h2');
+                if (h2Element) {
+                    itemName = h2Element.textContent.split(': ')[1] || h2Element.textContent;
                 }
-            );
+            }
+            
+            // For requests, prepend the project name if it's available and relevant
+            if (itemType.includes('คำร้องขอ') && nameElementId === 'project_id' && nameElement) {
+                 const selectedProjectText = nameElement.options[nameElement.selectedIndex].text;
+                 itemName = `โครงการ "${selectedProjectText}"`;
+                 if (itemType === 'คำร้องขอสถานที่') {
+                    const facilitySelect = document.getElementById('facility_id');
+                    if (facilitySelect && facilitySelect.selectedIndex > 0) {
+                        itemName += ` สำหรับสถานที่ "${facilitySelect.options[facilitySelect.selectedIndex].text}"`;
+                    }
+                 } else if (itemType === 'คำร้องขออุปกรณ์') {
+                    const equipSelect = document.getElementById('equip_id');
+                    if (equipSelect && equipSelect.selectedIndex > 0) {
+                        itemName += ` สำหรับอุปกรณ์ "${equipSelect.options[equipSelect.selectedIndex].text}"`;
+                    }
+                 }
+            }
+
+
+            const title = `<i class="bi bi-question-circle-fill text-info me-2"></i> ยืนยันการ${actionType}${itemType}`;
+            const message = `คุณแน่ใจหรือไม่ที่จะ${actionType}${itemType} <strong>${itemName}</strong> นี้?`;
+
+            window.showConfirmModal(title, message, function(confirmed) {
+                if (confirmed) {
+                    // Create a temporary hidden input to ensure the 'action' value is sent
+                    const hiddenActionInput = document.createElement('input');
+                    hiddenActionInput.type = 'hidden';
+                    hiddenActionInput.name = 'action'; // PHP will look for $_POST['action']
+                    hiddenActionInput.value = submitBtn.value; // The value from the button
+                    form.appendChild(hiddenActionInput);
+
+                    form.submit(); // Programmatically submit the form
+                }
+            });
         });
     }
 
-    // Initialize add form confirmations
-    setupAddFormConfirmation('addBuildingForm', 'submitAddBuilding', 'อาคาร', 'building_name');
-    setupAddFormConfirmation('addFacilityForm', 'submitAddFacility', 'สถานที่', 'facility_name');
-    setupAddFormConfirmation('addEquipmentForm', 'submitAddEquipment', 'อุปกรณ์', 'equip_name');
+    // Initialize add/edit form confirmations for user-project-page.php
+    setupFormConfirmation('createProjectForm', 'submitCreateProject', 'สร้าง', 'โครงการ', 'project_name');
+    setupFormConfirmation('editProjectForm', 'submitEditProject', 'แก้ไข', 'โครงการ', 'project_name');
+
+    setupFormConfirmation('createBuildingForm', 'submitCreateBuilding', 'สร้าง', 'คำร้องขอสถานที่', 'project_id');
+    setupFormConfirmation('editBuildingForm', 'submitEditBuilding', 'แก้ไข', 'คำร้องขอสถานที่', 'project_id');
+
+    setupFormConfirmation('createEquipmentForm', 'submitCreateEquipment', 'สร้าง', 'คำร้องขออุปกรณ์', 'project_id');
+    setupFormConfirmation('editEquipmentForm', 'submitEditEquipment', 'แก้ไข', 'คำร้องขออุปกรณ์', 'project_id');
 
 
-    // --- Logic for Status Change Warning Modals ---
+    // --- Status Change Warning for Admin Data View (from original) ---
     function setupStatusToggleWarning(formId, toggleCheckboxId) {
         const form = document.getElementById(formId);
         const toggleCheckbox = document.getElementById(toggleCheckboxId);
         if (!form || !toggleCheckbox) return;
 
-        // Store original status when the page loads
         const originalCheckedState = toggleCheckbox.checked;
-        let statusChangeConfirmed = false; // Flag to prevent multiple modals for the same submit
+        let statusChangeConfirmed = false;
 
         form.addEventListener('submit', function(e) {
-            // Only intervene if status is changing from 'yes' to 'no' AND it hasn't been confirmed yet
             if (originalCheckedState && !toggleCheckbox.checked && !statusChangeConfirmed) {
-                e.preventDefault(); // Stop immediate submission
+                e.preventDefault();
 
-                const itemType = toggleCheckbox.dataset.itemType; // e.g., 'อาคาร', 'สถานที่', 'อุปกรณ์'
-                const itemName = toggleCheckbox.dataset.itemName; // e.g., building_name
+                const itemType = toggleCheckbox.dataset.itemType;
+                const itemName = toggleCheckbox.dataset.itemName;
 
                 window.showWarningModal(
                     `<i class="bi bi-exclamation-triangle-fill text-warning me-2"></i> ยืนยันการปิดสถานะ${itemType}`,
                     `หากปิดสถานะ${itemType} <strong>${itemName}</strong> นี้ จะทำให้ผู้ใช้ทั่วไปไม่สามารถขอใช้งานได้ คุณแน่ใจหรือไม่?`,
                     function(confirmed) {
                         if (confirmed) {
-                            statusChangeConfirmed = true; // Set flag
-                            form.submit(); // Programmatically submit the form
+                            statusChangeConfirmed = true;
+                            form.submit();
                         } else {
-                            toggleCheckbox.checked = true; // Revert checkbox if cancelled
-                            statusChangeConfirmed = false; // Reset flag
-                            // Update label text back if the state was reverted
+                            toggleCheckbox.checked = true;
+                            statusChangeConfirmed = false;
                             const label = toggleCheckbox.nextElementSibling;
                             if (label) {
                                 label.textContent = toggleCheckbox.checked ? 'เปิด (พร้อมใช้งาน)' : 'ปิด (ไม่พร้อมใช้งาน)';
@@ -197,10 +237,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 );
             }
-            // If already confirmed, or not changing to 'no', or was already 'no', allow submission
         });
 
-        // Add an event listener to update the label text dynamically when the switch is toggled
         toggleCheckbox.addEventListener('change', function() {
             const label = toggleCheckbox.nextElementSibling;
             if (label) {
@@ -209,43 +247,75 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Initialize status toggle warnings for edit forms
-    setupStatusToggleWarning('editBuildingForm', 'status_building');
+    // Initialize status toggle warnings (for admin data view only, if present)
+    setupStatusToggleWarning('editBuildingForm', 'status_building'); // Assumes these forms and elements exist
     setupStatusToggleWarning('editFacilityForm', 'available_facility');
     setupStatusToggleWarning('editEquipmentForm', 'available_equip');
 
 
-    // --- Generic Delete Confirmation Modal Logic (unchanged, just ensure it works with new generic modal functions) ---
-    const deleteConfirmationModal = document.getElementById('deleteConfirmationModal');
-    if (deleteConfirmationModal) {
-        deleteConfirmationModal.addEventListener('show.bs.modal', function (event) {
+    // --- Delete/Cancel Confirmation Modals Logic (for user-project-page.php) ---
+    function setupActionModal(modalId, formId, itemIdInputId, actionInputId, action, nameDataAttribute, typeDataAttribute) {
+        const modalElement = document.getElementById(modalId);
+        if (!modalElement) return;
+
+        modalElement.addEventListener('show.bs.modal', function (event) {
             const button = event.relatedTarget;
-            const deleteId = button.getAttribute('data-id');
-            const deleteType = button.getAttribute('data-type'); // e.g., 'building', 'facility', 'equipment'
-            const deleteName = button.getAttribute('data-name'); // Optional, for better message
-            const redirectBuildingId = button.getAttribute('data-redirect-building-id'); // For facility deletion
+            const itemId = button.getAttribute('data-id');
+            const itemName = button.getAttribute(nameDataAttribute);
+            const itemType = button.getAttribute(typeDataAttribute);
 
-            const modalBodyMessage = deleteConfirmationModal.querySelector('#deleteModalMessage');
-            const deleteForm = deleteConfirmationModal.querySelector('#deleteForm');
-            const deleteIdInput = deleteForm.querySelector('#deleteItemId');
-            const deleteTypeInput = deleteForm.querySelector('#deleteItemType');
-            const redirectBuildingIdInput = deleteForm.querySelector('#redirectBuildingId');
+            const form = document.getElementById(formId);
+            const itemIdInput = form.querySelector(`#${itemIdInputId}`);
+            const actionInput = form.querySelector(`#${actionInputId}`);
 
-            let messageText = `คุณต้องการที่จะลบ <strong>${deleteName || deleteId}</strong> ใช่หรือไม่? <br>การดำเนินการนี้ไม่สามารถย้อนกลับได้`;
-            if (deleteType === 'building') {
-                messageText = `คุณต้องการที่จะลบอาคาร <strong>${deleteName || deleteId}</strong> ใช่หรือไม่? <br>การดำเนินการนี้จะลบข้อมูลภายในอาคารและสถานที่ที่เกี่ยวข้องทั้งหมด <strong>(หากมีสถานที่อยู่ภายในอาคาร)</strong> และจะไม่สามารถย้อนกลับได้`;
-            } else if (deleteType === 'facility') {
-                messageText = `คุณต้องการที่จะลบสถานที่ <strong>${deleteName || deleteId}</strong> ใช่หรือไม่? <br>การดำเนินการนี้จะลบข้อมูลภายในสถานที่ทั้งหมด</strong> และจะไม่สามารถย้อนกลับได้`;
-            } else if (deleteType === 'equipment') {
-                messageText = `คุณต้องการที่จะลบอุปกรณ์ <strong>${deleteName || deleteId}</strong> ใช่หรือไม่? <br>การดำเนินการนี้จะลบข้อมูลภายในอุปกรณ์ทั้งหมด</strong> และจะไม่สามารถย้อนกลับได้`;
-            }
+            if (itemIdInput) itemIdInput.value = itemId;
+            if (actionInput) actionInput.value = action;
 
-            if (modalBodyMessage) modalBodyMessage.innerHTML = `<p class="details-text">${messageText}</p>`;
-            if (deleteIdInput) deleteIdInput.value = deleteId;
-            if (deleteTypeInput) deleteTypeInput.value = `delete_${deleteType}`;
-            if (redirectBuildingIdInput) {
-                 redirectBuildingIdInput.value = redirectBuildingId || '';
+            const modalTitleElement = modalElement.querySelector('.modal-title');
+            const modalBodyElement = modalElement.querySelector('.modal-body');
+
+            if (modalTitleElement && modalBodyElement) {
+                if (action.includes('delete')) {
+                    modalTitleElement.innerHTML = `<h5 class="modal-title text-danger"><i class="bi bi-exclamation-triangle-fill"></i> ยืนยันการลบ${itemType}</h5>`;
+                    let bodyText = `คุณแน่ใจหรือไม่ว่าต้องการลบ${itemType} <strong>${itemName}</strong> นี้? การดำเนินการนี้ไม่สามารถย้อนกลับได้.`;
+                    if (itemType === 'โครงการ') {
+                        bodyText += " และจะลบคำร้องขอที่เกี่ยวข้องทั้งหมดด้วย.";
+                    }
+                    modalBodyElement.innerHTML = `<p class="details-text">${bodyText}</p>`;
+                } else if (action.includes('cancel')) {
+                    modalTitleElement.innerHTML = `<h5 class="modal-title text-dark"><i class="bi bi-x-circle"></i> ยืนยันการยกเลิก${itemType}</h5>`;
+                    let bodyText = `คุณแน่ใจหรือไม่ว่าต้องการยกเลิก${itemType} <strong>${itemName}</strong> นี้? การดำเนินการนี้จะเปลี่ยนสถานะ${itemType}เป็น "ยกเลิก".`;
+                    if (itemType === 'โครงการ') {
+                        bodyText += " และจะยกเลิกคำร้องขอที่เกี่ยวข้องทั้งหมดด้วย.";
+                    }
+                    modalBodyElement.innerHTML = `<p class="details-text">${bodyText}</p>`;
+                }
             }
         });
     }
+
+    // Project Delete Modal
+    setupActionModal('deleteProjectModal', 'deleteProjectForm', 'delete_project_id', 'delete_action_project', 'delete_project', 'data-project-name', 'data-type');
+    // Project Cancel Modal
+    setupActionModal('cancelProjectModal', 'cancelProjectForm', 'cancel_project_id', 'cancel_action_project', 'cancel_project', 'data-project-name', 'data-type');
+
+    // Building Request Delete Modal
+    setupActionModal('deleteBuildingRequestModal', 'deleteBuildingRequestForm', 'delete_fr_id', 'delete_action_fr', 'delete_building_request', 'data-facility-name', 'data-type');
+    // Building Request Cancel Modal
+    setupActionModal('cancelBuildingRequestModal', 'cancelBuildingRequestForm', 'cancel_fr_id', 'cancel_action_fr', 'cancel_building_request', 'data-facility-name', 'data-type');
+
+    // Equipment Request Delete Modal
+    setupActionModal('deleteEquipmentRequestModal', 'deleteEquipmentRequestForm', 'delete_er_id', 'delete_action_er', 'delete_equipment_request', 'data-equip-name', 'data-type');
+    // Equipment Request Cancel Modal
+    setupActionModal('cancelEquipmentRequestModal', 'cancelEquipmentRequestForm', 'cancel_er_id', 'cancel_action_er', 'cancel_equipment_request', 'data-equip-name', 'data-type');
+
+
+    // Logic for handling file removal in edit project form
+    document.querySelectorAll('.remove-existing-file').forEach(button => {
+        button.addEventListener('click', function() {
+            this.closest('.input-group').remove();
+            // The hidden input that stores retained files will automatically exclude this one
+        });
+    });
+
 });

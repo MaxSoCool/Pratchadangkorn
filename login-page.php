@@ -32,7 +32,7 @@ $login_message = $_SESSION['login_message'] ?? '';
                 <div class="card shadow login-form-bg">
                     <div class="card-body">
                         <center><img src="./images/ku_logo.png" class="img-fluid logo" alt="KU Logo"></center>
-                        <h5 class="card-title login-form-header">KU ALL-LOGIN</h5>
+                        <h5 class="card-title login-form-header">KU LDAP-NONTRI-LOGIN</h5>
                         <form action="./php/login.php" method="POST">
                             <div class="mb-3">
                                 <input type="text" class="form-control" id="username" name="username" placeholder="ชื่อผู้ใช้งาน เช่น b6xxxxxxxxx">

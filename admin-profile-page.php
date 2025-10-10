@@ -47,7 +47,8 @@ $user_role = htmlspecialchars($_SESSION['role'] ?? null);
         <div class="row justify-content-center">
             <div class="col-md-8 col-lg-6">
                 <div class="profile-card">
-                    <h2 class="mb-4">ข้อมูลผู้ใช้ KU-ALL</h2>
+                    <h2 class="mb-4">ข้อมูลผู้ใช้</h2>
+                    <h4 class="mb-4">KU-LDAP-NONTRI-ACCOUNT</h4>
                     <div class="profile-info">
                         <p><strong>ชื่อผู้ใช้:</strong> <?php echo $user_id; ?></p>
                         <p><strong>ชื่อ (ไทย):</strong> <?php echo $staff_name; ?></p>

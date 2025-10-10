@@ -384,11 +384,13 @@ h1 {
 }
 
 /* Color definitions using classes */
-.event-approved { background-color: #198754 !important; color: #fff; } /* เพิ่ม color: #fff; เพื่อให้อ่านง่าย */
-.event-rejected { background-color: #dc3545 !important; color: #fff; } /* เพิ่ม color: #fff; */
-.event-pending { background-color: #17a2b8 !important; color: #212529; } /* เพิ่ม color: #fff; */
-.event-in-progress { background-color: #ffc107 !important; color: #212529; } /* สีเหลือง มักจะใช้ text สีดำ */
-.event-completed { background-color: #6c757d !important; color: #fff; } /* เพิ่ม color: #fff; */
+/* THESE ARE YOUR ORIGINAL EVENT COLORS. WE WILL OVERRIDE PENDING BELOW. */
+.event-approved { background-color: #198754 !important; color: #fff; }
+.event-rejected { background-color: #dc3545 !important; color: #fff; }
+.event-pending { background-color: #17a2b8 !important; color: #212529; } /* This will be overridden */
+.event-in-progress { background-color: #ffc107 !important; color: #212529; }
+.event-completed { background-color: #6c757d !important; color: #fff; }
+
 
 /* Bootstrap Popover Customization */
 .popover {
@@ -634,4 +636,116 @@ h1 {
     max-width: 2480px;
     max-height: 3508px;
     margin: auto;
+} 
+
+/* --- New Calendar Specific Styles (Added Below Your Existing CSS) --- */
+
+/* OVERRIDE: Event สีสำหรับสถานะ 'ส่งคำร้อง / รอดำเนินการ' (สีฟ้าตามคำขอ) */
+.fc-event.event-pending {
+    background-color: #007bff !important; /* Bootstrap Primary blue */
+    border-color: #007bff !important;
+    color: #fff !important; /* ข้อความสีขาว */
+}
+
+/* OVERRIDE: Event สีสำหรับสถานะ 'เตรียมการ' (สีเทาตามคำขอ, ทับโค้ดเดิม) */
+.fc-event.event-preparation {
+    background-color: #6c757d !important; /* Bootstrap secondary gray */
+    border-color: #6c757d !important;
+    color: #fff !important;           /* ข้อความสีขาว */
+}
+
+/* Optional: If you want a dashed border for preparation events */
+/* .fc-event.event-preparation {
+    border-style: dashed !important;
+} */
+
+
+/* Custom Popover Styling (Building upon your existing .popover and .popover-header) */
+.calendar-popover {
+    max-width: 380px; /* กำหนดความกว้างสูงสุดสำหรับ Popover */
+    font-family: "IBM Plex Sans Thai", sans-serif; /* ใช้ฟอนต์เดียวกันกับ body */
+}
+
+.calendar-popover .popover-body {
+    font-size: 0.95em; /* ปรับขนาดฟอนต์เนื้อหา Popover เล็กน้อย */
+    padding: 0.75rem 1rem !important; /* ปรับ padding ให้เหมาะสม */
+}
+
+.calendar-popover .popover-body p {
+    margin-bottom: 0.3rem !important; /* ลดระยะห่างระหว่างบรรทัดใน Popover */
+    line-height: 1.4;
+}
+
+.calendar-popover .calendar-pro {
+    font-size: 1.05em; /* ขนาดชื่อโครงการใน Popover */
+    color: #265073 !important; /* ใช้สีเดียวกับ .calendar-pro ที่คุณมีอยู่แล้ว */
+    font-weight: 600;
+    margin-bottom: 0.6rem !important;
+    display: block; /* ทำให้ชื่อโครงการขึ้นบรรทัดใหม่ */
+}
+
+.calendar-popover .calendar-period-title {
+    font-weight: 600;
+    color: #4A5568; /* สีเทาเข้มสำหรับหัวข้อย่อย "ช่วงเวลา..." */
+    margin-top: 0.75rem;
+    margin-bottom: 0.4rem;
+    border-bottom: 1px solid #dee2e6; /* เส้นใต้แบ่งส่วน ใช้ border-color ที่ใกล้เคียงกับที่มี */
+    padding-bottom: 0.3rem;
+    font-size: 0.95em;
+    display: block;
+}
+
+.calendar-popover hr {
+    border-top: 1px solid #dee2e6; /* ใช้ border-color ที่ใกล้เคียงกับที่มี */
+    margin-top: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.calendar-popover .badge {
+    font-size: 0.75em; /* ขนาด badge ใน Popover */
+    padding: 0.3em 0.5em;
+    vertical-align: middle;
+}
+
+/* Style for the 'เตรียมการ' badge in the modal footer legend */
+.modal-footer .calendar-des {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center; /* จัดให้อยู่กึ่งกลางแนวตั้ง */
+}
+
+.modal-footer .calendar-des .badge {
+    font-size: 0.9em; /* ปรับขนาด badge ใน footer ให้ดูดีขึ้น */
+    padding: 0.4em 0.7em;
+    border-radius: 0.3rem;
+    font-weight: 500;
+    border: 1px solid transparent;
+    display: inline-flex;
+    align-items: center;
+}
+
+/* OVERRIDE: Legend badge color for 'ส่งคำร้อง / รอดำเนินการ' (สีฟ้าตามคำขอ) */
+.badge.event-pending {
+    background-color: #007bff !important;
+    color: #fff !important;
+    border-color: #007bff !important;
+}
+
+/* OVERRIDE: Legend badge color for 'เตรียมการ' (สีเทาตามคำขอ, ทับโค้ดเดิม) */
+.badge.event-preparation {
+    background-color: #6c757d !important;
+    color: #fff !important;
+    border-color: #6c757d !important;
+}
+
+/* Adjust font-size for modal body text, as per your existing .list-text */
+#calendarModal .modal-body .list-text {
+    font-size: 15px; /* Revert to your global .list-text size */
+}
+
+/* Optional: Adjust font size for calendar events if text is too long */
+.fc-event-title {
+    font-size: 0.85em; /* Smaller font for event titles */
+    white-space: normal; /* Allow text to wrap */
 }

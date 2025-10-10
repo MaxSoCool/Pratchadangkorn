@@ -1613,8 +1613,22 @@ $total_pages = ceil($total_items / $items_per_page);
                                 <p><strong>ผู้ยื่นโครงการ:</strong> <?php echo htmlspecialchars($detail_item['user_name'] ?? 'ไม่ระบุ'); ?></p>
                                 <p><strong>วันที่สร้างโครงการ:</strong> <?php echo formatThaiDate($detail_item['created_date']); ?></p>
                                 <p><strong>รายละเอียดโครงการ:</strong><br> <?php echo nl2br(htmlspecialchars($detail_item['project_des'])); ?></p>
-                                <?php if ($detail_item['files'] && file_exists($detail_item['files'])): ?>
-                                    <a href="<?php echo htmlspecialchars($detail_item['files']); ?>" target="_blank" class="btn btn-secondary btn-sm mt-2 screen-only"> ดูไฟล์แนบ</a>
+                                <?php
+                                    $project_files = json_decode($detail_item['files'], true) ?: []; // Decode JSON string to array, or empty array if null/invalid
+                                ?>
+                                <?php if (!empty($project_files)): ?>
+                                    <p><strong>ไฟล์แนบ:</strong></p>
+                                    <ul class="list-unstyled"> <!-- ใช้ list-unstyled เพื่อไม่ให้มีหัวข้อ (bullet points) -->
+                                        <?php foreach ($project_files as $file_path): ?>
+                                            <li>
+                                                <a href="<?php echo htmlspecialchars($file_path); ?>" target="_blank" class="btn btn-secondary btn-sm mb-1 screen-only">
+                                                    <i class="bi bi-file-earmark"></i> <?php echo htmlspecialchars(basename($file_path)); ?>
+                                                </a>
+                                            </li>
+                                        <?php endforeach; ?>
+                                    </ul>
+                                <?php else: ?>
+                                    <p><strong>ไฟล์แนบ:</strong> ไม่มี</p>
                                 <?php endif; ?>
                             </div>
                         </div>

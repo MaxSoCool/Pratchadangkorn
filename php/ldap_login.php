@@ -111,7 +111,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($ldap_auth_passed_campus_c) {
         // LDAP สำเร็จสำหรับ Campus 'C'
         // ตรวจสอบข้อมูลผู้ใช้จากฐานข้อมูลภายใน (staff หรือ user)
-        $sql_staff = "SELECT staff_id, staff_name, staff_sur, staff_ENname, staff_ENsur, ut.user_type_name AS role FROM staff s
+        $sql_staff = "SELECT staff_id, staff_name, staff_sur, ut.user_type_name AS role FROM staff s
                       JOIN user_type ut ON s.user_type_id = ut.user_type_id
                       WHERE s.staff_id = ?";
         $stmt = $pdo->prepare($sql_staff);
@@ -129,7 +129,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $user_data['fa_de_name'] = null; // ไม่ได้ดึงจาก staff (ถ้าต้องการต้อง Join เพิ่ม)
             } else {
                 // ไม่พบใน staff ลองค้นใน user
-                $sql_user = "SELECT nontri_id, user_name, user_sur, user_ENname, user_ENsur, ut.user_type_name AS role, fd.fa_de_name FROM user u
+                $sql_user = "SELECT nontri_id, user_name, user_sur, ut.user_type_name AS role, fd.fa_de_name FROM user u
                              JOIN user_type ut ON u.user_type_id = ut.user_type_id
                              JOIN faculties_department fd ON u.fa_de_id = fd.fa_de_id
                              WHERE u.nontri_id = ?";

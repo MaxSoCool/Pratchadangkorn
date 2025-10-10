@@ -28,7 +28,7 @@ if ($is_admin_form_mode && $is_admin): ?>
                     <div class="mb-3"><label for="building_name" class="form-label fw-bold">ชื่ออาคาร:</label><input type="text" id="building_name" name="building_name" class="form-control" value="<?php echo htmlspecialchars($_POST['building_name'] ?? ''); ?>" required></div>
                     <div class="mb-3"><label for="building_pic" class="form-label fw-bold">รูปภาพ:</label><input type="file" id="building_pic" name="building_pic" class="form-control" accept="image/*"></div>
                     <div class="d-flex gap-2 mt-4">
-                        <button type="button" id="submitAddBuilding" class="btn btn-primary btn-lg flex-fill">บันทึก</button>
+                        <button type="submit" id="submitAddBuilding" class="btn btn-primary btn-lg flex-fill">บันทึก</button>
                         <a href="admin-data_view-page.php?mode=buildings" class="btn btn-secondary btn-lg flex-fill">ยกเลิก</a>
                     </div>
                 </form>
@@ -107,7 +107,7 @@ if ($is_admin_form_mode && $is_admin): ?>
                         <input type="text" class="form-control" value="<?php echo htmlspecialchars($selected_building_name); ?>" readonly>
                     </div>
                     <div class="d-flex gap-2 mt-4">
-                        <button type="button" id="submitAddFacility" class="btn btn-primary btn-lg flex-fill">บันทึก</button>
+                        <button type="submit" id="submitAddFacility" class="btn btn-primary btn-lg flex-fill">บันทึก</button>
                         <a href="admin-data_view-page.php?mode=building_detail&building_id=<?php echo htmlspecialchars($_GET['building_id'] ?? ''); ?>" class="btn btn-secondary btn-lg flex-fill">ยกเลิก</a>
                     </div>
                 </form>
@@ -182,7 +182,7 @@ if ($is_admin_form_mode && $is_admin): ?>
                     <div class="mb-3"><label for="size" class="form-label fw-bold">ขนาด:</label><input type="text" id="size" name="size" class="form-control" value="<?php echo htmlspecialchars($_POST['size'] ?? ''); ?>"></div>
                     <div class="mb-3"><label for="equip_pic" class="form-label fw-bold">รูปภาพอุปกรณ์:</label><input type="file" id="equip_pic" name="equip_pic" class="form-control" accept="image/*"></div>
                     <div class="d-flex gap-2 mt-4">
-                        <button type="button" id="submitAddEquipment" class="btn btn-primary btn-lg flex-fill">บันทึก</button>
+                        <button type="submit" id="submitAddEquipment" class="btn btn-primary btn-lg flex-fill">บันทึก</button>
                         <a href="admin-data_view-page.php?mode=equipment" class="btn btn-secondary btn-lg flex-fill">ยกเลิก</a>
                     </div>
                 </form>
@@ -621,7 +621,7 @@ if ($mode == 'buildings' || $mode == 'building_detail') {
 
     <div class="modal fade" id="deleteConfirmationModal" tabindex="-1" aria-labelledby="deleteConfirmationModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
+            <div class="modal-content list-text">
                 <form id="deleteForm" action="php/admin-injection.php" method="POST">
                     <div class="modal-header">
                         <h5 class="modal-title text-danger" id="deleteConfirmationModalLabel"><i class="bi bi-exclamation-triangle-fill"></i> ยืนยันการลบ</h5>
