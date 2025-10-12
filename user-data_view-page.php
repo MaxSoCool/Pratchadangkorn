@@ -8,25 +8,18 @@
 
     include 'database/database.php';
 
-    // --- Flags for Shared Logic ---
     $is_admin = false;
     $is_logged_in = true;
 
-    // --- Page Logic Configuration (common for data view) ---
     $mode = $_GET['mode'] ?? 'buildings';
-    $errors = []; // Initialize for shared logic
-    $success_message = ''; // User page usually doesn't show success messages from admin actions
+    $errors = []; 
+    $success_message = ''; 
 
-    // Include the shared data view logic
-    include 'php/data_view.php'; // This will handle data fetching and define many variables
-    // --- Session Data (only if logged in) ---
+    include 'php/data_view.php'; 
+
     $user_display_name = htmlspecialchars($_SESSION['user_display_name'] ?? 'N/A');
     $user_display_sur = htmlspecialchars($_SESSION['user_display_sur'] ?? 'N/A');
     $user_role = htmlspecialchars($_SESSION['role'] ?? 'N/A');
-    // Other user-specific session data might be defined here if needed elsewhere on the page
-    // $fa_de_name = htmlspecialchars($_SESSION['fa_de_name'] ?? 'ไม่ระบุ');
-    // $nontri_id = htmlspecialchars($_SESSION['nontri_id'] ?? 'N/A');
-    // $user_id = $_SESSION['nontri_id'] ?? '';
 
 ?>
 

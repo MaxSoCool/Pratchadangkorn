@@ -1,5 +1,4 @@
 <?php
-
 if (!isset($conn)) {
     include dirname(__DIR__) . '/database/database.php';
 }
@@ -26,7 +25,6 @@ try {
         error_log("Failed to prepare statement for starting projects: " . $conn->error);
     }
 
-    // Update facilities_requests statuses
     $stmt_building_end = $conn->prepare("UPDATE facilities_requests SET writed_status = 'สิ้นสุดดำเนินการ' WHERE end_date < ? AND writed_status NOT IN ('สิ้นสุดดำเนินการ', 'ยกเลิกคำร้องขอ')");
     if ($stmt_building_end) {
         $stmt_building_end->bind_param("s", $current_date);

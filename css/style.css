@@ -1,30 +1,27 @@
-/* Font */
 @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@200;500&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@100;200;300;400;500;600;700&family=Kanit:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
-/* เพิ่ม Sarabun จาก Google Fonts ที่นี่ */
 @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@100;200;300;400;500;600;700;800&display=swap');
 
-
-/* Base HTML/Body for full height layout and overall scrolling management */
+/* Base HTML */
 html {
-    height: 100%; /* Ensures HTML takes full viewport height */
+    height: 100%;
     overflow: hidden; /* Prevents scrollbar on the HTML element */
 }
 body {
-    height: 100%; /* Ensures body takes full viewport height */
+    height: 100%; 
     margin: 0;
     padding: 0;
     font-size: 10px;
     font-family: "IBM Plex Sans Thai", sans-serif;
     font-style: normal;
     font-weight: 500;
-    background-color: #f4f4f4; /* Original background color */
+    background-color: #f4f4f4; 
 
     /* Main Flexbox layout for the entire page: Navbar (fixed) + Main Content (scrollable) */
     display: flex;
     flex-direction: column;
-    min-height: 100vh; /* Ensures body takes at least full viewport height */
-    overflow: hidden; /* Prevents scrollbar on the body, let its flex children manage it */
+    min-height: 100vh; 
+    overflow: hidden; 
 }
 
 /* Responsive Navbar adjustments */
@@ -748,4 +745,362 @@ h1 {
 .fc-event-title {
     font-size: 0.85em; /* Smaller font for event titles */
     white-space: normal; /* Allow text to wrap */
+}
+
+@media print {
+    /* ซ่อนองค์ประกอบที่ใช้สำหรับหน้าจอเท่านั้น */
+    .screen-only {
+        display: none !important;
+    }
+    /* ให้องค์ประกอบที่ควรจะแสดงเฉพาะเมื่อพิมพ์เท่านั้นแสดงผล */
+    .print-only {
+        display: block !important; /* หรือ block, flex, inline-block ตามประเภทขององค์ประกอบ */
+    }
+
+    body {
+        font-family: 'Sarabun', sans-serif !important;
+        font-size: 8.5pt; /* Base font size, further reduced */
+        line-height: 1.2; /* Tighter line height */
+        color: #000;
+        background-color: #fff;
+        margin: 0; /* Remove default body margin */
+        -webkit-print-color-adjust: exact; /* Force printing background colors */
+        print-color-adjust: exact;
+    }
+
+    /* Wrapper สำหรับเนื้อหาทั้งหมดที่ต้องการพิมพ์ */
+    #printContentWrapper {
+        width: 210mm; /* A4 width */
+        margin: 0 auto; /* Center the entire content block */
+        padding: 5mm; /* Global margin for the entire printed document */
+    }
+
+    .form-container {
+        max-width: 210mm;
+        margin: 0 auto; /* No outer margin, let html2pdf handle it */
+        border: 1px solid #000; /* Re-add border for each form container in print */
+        padding: 1.5mm; /* Further reduced padding */
+        box-sizing: border-box;
+        page-break-after: always; /* Crucial for breaking pages */
+        box-shadow: none !important; /* Remove any box-shadow when printing */
+    }
+    .form-container:last-child {
+        page-break-after: avoid; /* No page break after the last one */
+    }
+    .form-container.alert {
+        border: 1px solid #dc3545 !important;
+    }
+
+
+    .header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 3px; /* Reduced margin */
+        padding-bottom: 0.5px; /* Reduced padding */
+        border-bottom: 1px solid #dee2e6;
+        margin: 0 1.5mm; /* Adjusted inner margins */
+    }
+
+    .header .logo-container {
+        flex-shrink: 0;
+        width: 55px; /* Further smaller logo area */
+        text-align: left;
+        margin-right: 3px; /* Reduced margin */
+    }
+
+    .header .logo {
+        width: 40px; /* Further smaller logo */
+        height: auto;
+        display: block;
+    }
+
+    .header .title-info {
+        flex-grow: 1;
+        text-align: center;
+        line-height: 1.0; /* Even tighter line height */
+    }
+
+    .header .title-info h1 {
+        font-size: 10.5pt; /* Further adjusted */
+        margin: 0;
+        font-weight: bold;
+    }
+
+    .header .title-info p {
+        font-size: 7.5pt; /* Further adjusted */
+        margin: 0;
+    }
+
+    .header .doc-id {
+        flex-shrink: 0;
+        width: 55px; /* Further smaller doc ID area */
+        text-align: right;
+        font-weight: bold;
+        font-size: 7.5pt; /* Further adjusted */
+        white-space: nowrap;
+    }
+
+    .section-header-text {
+        font-weight: bold;
+        font-size: 9pt; /* Main section header size */
+        margin-top: 4px; /* Reduced margin */
+        margin-bottom: 1px; /* Reduced margin */
+        padding-bottom: 0.5px; /* Reduced padding */
+        border-bottom: 1px solid #000;
+    }
+
+    .section-content {
+        padding: 0 1.5mm; /* Further reduced padding */
+    }
+
+    .section-content p, .section-content div {
+        margin-top: 1.5px; /* Reduced margin */
+        margin-bottom: 1.5px; /* Reduced margin */
+        line-height: 1.2;
+        font-size: 8.5pt; /* Adjusted for A4 fit */
+    }
+
+    .section-content ol li {
+        font-size: 8.5pt; /* Adjusted for A4 fit */
+        line-height: 1.15; /* Tighter line height */
+        margin-bottom: 1px; /* Reduced margin between list items */
+    }
+
+    .form-group .label-text {
+        flex-shrink: 0;
+        margin-right: 2px;
+        white-space: nowrap;
+        font-size: 8.5pt; /* Adjusted for A4 fit */
+        line-height: 1.2;
+    }
+
+    .equipment-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 3px; /* Reduced margin */
+        margin-bottom: 6px; /* Reduced margin */
+        font-size: 8pt; /* Adjusted for A4 fit */
+    }
+    .equipment-table th, .equipment-table td {
+        border: 1px solid #000;
+        padding: 0.8px 2mm; /* Further reduced padding */
+        text-align: center;
+        line-height: 1.05; /* Tighter line height */
+    }
+    .equipment-table th {
+        background-color: #f2f2f2;
+        font-weight: bold;
+    }
+    .equipment-table td:nth-child(2) {
+        text-align: left;
+    }
+
+    .option-group {
+        display: flex;
+        align-items: baseline;
+        flex-wrap: wrap;
+        flex-grow: 1;
+        font-size: 8.5pt; /* Adjusted for A4 fit */
+        line-height: 1.2;
+    }
+    .option-group .form-check-label {
+        line-height: 1.2;
+    }
+
+    .option-item {
+        display: flex;
+        align-items: baseline;
+        margin-right: 6px; /* Reduced margin */
+        white-space: nowrap;
+    }
+
+    .description-line {
+        flex-grow: 1;
+        min-height: 1.1em;
+        padding: 0 2px;
+        font-size: 8.5pt; /* Adjusted for A4 fit */
+        line-height: 1.2;
+        white-space: normal;
+        word-break: break-word;
+        text-align: left;
+    }
+
+    .signature-area {
+        display: flex;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        margin-top: 4mm; /* Reduced margin */
+        padding-top: 1.5mm; /* Reduced padding */
+        border-top: 1px dotted #000;
+        font-size: 8.5pt; /* Adjusted for A4 fit */
+    }
+
+    .signature-box {
+        flex: 1;
+        min-width: 30%;
+        max-width: 33%;
+        text-align: center;
+        margin: 1mm 0.5mm; /* Reduced margin */
+    }
+
+    .signature-area.two-columns .signature-box {
+        min-width: 45%;
+        max-width: 50%;
+    }
+
+    .signature-line {
+        display: inline-block;
+        border-bottom: 1px solid #000;
+        min-width: 55px; /* Further reduced min-width */
+        padding: 0 1mm;
+        text-align: center;
+        font-size: 8.5pt; /* Adjusted for A4 fit */
+        line-height: 1.2;
+        margin-bottom: 0.8mm; /* Reduced margin */
+    }
+
+    .signature-label-text {
+        display: block;
+        font-size: 8pt; /* Adjusted for A4 fit */
+        margin-top: 0.2mm;
+    }
+
+    .section2-approval {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 3px; /* Reduced margin */
+        font-size: 8.5pt; /* Adjusted for A4 fit */
+    }
+    .section2-approval > div {
+        flex: 1;
+    }
+    .approval-options {
+        display: flex;
+        align-items: baseline;
+        flex-wrap: wrap;
+        font-size: 8.5pt; /* Adjusted for A4 fit */
+        line-height: 1.2;
+    }
+    .approval-options .option-item {
+        margin-right: 6px; /* Reduced margin */
+    }
+    .approval-title {
+        font-weight: bold;
+        margin-bottom: 1.5px; /* Reduced margin */
+        font-size: 9pt; /* Adjusted for A4 fit */
+    }
+
+    .staff-signature-area {
+        display: flex;
+        justify-content: space-around;
+        flex-wrap: wrap;
+        margin-top: 4mm; /* Reduced margin */
+        font-size: 8.5pt; /* Adjusted for A4 fit */
+    }
+    .staff-signature-box {
+        flex: 1;
+        min-width: 45%;
+        max-width: 50%;
+        text-align: center;
+        margin: 1mm 0.5mm; /* Reduced margin */
+    }
+    .staff-signature-box .signature-line {
+        margin-bottom: 0.8mm;
+    }
+    .staff-signature-box .signature-date-group {
+        margin-top: 1mm; /* Reduced margin */
+        justify-content: flex-start;
+        display: flex;
+        align-items: center;
+    }
+
+    .notes {
+        margin-top: 3mm; /* Reduced margin */
+        padding-top: 1mm; /* Reduced padding */
+        border-top: 1px solid #ccc;
+        font-size: 8pt; /* Adjusted for A4 fit */
+        line-height: 1.1; /* Tighter line height */
+        page-break-inside: avoid;
+    }
+    .notes ol {
+        list-style-type: decimal;
+        padding-left: 7mm; /* Reduced padding */
+        margin: 0;
+    }
+    .notes ol li {
+        margin-bottom: 0.2mm; /* Reduced margin */
+        line-height: 1.1;
+    }
+    .notes p {
+        font-size: 8.5pt; /* Adjusted for A4 fit */
+        font-weight: bold;
+        margin-bottom: 0.5px; /* Reduced margin */
+    }
+    .notes p:first-child {
+        margin-bottom: 0.5px;
+    }
+
+    input[type="radio"].custom-radio-checkbox,
+    input[type="checkbox"].custom-radio-checkbox {
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+        display: inline-block;
+        vertical-align: middle;
+        width: 8.5px; /* Further smaller checkbox/radio */
+        height: 8.5px;
+        margin-right: 1.5px; /* Reduced margin */
+        border: 1px solid #000;
+        box-sizing: border-box;
+        position: relative;
+        top: -1px;
+        flex-shrink: 0;
+    }
+
+    input[type="radio"].custom-radio-checkbox:checked::before {
+        content: '';
+        display: block;
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 2.5px; /* Adjusted inner circle size */
+        height: 2.5px;
+        background-color: #000;
+        border-radius: 50%;
+    }
+
+    input[type="checkbox"].custom-radio-checkbox:checked::before {
+        content: '\2713';
+        display: block;
+        position: absolute;
+        top: -3px;
+        left: 0px;
+        font-size: 8.5px; /* Adjusted checkmark size */
+        color: #000;
+        font-weight: bold;
+        line-height: 1;
+    }
+
+    .border-dotted-custom {
+        border-bottom: 1px dotted #000;
+    }
+
+    .section {
+        page-break-inside: avoid;
+        margin-bottom: 5px; /* Reduced margin */
+    }
+
+    .tab {
+        margin-left: 1.5em;
+        text-indent: -1.5em;
+    }
+
+    /* html2pdf specific override for page breaks */
+    .html2pdf__page-break {
+        height: 0 !important; /* Ensure html2pdf's page break doesn't add extra space */
+        margin: 0 !important;
+        padding: 0 !important;
+    }
 }

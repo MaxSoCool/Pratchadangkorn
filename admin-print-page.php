@@ -6,34 +6,8 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true || $_SESSI
     exit();
 }
 
-// Ensure database connection is included
 include 'database/database.php';
-
-// Helper functions for Thai date formatting
-if (!function_exists('getThaiMonname')) {
-    function getThaiMonname($month_num) {
-        $thai_months_full = [
-            '01' => 'มกราคม', '02' => 'กุมภาพันธ์', '03' => 'มีนาคม', '04' => 'เมษายน',
-            '05' => 'พฤษภาคม', '06' => 'มิถุนายน', '07' => 'กรกฎาคม', '08' => 'สิงหาคม',
-            '09' => 'กันยายน', '10' => 'ตุลาคม', '11' => 'พฤศจิกายน', '12' => 'ธันวาคม'
-        ];
-        return $thai_months_full[sprintf('%02d', $month_num)] ?? '';
-    }
-}
-
-if (!function_exists('formatThaiDatePartForPrint')) {
-    function formatThaiDatePartForPrint($date_str, $part) {
-        if (!$date_str || $date_str === '0000-00-00 00:00:00' || $date_str === '0000-00-00') {
-            return '';
-        }
-        $dt = new DateTime($date_str);
-        if ($part === 'day') return $dt->format('d');
-        if ($part === 'month') return getThaiMonname($dt->format('m'));
-        if ($part === 'year') return $dt->format('Y') + 543; // Buddhist year
-        if ($part === 'time') return $dt->format('H:i');
-        return '';
-    }
-}
+include 'php/helpers.php'; 
 
 $print_all_project_requests = isset($_GET['print_all']) && $_GET['print_all'] === 'true';
 $project_id = isset($_GET['project_id']) ? (int)$_GET['project_id'] : 0;
@@ -223,23 +197,22 @@ if (empty($all_requests_to_print) && empty($errors)) {
     <style>
         body {
             font-family: 'Sarabun', sans-serif !important;
-            font-size: 8.5pt; /* Base font size, further reduced */
-            line-height: 1.2; /* Tighter line height */
+            font-size: 8.5pt; 
+            line-height: 1.2; 
             color: #000;
             background-color: #fff;
         }
 
         .form-container {
             max-width: 210mm;
-            /* height: 297mm;  Controlled by html2pdf now */
-            margin: 0 auto; /* No outer margin, let html2pdf handle it */
+            margin: 0 auto; 
             border: 1px solid #000;
-            padding: 1.5mm; /* Further reduced padding */
+            padding: 1.5mm;
             box-sizing: border-box;
-            page-break-after: always; /* Crucial for breaking pages */
+            page-break-after: always;
         }
         .form-container:last-child {
-            page-break-after: avoid; /* No page break after the last one */
+            page-break-after: avoid; 
         }
 
 
@@ -247,21 +220,21 @@ if (empty($all_requests_to_print) && empty($errors)) {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 3px; /* Reduced margin */
-            padding-bottom: 0.5px; /* Reduced padding */
+            margin-bottom: 3px;
+            padding-bottom: 0.5px;
             border-bottom: 1px solid #dee2e6;
-            margin: 0 1.5mm; /* Adjusted inner margins */
+            margin: 0 1.5mm;
         }
 
         .header .logo-container {
             flex-shrink: 0;
-            width: 55px; /* Further smaller logo area */
+            width: 55px;
             text-align: left;
-            margin-right: 3px; /* Reduced margin */
+            margin-right: 3px;
         }
 
         .header .logo {
-            width: 40px; /* Further smaller logo */
+            width: 40px;
             height: auto;
             display: block;
         }
@@ -269,75 +242,75 @@ if (empty($all_requests_to_print) && empty($errors)) {
         .header .title-info {
             flex-grow: 1;
             text-align: center;
-            line-height: 1.0; /* Even tighter line height */
+            line-height: 1.0;
         }
 
         .header .title-info h1 {
-            font-size: 10.5pt; /* Further adjusted */
+            font-size: 10.5pt;
             margin: 0;
             font-weight: bold;
         }
 
         .header .title-info p {
-            font-size: 7.5pt; /* Further adjusted */
+            font-size: 7.5pt;
             margin: 0;
         }
 
         .header .doc-id {
             flex-shrink: 0;
-            width: 55px; /* Further smaller doc ID area */
+            width: 55px; 
             text-align: right;
             font-weight: bold;
-            font-size: 7.5pt; /* Further adjusted */
+            font-size: 7.5pt;
             white-space: nowrap;
         }
 
         .section-header-text {
             font-weight: bold;
-            font-size: 9pt; /* Main section header size */
-            margin-top: 4px; /* Reduced margin */
-            margin-bottom: 1px; /* Reduced margin */
-            padding-bottom: 0.5px; /* Reduced padding */
+            font-size: 9pt;
+            margin-top: 4px;
+            margin-bottom: 1px;
+            padding-bottom: 0.5px;
             border-bottom: 1px solid #000;
         }
 
         .section-content {
-            padding: 0 1.5mm; /* Further reduced padding */
+            padding: 0 1.5mm;
         }
 
         .section-content p, .section-content div {
-            margin-top: 1.5px; /* Reduced margin */
-            margin-bottom: 1.5px; /* Reduced margin */
+            margin-top: 1.5px;
+            margin-bottom: 1.5px;
             line-height: 1.2;
-            font-size: 8.5pt; /* Adjusted for A4 fit */
+            font-size: 8.5pt;
         }
 
         .section-content ol li {
-            font-size: 8.5pt; /* Adjusted for A4 fit */
-            line-height: 1.15; /* Tighter line height */
-            margin-bottom: 1px; /* Reduced margin between list items */
+            font-size: 8.5pt;
+            line-height: 1.15;
+            margin-bottom: 1px;
         }
 
         .form-group .label-text {
             flex-shrink: 0;
             margin-right: 2px;
             white-space: nowrap;
-            font-size: 8.5pt; /* Adjusted for A4 fit */
+            font-size: 8.5pt; 
             line-height: 1.2;
         }
 
         .equipment-table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 3px; /* Reduced margin */
-            margin-bottom: 6px; /* Reduced margin */
-            font-size: 8pt; /* Adjusted for A4 fit */
+            margin-top: 3px;
+            margin-bottom: 6px; 
+            font-size: 8pt; 
         }
         .equipment-table th, .equipment-table td {
             border: 1px solid #000;
-            padding: 0.8px 2mm; /* Further reduced padding */
+            padding: 0.8px 2mm; 
             text-align: center;
-            line-height: 1.05; /* Tighter line height */
+            line-height: 1.05;
         }
         .equipment-table th {
             background-color: #f2f2f2;
@@ -352,7 +325,7 @@ if (empty($all_requests_to_print) && empty($errors)) {
             align-items: baseline;
             flex-wrap: wrap;
             flex-grow: 1;
-            font-size: 8.5pt; /* Adjusted for A4 fit */
+            font-size: 8.5pt;
             line-height: 1.2;
         }
         .option-group .form-check-label {
@@ -362,7 +335,7 @@ if (empty($all_requests_to_print) && empty($errors)) {
         .option-item {
             display: flex;
             align-items: baseline;
-            margin-right: 6px; /* Reduced margin */
+            margin-right: 6px;
             white-space: nowrap;
         }
 
@@ -370,7 +343,7 @@ if (empty($all_requests_to_print) && empty($errors)) {
             flex-grow: 1;
             min-height: 1.1em;
             padding: 0 2px;
-            font-size: 8.5pt; /* Adjusted for A4 fit */
+            font-size: 8.5pt;
             line-height: 1.2;
             white-space: normal;
             word-break: break-word;
@@ -381,10 +354,10 @@ if (empty($all_requests_to_print) && empty($errors)) {
             display: flex;
             justify-content: space-between;
             flex-wrap: wrap;
-            margin-top: 4mm; /* Reduced margin */
-            padding-top: 1.5mm; /* Reduced padding */
+            margin-top: 4mm;
+            padding-top: 1.5mm; 
             border-top: 1px dotted #000;
-            font-size: 8.5pt; /* Adjusted for A4 fit */
+            font-size: 8.5pt;
         }
 
         .signature-box {
@@ -392,7 +365,7 @@ if (empty($all_requests_to_print) && empty($errors)) {
             min-width: 30%;
             max-width: 33%;
             text-align: center;
-            margin: 1mm 0.5mm; /* Reduced margin */
+            margin: 1mm 0.5mm;
         }
 
         .signature-area.two-columns .signature-box {
@@ -403,17 +376,17 @@ if (empty($all_requests_to_print) && empty($errors)) {
         .signature-line {
             display: inline-block;
             border-bottom: 1px solid #000;
-            min-width: 55px; /* Further reduced min-width */
+            min-width: 55px; 
             padding: 0 1mm;
             text-align: center;
-            font-size: 8.5pt; /* Adjusted for A4 fit */
+            font-size: 8.5pt; 
             line-height: 1.2;
-            margin-bottom: 0.8mm; /* Reduced margin */
+            margin-bottom: 0.8mm; 
         }
 
         .signature-label-text {
             display: block;
-            font-size: 8pt; /* Adjusted for A4 fit */
+            font-size: 8pt; 
             margin-top: 0.2mm;
         }
 
@@ -421,8 +394,8 @@ if (empty($all_requests_to_print) && empty($errors)) {
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
-            margin-bottom: 3px; /* Reduced margin */
-            font-size: 8.5pt; /* Adjusted for A4 fit */
+            margin-bottom: 3px;
+            font-size: 8.5pt;
         }
         .section2-approval > div {
             flex: 1;
@@ -431,63 +404,63 @@ if (empty($all_requests_to_print) && empty($errors)) {
             display: flex;
             align-items: baseline;
             flex-wrap: wrap;
-            font-size: 8.5pt; /* Adjusted for A4 fit */
+            font-size: 8.5pt;
             line-height: 1.2;
         }
         .approval-options .option-item {
-            margin-right: 6px; /* Reduced margin */
+            margin-right: 6px;
         }
         .approval-title {
             font-weight: bold;
-            margin-bottom: 1.5px; /* Reduced margin */
-            font-size: 9pt; /* Adjusted for A4 fit */
+            margin-bottom: 1.5px;
+            font-size: 9pt;
         }
 
         .staff-signature-area {
             display: flex;
             justify-content: space-around;
             flex-wrap: wrap;
-            margin-top: 4mm; /* Reduced margin */
-            font-size: 8.5pt; /* Adjusted for A4 fit */
+            margin-top: 4mm;
+            font-size: 8.5pt;
         }
         .staff-signature-box {
             flex: 1;
             min-width: 45%;
             max-width: 50%;
             text-align: center;
-            margin: 1mm 0.5mm; /* Reduced margin */
+            margin: 1mm 0.5mm;
         }
         .staff-signature-box .signature-line {
             margin-bottom: 0.8mm;
         }
         .staff-signature-box .signature-date-group {
-            margin-top: 1mm; /* Reduced margin */
+            margin-top: 1mm;
             justify-content: flex-start;
             display: flex;
             align-items: center;
         }
 
         .notes {
-            margin-top: 3mm; /* Reduced margin */
-            padding-top: 1mm; /* Reduced padding */
+            margin-top: 3mm;
+            padding-top: 1mm;
             border-top: 1px solid #ccc;
-            font-size: 8pt; /* Adjusted for A4 fit */
-            line-height: 1.1; /* Tighter line height */
+            font-size: 8pt; 
+            line-height: 1.1; 
             page-break-inside: avoid;
         }
         .notes ol {
             list-style-type: decimal;
-            padding-left: 7mm; /* Reduced padding */
+            padding-left: 7mm; 
             margin: 0;
         }
         .notes ol li {
-            margin-bottom: 0.2mm; /* Reduced margin */
+            margin-bottom: 0.2mm; 
             line-height: 1.1;
         }
         .notes p {
-            font-size: 8.5pt; /* Adjusted for A4 fit */
+            font-size: 8.5pt;
             font-weight: bold;
-            margin-bottom: 0.5px; /* Reduced margin */
+            margin-bottom: 0.5px; 
         }
         .notes p:first-child {
             margin-bottom: 0.5px;
@@ -500,9 +473,9 @@ if (empty($all_requests_to_print) && empty($errors)) {
             appearance: none;
             display: inline-block;
             vertical-align: middle;
-            width: 8.5px; /* Further smaller checkbox/radio */
+            width: 8.5px; 
             height: 8.5px;
-            margin-right: 1.5px; /* Reduced margin */
+            margin-right: 1.5px; 
             border: 1px solid #000;
             box-sizing: border-box;
             position: relative;
@@ -516,7 +489,7 @@ if (empty($all_requests_to_print) && empty($errors)) {
             position: absolute;
             top: 2px;
             left: 2px;
-            width: 2.5px; /* Adjusted inner circle size */
+            width: 2.5px; 
             height: 2.5px;
             background-color: #000;
             border-radius: 50%;
@@ -528,7 +501,7 @@ if (empty($all_requests_to_print) && empty($errors)) {
             position: absolute;
             top: -3px;
             left: 0px;
-            font-size: 8.5px; /* Adjusted checkmark size */
+            font-size: 8.5px; 
             color: #000;
             font-weight: bold;
             line-height: 1;
@@ -540,7 +513,7 @@ if (empty($all_requests_to_print) && empty($errors)) {
 
         .section {
             page-break-inside: avoid;
-            margin-bottom: 5px; /* Reduced margin */
+            margin-bottom: 5px;
         }
 
         .tab {
@@ -548,7 +521,6 @@ if (empty($all_requests_to_print) && empty($errors)) {
             text-indent: -1.5em;
         }
 
-        /* Screen-only elements (hidden when printing) */
         @media screen {
             .print-only {
                 display: none !important;
@@ -559,18 +531,18 @@ if (empty($all_requests_to_print) && empty($errors)) {
                 display: none !important;
             }
             body {
-                margin: 0; /* Remove default body margin */
+                margin: 0; 
             }
             .form-container {
-                 border: none !important; /* Remove border when printing for cleaner look */
+                 border: none !important;
                  box-shadow: none !important;
-                 margin: 0 !important; /* Remove margin from individual forms when printing */
-                 padding: 0 !important; /* Remove padding from individual forms when printing */
+                 margin: 0 !important;
+                 padding: 0 !important;
             }
             #printContentWrapper {
-                width: 210mm; /* A4 width */
-                margin: 0 auto; /* Center the entire content block */
-                padding: 5mm; /* Global margin for the entire printed document */
+                width: 210mm; 
+                margin: 0 auto;
+                padding: 5mm;
             }
         }
 
@@ -632,7 +604,6 @@ if (empty($all_requests_to_print) && empty($errors)) {
                 </ul>
             </div>
         <?php else: ?>
-            <!-- PDF Loading Overlay -->
             <div id="pdf-loading-overlay" style="display: none;">
                 <div class="spinner-border text-light" role="status">
                     <span class="visually-hidden">กำลังสร้าง PDF...</span>
@@ -915,8 +886,8 @@ if (empty($all_requests_to_print) && empty($errors)) {
                                 <div class="<?php echo $signature_area_class; ?> d-flex justify-content-between flex-wrap mt-5 pt-3 border-top border-dark border-dotted-custom fs-6">
                                     <div class="signature-box">
                                         <span class="label-text d-block">ลงชื่อ</span>
-                                        <span class="signature-line d-inline-block border-bottom border-dark pb-0 mb-2" style="min-width: 150px;"><?php echo $requester_name; ?></span>
-                                        <span class="signature-label-text d-block">(<span class="signature-line d-inline-block border-bottom border-dark pb-0" style="min-width: 150px;"></span>)</span>
+                                        <span class="signature-label-text d-block"><span class="signature-line d-inline-block border-bottom border-dark pb-0" style="min-width: 150px;"></span></span>
+                                        (<span class="signature-line d-inline-block border-bottom border-dark pb-0 mb-2" style="min-width: 150px;"><?php echo $requester_name; ?></span>)
                                         <span class="signature-label-text d-block mt-1">ผู้ขอใช้บริการ</span>
                                     </div>
                                     <div class="signature-box">

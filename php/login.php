@@ -73,6 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $ldap_connection_error = true;
             $ldap_api_error_message = "เกิดข้อผิดพลาดในการเชื่อมต่อ LDAP API: " . $curl_error;
         } elseif ($http_code === 200) {
+            // ดักวิทยาเขตเฉลิมพระเกียรติเท่านั้น
             $ldap_response = json_decode($response, true);
             if ($ldap_response) {
                 if (isset($ldap_response['status_code']) && $ldap_response['status_code'] === '1') {
@@ -107,9 +108,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($ldap_auth_passed_campus_c) {
-        // LDAP สำเร็จสำหรับ Campus 'C'
-        // ตรวจสอบข้อมูลผู้ใช้จากฐานข้อมูลภายใน (staff หรือ user)
-        // *** แก้ไข: เพิ่ม position, dept ใน SELECT statement สำหรับ staff ***
         $sql_staff = "SELECT staff_id, staff_name, staff_sur, position, dept, ut.user_type_name AS role FROM staff s
                       JOIN user_type ut ON s.user_type_id = ut.user_type_id
                       WHERE s.staff_id = ?";
@@ -125,10 +123,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $user_data['nontri_id'] = null; 
                 $user_data['user_name'] = $row['staff_name']; 
                 $user_data['user_sur'] = $row['staff_sur'];
-                $user_data['fa_de_name'] = null; // ไม่ได้ดึงจาก staff (ถ้าต้องการต้อง Join เพิ่ม)
+                $user_data['fa_de_name'] = null;
             } else {
-                // ไม่พบใน staff ลองค้นใน user
-                // *** แก้ไข: เพิ่ม position, dept ใน SELECT statement สำหรับ user ***
+
                 $sql_user = "SELECT nontri_id, user_name, user_sur, position, dept, ut.user_type_name AS role, fd.fa_de_name FROM user u
                              JOIN user_type ut ON u.user_type_id = ut.user_type_id
                              JOIN faculties_department fd ON u.fa_de_id = fd.fa_de_id
@@ -147,10 +144,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $user_data['staff_name'] = null; 
                         $user_data['staff_sur'] = null;
                     } else {
-                        // ==========================================================
-                        // *** LDAP สำเร็จ Campus 'C' แต่ไม่พบข้อมูลทั้งในตาราง staff และ user ***
-                        // *** เพิ่มข้อมูลผู้ใช้ใหม่ตามเงื่อนไขที่กำหนด ***
-                        // ==========================================================
 
                         $uid_to_insert = $ldap_raw_data['uid'] ?? $username;
                         $thainame = $ldap_raw_data['thainame'] ?? '';
@@ -163,7 +156,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $first_name = $name_parts[0] ?? '';
                         $last_name = $name_parts[1] ?? '';
 
-                        // Map faculty_name เป็น fa_de_id
                         $fa_de_id = 0;
                         if (!empty($faculty_name)) {
                             switch ($faculty_name) {
@@ -175,21 +167,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 case 'ศิลปศาสตร์และวิทยาการจัดการ': $fa_de_id = 3; break;
                                 case 'สาธารณสุขศาสตร์': $fa_de_id = 4; break;
                                 case 'คณะสาธารณสุขศาสตร์': $fa_de_id = 4; break;
-                                case null : $fa_de_id = 5; break;
+                            }
+
+                            switch ($department) {
+                                case 'สำนักวิทยาเขต': $fa_de_id = 5; break; 
+                                case 'กองบริหารทั่วไป': $fa_de_id = 6; break;
+                                case 'กองบริหารวิชาการและนิสิต' : $fa_de_id = 7; break;
+                                case 'กองบริหารงานวิจัยและบริการวิชาการ' : $fa_de_id = 8; break;
+                                case 'กองบริหารกลาง' : $fa_de_id = 9; break; 
                             }
                         }
 
                         try {
-                            if (empty($department)) {
-                                // เงื่อนไข 1: department ว่างเปล่า -> user (นิสิต)
+                            if (empty($department) || empty($position)) {
                                 $user_type_id = 1; // นิสิต
                                 $sql_insert = "INSERT INTO user (nontri_id, user_type_id, user_name, user_sur, position, dept, fa_de_id) 
                                                VALUES (?, ?, ?, ?, ?, ?, ?)";
                                 $stmt_insert = $pdo->prepare($sql_insert);
                                 $stmt_insert->execute([$uid_to_insert, $user_type_id, $first_name, $last_name, $position, $department, $fa_de_id]);
                                 $stmt_insert = null;
-                                
-                                // เตรียมข้อมูลสำหรับ session
+
                                 $user_data = [
                                     'nontri_id' => $uid_to_insert,
                                     'user_type_id' => $user_type_id,
@@ -203,31 +200,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 ];
                                 $logged_in = true;
 
-                            } elseif ($department === 'กองบริหารกลาง') {
-                                // เงื่อนไข 3: department คือ "กองบริหารกลาง" -> staff (เจ้าหน้าที่)
-                                $user_type_id = 3; // เจ้าหน้าที่
-                                $sql_insert = "INSERT INTO staff (staff_id, user_type_id, staff_name, staff_sur, position, dept, fa_de_id) 
-                                               VALUES (?, ?, ?, ?, ?, ?, ?)";
-                                $stmt_insert = $pdo->prepare($sql_insert);
-                                $stmt_insert->execute([$uid_to_insert, $user_type_id, $first_name, $last_name, $position, $department, $fa_de_id]);
-                                $stmt_insert = null;
-
-                                // เตรียมข้อมูลสำหรับ session
-                                $user_data = [
-                                    'staff_id' => $uid_to_insert,
-                                    'user_type_id' => $user_type_id,
-                                    'staff_name' => $first_name,
-                                    'staff_sur' => $last_name,
-                                    'position' => $position,
-                                    'dept' => $department,
-                                    'fa_de_id' => $fa_de_id,
-                                    'role' => 'เจ้าหน้าที่', 
-                                    'fa_de_name' => null, 
-                                ];
-                                $logged_in = true;
-
                             } else {
-                                // เงื่อนไข 2: department ไม่ว่างเปล่า และไม่ใช่ "กองบริหารกลาง" -> user (อาจารย์และบุคลากร)
                                 $user_type_id = 2; // อาจารย์และบุคลากร
                                 $sql_insert = "INSERT INTO user (nontri_id, user_type_id, user_name, user_sur, position, dept, fa_de_id) 
                                                VALUES (?, ?, ?, ?, ?, ?, ?)";
@@ -235,7 +208,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 $stmt_insert->execute([$uid_to_insert, $user_type_id, $first_name, $last_name, $position, $department, $fa_de_id]);
                                 $stmt_insert = null;
 
-                                // เตรียมข้อมูลสำหรับ session
                                 $user_data = [
                                     'nontri_id' => $uid_to_insert,
                                     'user_type_id' => $user_type_id,
@@ -250,8 +222,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 $logged_in = true;
                             }
 
-                            // หลังจากเพิ่มข้อมูล ให้พยายามดึง fa_de_name ถ้า fa_de_id ไม่ใช่ 0
-                            if ($logged_in && isset($user_data['fa_de_id']) && $user_data['fa_de_id'] !== 5) {
+                            if ($logged_in && isset($user_data['fa_de_id']) && $user_data['fa_de_id'] > 0) {
                                 $sql_fa_de_name = "SELECT fa_de_name FROM faculties_department WHERE fa_de_id = ?";
                                 $stmt_fa_de = $pdo->prepare($sql_fa_de_name);
                                 $stmt_fa_de->execute([$user_data['fa_de_id']]);
@@ -287,10 +258,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
     } else {
-        // ถ้า LDAP ไม่สำเร็จ (หรือเชื่อมต่อไม่ได้) ให้ลอง Login ด้วยฐานข้อมูลภายใน
-        // (ส่วนนี้จะถูกเรียกเมื่อ LDAP_auth_passed_campus_c เป็น false)
-        
-        // *** แก้ไข: เพิ่ม position, dept ใน SELECT statement สำหรับ staff (Fallback) ***
         $sql_staff_internal = "SELECT staff_id, user_pass, staff_name, staff_sur, position, dept, ut.user_type_name AS role FROM staff s
                                JOIN user_type ut ON s.user_type_id = ut.user_type_id
                                WHERE s.staff_id = ? AND s.user_pass = ?";
@@ -333,17 +300,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         $_SESSION['nontri_id'] = $user_data['nontri_id'] ?? null;
         $_SESSION['staff_id'] = $user_data['staff_id'] ?? null;
-        $_SESSION['user_display_name'] = $user_data['staff_name'] ?? $user_data['user_name'] ?? null; // ใช้ null แทน ($user_data['user_name'] ?? null) ซ้ำซ้อน
-        $_SESSION['user_display_sur'] = $user_data['staff_sur'] ?? $user_data['user_sur'] ?? null; // ใช้ null แทน ($user_data['user_sur'] ?? null) ซ้ำซ้อน
+        $_SESSION['user_display_name'] = $user_data['staff_name'] ?? $user_data['user_name'] ?? null;
+        $_SESSION['user_display_sur'] = $user_data['staff_sur'] ?? $user_data['user_sur'] ?? null;
         
-        // *** แก้ไข: ใช้ ?? เพื่อจัดการกรณีที่ไม่มีข้อมูล (null หรือไม่ตั้งค่า) ***
         $_SESSION['position'] = $user_data['position'] ?? null;
         $_SESSION['dept'] = $user_data['dept'] ?? null;
         
         $_SESSION['role'] = $user_data['role'] ?? 'ไม่ระบุ';
         $_SESSION['fa_de_name'] = $user_data['fa_de_name'] ?? 'ไม่ระบุ';
 
-        // เช็ค Role ของผู้ใช้
         if (isset($_SESSION['role']) && $_SESSION['role'] == 'เจ้าหน้าที่') {
             header("Location: ../admin-main-page.php");
             exit();

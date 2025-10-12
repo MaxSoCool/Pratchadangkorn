@@ -1,28 +1,16 @@
 <?php
-// php/data_view_display.php
-// This file assumes $mode, $errors, $success_message, $is_admin, $is_logged_in,
-// $search_query, $available_filter, $default_available_filter, $detail_item, $data,
-// $show_add_card, $current_page, $total_pages, $items_per_page, $conn, $buildings (for add/edit facility)
-// are all defined from the calling script and/or php/data_view_logic.php
-
-// กำหนด Project Root ของคุณอย่างน่าเชื่อถือ
-// จาก C:\xampp\htdocs\ku_ftd\php\data_view_display.php
-// dirname(__FILE__) คือ C:\xampp\htdocs\ku_ftd\php
-// dirname(dirname(__FILE__)) คือ C:\xampp\htdocs\ku_ftd (Project Root)
 $project_root = dirname(dirname(__FILE__));
 
-// --- HTML Rendering (Forms and Main Data View) ---
 
-// Admin-specific forms (add/edit)
+// โหมดต่าง ๆ ของ admin
 $is_admin_form_mode = in_array($mode, ['add_building', 'add_facility', 'add_equipment', 'edit_building', 'edit_facility', 'edit_equipment']);
 
 if ($is_admin_form_mode && $is_admin): ?>
-
+        <!-- หน้าการจัดการอาคาร (admin) -->
         <?php if ($mode == 'add_building'): ?>
             <div class="card p-5 my-3 mt-5">
                 <h2 class="mb-4 text-center fw-bold fs-5">สร้างอาคารใหม่</h2>
-                <!-- เพิ่ม id ให้ form และเปลี่ยนปุ่ม submit เป็น type="button" -->
-                <form id="addBuildingForm" action="php/admin-injection.php" method="POST" enctype="multipart/form-data" class="list-text">
+                <form id="addBuildingForm" action="php/admin-bfe-injection.php" method="POST" enctype="multipart/form-data" class="list-text">
                     <input type="hidden" name="inject_type" value="building">
                     <div class="mb-3"><label for="building_id" class="form-label fw-bold">หมายเลขอาคาร:</label><input type="text" id="building_id" name="building_id" class="form-control" value="<?php echo htmlspecialchars($_POST['building_id'] ?? ''); ?>" required></div>
                     <div class="mb-3"><label for="building_name" class="form-label fw-bold">ชื่ออาคาร:</label><input type="text" id="building_name" name="building_name" class="form-control" value="<?php echo htmlspecialchars($_POST['building_name'] ?? ''); ?>" required></div>
@@ -36,8 +24,7 @@ if ($is_admin_form_mode && $is_admin): ?>
         <?php elseif ($mode == 'edit_building' && $detail_item): ?>
             <div class="card p-5 my-3 mt-5">
                 <h2 class="mb-4 text-center fw-bold fs-5">แก้ไขอาคาร: <?php echo htmlspecialchars($detail_item['building_name']); ?></h2>
-                <!-- เพิ่ม id ให้ form -->
-                <form id="editBuildingForm" action="php/admin-injection.php" method="POST" enctype="multipart/form-data" class="list-text">
+                <form id="editBuildingForm" action="php/admin-bfe-injection.php" method="POST" enctype="multipart/form-data" class="list-text">
                     <input type="hidden" name="inject_type" value="update_building">
                     <input type="hidden" name="building_id" value="<?php echo htmlspecialchars($detail_item['building_id']); ?>">
                     <input type="hidden" name="old_building_pic" value="<?php echo htmlspecialchars($detail_item['building_pic'] ?? ''); ?>">
@@ -48,7 +35,6 @@ if ($is_admin_form_mode && $is_admin): ?>
                         <label class="form-label fw-bold">รูปภาพปัจจุบัน:</label><br>
                         <?php
                         $current_pic_path = $detail_item['building_pic'] ?? '';
-                        // ต้องตรวจสอบด้วย Full Server Path แต่แสดงผลด้วย Web Relative Path
                         if ($current_pic_path && file_exists($project_root . '/' . $current_pic_path)): ?>
                             <img src="<?php echo htmlspecialchars($current_pic_path); ?>" class="img-thumbnail mb-2" style="max-width: 200px;" alt="Current Building Picture">
                         <?php else: ?>
@@ -60,7 +46,6 @@ if ($is_admin_form_mode && $is_admin): ?>
                     <div class="mb-3">
                         <label for="status_building" class="form-label fw-bold">สถานะอาคาร:</label>
                         <div class="form-check form-switch">
-                            <!-- แก้ไขตรงนี้: เปลี่ยน name="status" เป็น name="available" -->
                             <input type="hidden" name="available" value="no">
                             <input class="form-check-input" type="checkbox" id="status_building" name="available" value="yes" role="switch"
                                 data-item-type="อาคาร"
@@ -72,11 +57,12 @@ if ($is_admin_form_mode && $is_admin): ?>
                     <div class="d-flex gap-2 mt-4"><button type="submit" class="btn btn-primary btn-lg flex-fill">บันทึกการแก้ไข</button><a href="admin-data_view-page.php?mode=building_detail&building_id=<?php echo htmlspecialchars($detail_item['building_id']); ?>" class="btn btn-secondary btn-lg flex-fill">ยกเลิก</a></div>
                 </form>
             </div>
+
+        <!-- หน้าการจัดการสถานที่ (admin) -->
         <?php elseif ($mode == 'add_facility'): ?>
             <div class="card p-5 my-3 mt-5">
                 <h2 class="mb-4 text-center fw-bold fs-5">สร้างสถานที่ใหม่</h2>
-                <!-- เพิ่ม id ให้ form และเปลี่ยนปุ่ม submit เป็น type="button" -->
-                <form id="addFacilityForm" action="php/admin-injection.php" method="POST" enctype="multipart/form-data" class="list-text">
+                <form id="addFacilityForm" action="php/admin-bfe-injection.php" method="POST" enctype="multipart/form-data" class="list-text">
                     <input type="hidden" name="inject_type" value="facility">
                     <input type="hidden" name="building_id" value="<?php echo htmlspecialchars($_GET['building_id'] ?? ''); ?>">
                     <div class="mb-3">
@@ -115,8 +101,7 @@ if ($is_admin_form_mode && $is_admin): ?>
         <?php elseif ($mode == 'edit_facility' && $detail_item): ?>
             <div class="card p-5 my-3 mt-5">
                 <h2 class="mb-4 text-center fw-bold fs-5">แก้ไขสถานที่: <?php echo htmlspecialchars($detail_item['facility_name']); ?></h2>
-                <!-- เพิ่ม id ให้ form -->
-                <form id="editFacilityForm" action="php/admin-injection.php" method="POST" enctype="multipart/form-data" class="list-text">
+                <form id="editFacilityForm" action="php/admin-bfe-injection.php" method="POST" enctype="multipart/form-data" class="list-text">
                     <input type="hidden" name="inject_type" value="update_facility">
                     <input type="hidden" name="facility_id" value="<?php echo htmlspecialchars($detail_item['facility_id']); ?>">
                     <input type="hidden" name="building_id_original" value="<?php echo htmlspecialchars($detail_item['building_id']); ?>">
@@ -156,7 +141,6 @@ if ($is_admin_form_mode && $is_admin): ?>
                         <label for="available_facility" class="form-label fw-bold">สถานะสถานที่:</label>
                         <div class="form-check form-switch">
                             <input type="hidden" name="available" value="no">
-                            <!-- เพิ่ม data-item-type และ data-item-name ให้ checkbox -->
                             <input class="form-check-input" type="checkbox" id="available_facility" name="available" value="yes" role="switch"
                                 data-item-type="สถานที่"
                                 data-item-name="<?php echo htmlspecialchars($detail_item['facility_name']); ?>"
@@ -170,11 +154,12 @@ if ($is_admin_form_mode && $is_admin): ?>
                     </div>
                 </form>
             </div>
+
+        <!-- หน้าการจัดการอุปกรณ์ (admin) -->
         <?php elseif ($mode == 'add_equipment'): ?>
             <div class="card p-5 my-3 mt-5">
                 <h2 class="mb-4 text-center fw-bold fs-5">เพิ่มอุปกรณ์ใหม่</h2>
-                <!-- เพิ่ม id ให้ form และเปลี่ยนปุ่ม submit เป็น type="button" -->
-                <form id="addEquipmentForm" action="php/admin-injection.php" method="POST" enctype="multipart/form-data" class="list-text">
+                <form id="addEquipmentForm" action="php/admin-bfe-injection.php" method="POST" enctype="multipart/form-data" class="list-text">
                     <input type="hidden" name="inject_type" value="equipment">
                     <div class="mb-3"><label for="equip_name" class="form-label fw-bold">ชื่ออุปกรณ์:</label><input type="text" id="equip_name" name="equip_name" class="form-control" value="<?php echo htmlspecialchars($_POST['equip_name'] ?? ''); ?>" required></div>
                     <div class="mb-3"><label for="quantity" class="form-label fw-bold">จำนวน:</label><input type="number" id="quantity" name="quantity" class="form-control" value="<?php echo htmlspecialchars($_POST['quantity'] ?? '1'); ?>" min="1" required></div>
@@ -190,8 +175,7 @@ if ($is_admin_form_mode && $is_admin): ?>
         <?php elseif ($mode == 'edit_equipment' && $detail_item): ?>
             <div class="card p-5 my-3 mt-5">
                 <h2 class="mb-4 text-center fw-bold fs-5">แก้ไขอุปกรณ์: <?php echo htmlspecialchars($detail_item['equip_name']); ?></h2>
-                <!-- เพิ่ม id ให้ form -->
-                <form id="editEquipmentForm" action="php/admin-injection.php" method="POST" enctype="multipart/form-data" class="list-text">
+                <form id="editEquipmentForm" action="php/admin-bfe-injection.php" method="POST" enctype="multipart/form-data" class="list-text">
                     <input type="hidden" name="inject_type" value="update_equipment">
                     <input type="hidden" name="equip_id" value="<?php echo htmlspecialchars($detail_item['equip_id']); ?>">
                     <input type="hidden" name="old_equip_pic" value="<?php echo htmlspecialchars($detail_item['equip_pic'] ?? ''); ?>">
@@ -216,7 +200,6 @@ if ($is_admin_form_mode && $is_admin): ?>
                         <label for="available_equip" class="form-label fw-bold">สถานะอุปกรณ์:</label>
                         <div class="form-check form-switch">
                             <input type="hidden" name="available" value="no">
-                            <!-- เพิ่ม data-item-type และ data-item-name ให้ checkbox -->
                             <input class="form-check-input" type="checkbox" id="available_equip" name="available" value="yes" role="switch"
                                 data-item-type="อุปกรณ์"
                                 data-item-name="<?php echo htmlspecialchars($detail_item['equip_name']); ?>"
@@ -278,8 +261,8 @@ if ($is_admin_form_mode && $is_admin): ?>
                 </form>
             </div>
             <div class="d-flex justify-content-end mt-2">
+                <!-- การค้นหาข้อมูล -->
                 <form class="d-flex" action="<?php echo $tab_link_prefix; ?>" method="GET">
-                    <!-- Hidden inputs to preserve other filters -->
                     <input type="hidden" name="mode" value="<?php echo htmlspecialchars($mode); ?>">
                     <?php if ($mode == 'building_detail' && isset($_GET['building_id'])): ?>
                         <input type="hidden" name="building_id" value="<?php echo htmlspecialchars($_GET['building_id']); ?>">
@@ -293,7 +276,6 @@ if ($is_admin_form_mode && $is_admin): ?>
                         <option value="yes" <?php echo ($available_filter == 'yes') ? 'selected' : ''; ?>>พร้อมให้บริการ</option>
                         <option value="no" <?php echo ($available_filter == 'no') ? 'selected' : ''; ?>>ไม่พร้อมให้บริการ</option>
                     </select>
-                    <?php // ปรับปุ่ม "ล้าง" ให้รองรับ available_filter ด้วย และใช้ default ของแต่ละหน้า ?>
                     <?php if (!empty($search_query) || ($available_filter != $default_available_filter)): ?>
                         <a href="<?php echo $tab_link_prefix; ?>?mode=<?php echo htmlspecialchars($mode); ?><?php echo ($mode == 'building_detail' && isset($_GET['building_id'])) ? '&building_id=' . htmlspecialchars($_GET['building_id']) : ''; ?>" class="btn btn-secondary ms-2">ล้าง</a>
                     <?php endif; ?>
@@ -303,7 +285,8 @@ if ($is_admin_form_mode && $is_admin): ?>
     </div>
 
     <?php
-    // Detail view for Facility
+
+    // หน้ารายละเอียดสถานที่
     if ($mode == 'facility_detail' && $detail_item):
         $back_link_prefix = $is_admin ? 'admin-data_view-page.php' : ($is_logged_in ? 'user-data_view-page.php' : 'index.php');
         $back_link = $back_link_prefix . '?mode=building_detail&building_id=' . htmlspecialchars($detail_item['building_id']);
@@ -331,7 +314,7 @@ if ($is_admin_form_mode && $is_admin): ?>
             <div class="col">
                 <div class="d-flex gap-2 mt-3">
                     <a href="<?php echo htmlspecialchars($back_link); ?>" class="btn btn-secondary">ย้อนกลับ</a>
-                    <?php if ($is_admin): // Admin-specific buttons ?>
+                    <?php if ($is_admin): ?>
                         <div class="ms-auto d-flex gap-2">
                             <a href="admin-data_view-page.php?mode=edit_facility&facility_id=<?php echo htmlspecialchars($detail_item['facility_id']); ?>" class="btn btn-warning text-dark">แก้ไขข้อมูลสถานที่</a>
                             <button type="button" class="btn btn-danger"
@@ -349,7 +332,8 @@ if ($is_admin_form_mode && $is_admin): ?>
         </div>
 
     <?php
-    // Detail view for Equipment
+
+    // หน้ารายละเอียดอุปกรณ์
     elseif ($mode == 'equip_detail' && $detail_item):
         $back_link_prefix = $is_admin ? 'admin-data_view-page.php' : ($is_logged_in ? 'user-data_view-page.php' : 'index.php');
         $back_link = $back_link_prefix . '?mode=equipment';
@@ -395,8 +379,7 @@ if ($is_admin_form_mode && $is_admin): ?>
         </div>
 
     <?php
-    else: // List view for buildings or facilities within a building
-        // Building detail summary card (if in building_detail mode)
+    else: // หน้ารายละเอียดอาคาร
         if ($mode == 'building_detail' && $detail_item):
             $building_detail_card_class = ($detail_item['available'] == 'no') ? 'unavailable' : '';
             $back_to_buildings_prefix = $is_admin ? 'admin-data_view-page.php' : ($is_logged_in ? 'user-data_view-page.php' : 'index.php');
@@ -419,7 +402,7 @@ if ($is_admin_form_mode && $is_admin): ?>
                 <div class="col">
                     <div class="d-flex gap-2 mt-3">
                         <a href="<?php echo $back_to_buildings_prefix; ?>?mode=buildings" class="btn btn-secondary">ย้อนกลับไปดูอาคารทั้งหมด</a>
-                        <?php if ($is_admin): // Admin-specific buttons ?>
+                        <?php if ($is_admin): ?>
                             <div class="ms-auto d-flex gap-2">
                                 <a href="admin-data_view-page.php?mode=edit_building&building_id=<?php echo htmlspecialchars($detail_item['building_id']); ?>" class="btn btn-warning text-dark">แก้ไขข้อมูลอาคาร</a>
                                 <button type="button" class="btn btn-danger"
@@ -437,7 +420,7 @@ if ($is_admin_form_mode && $is_admin): ?>
         <?php
         endif;
 
-        // Message for no data
+        // ข้อความเมื่อไม่มีข้อมูลให้แสดง
         if (empty($data) && !$show_add_card && ($mode != 'building_detail' || ($mode == 'building_detail' && count($data) == 0))): // แก้ไข total_items เป็น count($data)
         ?>
             <div class="alert alert-info text-center mt-4">
@@ -492,14 +475,14 @@ if ($is_admin_form_mode && $is_admin): ?>
 
             <?php foreach ($data as $item): ?>
                 <?php
-                // ค่าเหล่านี้ควรถูกกำหนดก่อน if block ใหญ่ๆ เพื่อให้ scope ชัดเจน
+                // กำหนดค่าเพื่อส่งไปยังการจัดการ
                 $item_name = '';
                 $link_href = '#';
                 $item_id = '';
                 $item_type = '';
-                $redirect_building_id = ''; // สำหรับ Facility
+                $redirect_building_id = ''; // สำหรับส่งกลับไปยัง building_id เมื่ออยู่ในโหมด building_detail
 
-                $img_src_from_db = ''; // จะเก็บพาธ Web Relative Path จาก DB
+                $img_src_from_db = ''; // ตัวแปรเก็บภาพจากฐานข้อมูล
                 if ($mode == 'buildings') {
                     $img_src_from_db = $item['building_pic'] ?? '';
                     $item_name = 'อาคาร ' . htmlspecialchars($item['building_id']) . ': ' . htmlspecialchars($item['building_name']);
@@ -549,6 +532,8 @@ if ($is_admin_form_mode && $is_admin): ?>
                         <a href="<?php echo $link_href; ?>" class="card-img-link">
                             <img src="<?php echo $final_img_src; ?>" class="card-img-top" alt="<?php echo $item_name; ?>">
                         </a>
+
+                        <!-- เมื่อค้นหาแล้วพบข้อมูล -->
                         <div class="card-body d-flex flex-column">
                             <?php if ($mode == 'buildings'): ?>
                                 <h5 class="card-title text-center">
@@ -593,8 +578,8 @@ if ($is_admin_form_mode && $is_admin): ?>
                 <?php endif; ?>
             </ul>
         </nav>
-<?php endif; // End of if ($mode == 'facility_detail'...) elseif ... else ... ?>
-<?php endif; // End of main data view section ?>
+    <?php endif;?>
+<?php endif;?>
 
 <?php
 if ($mode == 'buildings' || $mode == 'building_detail') {
@@ -602,8 +587,8 @@ if ($mode == 'buildings' || $mode == 'building_detail') {
 }
 ?>
 
-<?php if ($is_admin): // Only admin sees delete modal and generic modal for potential future use ?>
-    <!-- Generic Modal -->
+<?php if ($is_admin): // หน้า Modal สำหรับการเพ่ม ลบ แก้ไข อาคารสถานที่และอุปกรณ์ ?>
+    <!-- Modal หลัก -->
     <div class="modal fade" id="genericModal" tabindex="-1" aria-labelledby="genericModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content details-text">
@@ -619,10 +604,11 @@ if ($mode == 'buildings' || $mode == 'building_detail') {
         </div>
     </div>
 
+    <!-- Modal ยืนยันการลบอาคารสถานที่และอุปกรณ์ -->
     <div class="modal fade" id="deleteConfirmationModal" tabindex="-1" aria-labelledby="deleteConfirmationModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content list-text">
-                <form id="deleteForm" action="php/admin-injection.php" method="POST">
+                <form id="deleteForm" action="php/admin-bfe-injection.php" method="POST">
                     <div class="modal-header">
                         <h5 class="modal-title text-danger" id="deleteConfirmationModalLabel"><i class="bi bi-exclamation-triangle-fill"></i> ยืนยันการลบ</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>

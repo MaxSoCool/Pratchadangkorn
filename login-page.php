@@ -50,11 +50,9 @@ $login_message = $_SESSION['login_message'] ?? '';
         </div>
     </div>
 
-    <!-- Hidden inputs for JavaScript to read session status -->
     <input type="hidden" id="loginStatus" value="<?php echo htmlspecialchars($login_status); ?>">
     <input type="hidden" id="loginMessage" value="<?php echo htmlspecialchars($login_message); ?>">
 
-    <!-- Success Modal -->
     <div class="modal fade" id="successModal" tabindex="-1" aria-labelledby="successModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -72,7 +70,6 @@ $login_message = $_SESSION['login_message'] ?? '';
         </div>
     </div>
 
-    <!-- Error Modal -->
     <div class="modal fade" id="errorModal" tabindex="-1" aria-labelledby="errorModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">

@@ -1,18 +1,12 @@
 <?php
-// ajax_handler.php
 
-// ต้องมี database connection และ helpers ก่อน
-// เนื่องจากไฟล์นี้จะถูก include ใน user-project-page.php ซึ่งอยู่ในระดับเดียวกับ php/
-// ดังนั้น path สำหรับ include ไฟล์อื่น ๆ ที่อยู่ในโฟลเดอร์ที่ต่างกันจะต้องเป็นแบบนี้
 if (!isset($conn)) {
     include '../database/database.php';
 }
 if (!function_exists('formatThaiDate')) { // ตรวจสอบว่าฟังก์ชันถูกโหลดแล้วหรือไม่
-    include 'helper.php';
+    include 'helpers.php';
 }
 
-// NEW AJAX Endpoint: Get facilities by building
-// This endpoint is used by the JS to populate the facility dropdown based on the selected building.
 if (isset($_GET['action']) && $_GET['action'] == 'get_facilities_by_building' && isset($_GET['building_id'])) {
     header('Content-Type: application/json');
     $buildingId = (int)$_GET['building_id'];
@@ -22,7 +16,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_facilities_by_building' &&
         $sql = "SELECT facility_id, facility_name, available
                 FROM facilities
                 WHERE building_id = ?
-                ORDER BY facility_id ASC"; // Order by facility_id (INT) for correct numeric sorting
+                ORDER BY facility_id ASC"; 
 
         $stmt = $conn->prepare($sql);
         if ($stmt) {
@@ -42,8 +36,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_facilities_by_building' &&
     exit(); // EXIT after handling AJAX
 }
 
-// EXISTING AJAX Endpoint: Get facilities by project (for equipment requests)
-// This endpoint is used by the JS to populate the facility dropdown based on a project that previously requested them.
+
 if (isset($_GET['action']) && $_GET['action'] == 'get_facilities_by_project' && isset($_GET['project_id'])) {
     header('Content-Type: application/json');
     $projectId = (int)$_GET['project_id'];
@@ -76,7 +69,6 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_facilities_by_project' && 
     exit(); // EXIT after handling AJAX
 }
 
-// NEW AJAX Endpoint: Get project dates for validation
 if (isset($_GET['action']) && $_GET['action'] == 'get_project_dates' && isset($_GET['project_id'])) {
     header('Content-Type: application/json');
     $projectId = (int)$_GET['project_id'];

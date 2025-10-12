@@ -1,26 +1,18 @@
 <?php
-// php/data_view_logic.php
-// This file assumes $conn, $mode, $errors, $is_admin, $is_logged_in are already defined
-// It will define: $data, $total_items, $detail_item, $show_add_card, $total_pages, $available_filter
 
-// Ensure sorting.php is included
 if (!function_exists('getSortingClauses')) {
     include_once __DIR__ . '/sorting.php'; // Use __DIR__ for reliable path
 }
 
-// Ensure admin-injection.php is included if this is an admin context
-if ($is_admin && !function_exists('uploadImage')) { // Check a function from admin-injection.php
-    include_once __DIR__ . '/admin-injection.php';
+if ($is_admin && !function_exists('uploadImage')) {
+    include_once __DIR__ . '/admin-bfe-injection.php';
 }
 
-// --- Data Fetching Logic (Common to Admin, User, Guest) ---
 $items_per_page = 9;
 $current_page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $search_query = isset($_GET['search']) ? trim($_GET['search']) : '';
 $search_param = '%' . $search_query . '%';
 
-// Determine default available_filter based on user type
-// $is_admin, $is_logged_in should be defined in the calling script
 $default_available_filter = ($is_admin || !$is_logged_in) ? 'all' : 'yes'; // Admin/Guest default 'all', User default 'yes'
 $available_filter = $_GET['available_filter'] ?? $default_available_filter;
 
@@ -293,15 +285,12 @@ if ($is_admin_form_mode && $is_admin) { // Ensure only admin can access these mo
             exit();
         }
     }
-} else if ($is_admin_form_mode && !$is_admin) { // If a non-admin tries to access an admin form mode
-    // Redirect to appropriate data view page based on login status
+} else if ($is_admin_form_mode && !$is_admin) { 
     $redirect_page = $is_logged_in ? "user-data_view-page.php" : "index.php";
     header("Location: " . $redirect_page . "?status=unauthorized_access");
     exit();
 }
 
-
-// Buildings for facility dropdown (only for admin when adding/editing facility)
 $buildings = [];
 if ($is_admin && ($mode == 'add_facility' || $mode == 'edit_facility')) {
     $result_buildings = $conn->query("SELECT building_id, building_name FROM buildings ORDER BY building_name");

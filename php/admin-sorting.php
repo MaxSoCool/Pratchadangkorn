@@ -1,18 +1,5 @@
 <?php
 
-/**
- * ฟังก์ชันสำหรับสร้างเงื่อนไข WHERE clause เพื่อกรองข้อมูลตามวันที่
- * โดยจะรองรับการกรอง 2 แบบ:
- * 1. Predefined ranges (วันนี้, สัปดาห์นี้, เดือนนี้, ปีนี้)
- * 2. Specific date (ปี, เดือน, วันที่เจาะจง)
- *
- * @param string $context บ่งบอกว่ากำลังกรองข้อมูลของแท็บใด (e.g., 'projects_admin', 'buildings_admin', 'dashboard_projects')
- * @param string|null $predefined_range_select ช่วงเวลาที่กำหนดไว้ล่วงหน้า (e.g., 'today', 'this_week')
- * @param string|null $specific_year_select ปีที่ระบุ
- * @param string|null $specific_month_select เดือนที่ระบุ
- * @param string|null $specific_day_select วันที่ระบุ
- * @return array คืนค่า array ที่มี 'where_sql', 'param_types', 'param_values'
- */
 function getDateFilteringClauses($context, $predefined_range_select, $specific_year_select, $specific_month_select, $specific_day_select)
 {
     $where_sql = '';

@@ -1,12 +1,9 @@
 <?php
-// post_request_handler.php
-
-// ต้องมี database connection และ helpers ก่อน
 if (!isset($conn)) {
     include dirname(__DIR__) . '/database/database.php';
 }
-if (!function_exists('uploadFile')) { // ตรวจสอบว่าฟังก์ชันถูกโหลดแล้วหรือไม่
-    include 'helper.php';
+if (!function_exists('uploadFile')) { 
+    include 'helpers.php';
 }
 
 $project_files_upload_dir = 'uploads/files/';
@@ -24,7 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $phone_num = trim($_POST['phone_num'] ?? '');
 
         $advisor_name = null;
-        if ($user_role === 'นิสิต') { // $user_role มาจากไฟล์หลัก
+        if ($user_role === 'นิสิต') { 
             $advisor_name = trim($_POST['advisor_name'] ?? '');
             if (empty($advisor_name)) {
                 $errors[] = "กรุณากรอกชื่อที่ปรึกษาโครงการ";
@@ -32,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
 
         $activity_type_id = (int)($_POST['activity_type_id'] ?? 0);
-        $nontri_id = $_SESSION['nontri_id'] ?? ''; // $nontri_id มาจากไฟล์หลัก
+        $nontri_id = $_SESSION['nontri_id'] ?? ''; 
 
         $writed_status = 'ร่างโครงการ';
         if (isset($_POST['action']) && $_POST['action'] == 'submit_project') {

@@ -8,16 +8,14 @@
 
     include 'database/database.php';
 
-    // --- Flags for Shared Logic ---
     $is_admin = true;
     $is_logged_in = true;
 
-    // --- Page Logic Configuration (common for data view) ---
     $mode = $_GET['mode'] ?? 'buildings';
-    $errors = []; // Initialize for shared logic
-    $success_message = $_GET['message'] ?? ''; // Admin page still uses this for success/error messages
+    $errors = [];
+    $success_message = $_GET['message'] ?? ''; 
 
-    include 'php/data_view.php'; // This will handle data fetching and define many variables
+    include 'php/data_view.php';
 
     $staff_name = htmlspecialchars($_SESSION['user_display_name'] ?? 'N/A');
     $staff_sur = htmlspecialchars($_SESSION['user_display_sur'] ?? 'N/A');

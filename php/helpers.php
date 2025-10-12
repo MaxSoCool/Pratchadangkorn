@@ -1,9 +1,5 @@
 <?php
-// helpers.php
-
-// ต้องมี database connection ถ้า function ไหนใช้ $conn โดยตรง
 if (!isset($conn)) {
-    // assume database.php is in ../database/
     include dirname(__DIR__) . '/database/database.php';
 }
 
@@ -78,7 +74,6 @@ function handleMultipleFileUploads($file_input_name, $target_dir, &$errors, $all
     return $uploaded_paths;
 }
 
-// Helper function for Server-Side Date Validation against Project Dates
 function validateRequestDatesAgainstProject($request_start, $request_end, $project_id, $conn, $user_id, &$errors, $request_type = 'ทั่วไป') {
     $sql = "SELECT start_date, end_date FROM project WHERE project_id = ? AND nontri_id = ?";
     $stmt = $conn->prepare($sql);
@@ -108,50 +103,83 @@ function validateRequestDatesAgainstProject($request_start, $request_end, $proje
     return true;
 }
 
-function getStatusBadgeClass($status_text, $approve_status = null) {
-    if ($approve_status === 'อนุมัติ') {
-        return 'bg-success';
-    } elseif ($approve_status === 'ไม่อนุมัติ') {
-        return 'bg-danger';
-    } elseif ($approve_status === 'ยกเลิก') {
-        return 'bg-dark';
-    } else {
-        switch ($status_text) {
-            case 'ร่างโครงการ':
-            case 'ร่างคำร้องขอ':
-                return 'bg-warning text-dark';
-            case 'ส่งโครงการ':
-            case 'ส่งคำร้องขอ':
-                return 'bg-primary';
-            case 'เริ่มดำเนินการ':
-                return 'bg-info text-dark';
-            case 'สิ้นสุดโครงการ':
-            case 'สิ้นสุดดำเนินการ':
-                return 'bg-secondary';
-            case 'ยกเลิกโครงการ':
-            case 'ยกเลิกคำร้องขอ':
-                return 'bg-dark';
-            default:
-                return 'bg-secondary';
+if (!function_exists('formatThaiDate')) {
+    function formatThaiDate($date_str, $include_time = true) {
+        if (empty($date_str) || $date_str === '0000-00-00 00:00:00' || $date_str === '0000-00-00') {
+            return "-";
+        }
+        $dt = new DateTime($date_str);
+        $thai_months = [
+            "", "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
+            "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."
+        ];
+        $d = (int)$dt->format('j');
+        $m = (int)$dt->format('n');
+        $y = (int)$dt->format('Y') + 543; // ปีพ.ศ.
+        $output = "{$d} {$thai_months[$m]} {$y}";
+        if ($include_time) {
+            $time = $dt->format('H:i');
+            $output .= " {$time}";
+        }
+        return $output;
+    }
+}
+
+if (!function_exists('getStatusBadgeClass')) {
+    function getStatusBadgeClass($status_text, $approve_status = null) {
+        if ($approve_status === 'อนุมัติ') {
+            return 'bg-success';
+        } elseif ($approve_status === 'ไม่อนุมัติ') {
+            return 'bg-danger';
+        } elseif ($approve_status === 'ยกเลิก') {
+            return 'bg-dark';
+        } else {
+            switch ($status_text) {
+                case 'ร่างโครงการ':
+                case 'ร่างคำร้องขอ':
+                    return 'bg-warning text-dark';
+                case 'ส่งโครงการ':
+                case 'ส่งคำร้องขอ':
+                    return 'bg-primary';
+                case 'เริ่มดำเนินการ':
+                    return 'bg-info text-dark';
+                case 'สิ้นสุดโครงการ':
+                case 'สิ้นสุดดำเนินการ':
+                    return 'bg-secondary';
+                case 'ยกเลิกโครงการ':
+                case 'ยกเลิกคำร้องขอ':
+                    return 'bg-dark';
+                case 'ไม่อนุมัติ':
+                    return 'bg-danger';
+                default:
+                    return 'bg-secondary';
+            }
         }
     }
 }
 
-function formatThaiDate($date_str, $include_time = true) {
-    if (empty($date_str)) return "-";
-    $dt = new DateTime($date_str);
-    $thai_months = [
-        "", "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
-        "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."
-    ];
-    $d = (int)$dt->format('j');
-    $m = (int)$dt->format('n');
-    $y = (int)$dt->format('Y') + 543; // ปีพ.ศ.
-    $output = "{$d} {$thai_months[$m]} {$y}";
-    if ($include_time) {
-        $time = $dt->format('H:i');
-        $output .= " {$time}";
+if (!function_exists('getThaiMonnameFull')) {
+    function getThaiMonnameFull($month_num) {
+        $thai_months_full = [
+            '01' => 'มกราคม', '02' => 'กุมภาพันธ์', '03' => 'มีนาคม', '04' => 'เมษายน',
+            '05' => 'พฤษภาคม', '06' => 'มิถุนายน', '07' => 'กรกฎาคม', '08' => 'สิงหาคม',
+            '09' => 'กันยายน', '10' => 'ตุลาคม', '11' => 'พฤศจิกายน', '12' => 'ธันวาคม'
+        ];
+        return $thai_months_full[sprintf('%02d', $month_num)] ?? '';
     }
-    return $output;
+}
+
+if (!function_exists('formatThaiDatePartForPrint')) {
+    function formatThaiDatePartForPrint($date_str, $part) {
+        if (!$date_str || $date_str === '0000-00-00 00:00:00' || $date_str === '0000-00-00') {
+            return '';
+        }
+        $dt = new DateTime($date_str);
+        if ($part === 'day') return $dt->format('d');
+        if ($part === 'month') return getThaiMonnameFull($dt->format('m')); // ใช้ getThaiMonnameFull
+        if ($part === 'year') return $dt->format('Y') + 543; // Buddhist year
+        if ($part === 'time') return $dt->format('H:i');
+        return '';
+    }
 }
 ?>

@@ -72,10 +72,7 @@ function getChartFilteringClauses(
             $limit_sql = ($chart_mode === 'top_equipments') ? " LIMIT 10" : "";
             break;
         
-        // faculty_drilldown is now essentially disabled from direct click, but kept for completeness
         case 'faculty_drilldown':
-            // This case might require its own specific logic based on drilldown_type
-            // For now, it will use the date filter for the corresponding request type
             if ($drilldown_type == 'projects') {
                 $date_filter_result = getDateFilteringClauses('dashboard_projects', $predefined_range, $specific_year, $specific_month, $specific_day);
             } elseif ($drilldown_type == 'facilities') {
@@ -88,17 +85,17 @@ function getChartFilteringClauses(
                 $param_values = array_merge($param_values, $date_filter_result['param_values']);
                 $param_types .= $date_filter_result['param_types'];
             }
-            // Add specific faculty filter for the drilldown
+
             if (!empty($drilldown_id)) {
                 $where_clauses[] = "u.fa_de_id = ?";
                 $param_values[] = (int)$drilldown_id;
                 $param_types .= 'i';
             }
-            // No specific group by or order by for a single bar chart
+
             break;
 
         default:
-            // Fallback for any other unexpected chart_mode
+
             break;
     }
 
@@ -113,10 +110,6 @@ function getChartFilteringClauses(
     ];
 }
 
-// **Important**: The getDateFilteringClauses function (likely in admin-sorting.php)
-// should remain as is (returning " AND " prefixed string for where_sql),
-// because chart_sorting.php's ltrim() handles it.
-// If it's redefined here, ensure it matches the original definition precisely.
 if (!function_exists('getDateFilteringClauses')) {
     function getDateFilteringClauses($context, $predefined_range_select, $specific_year_select, $specific_month_select, $specific_day_select) {
         $where_clauses = [];

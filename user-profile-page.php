@@ -12,9 +12,8 @@ $user_sur = htmlspecialchars($_SESSION['user_display_sur'] ?? 'N/A');
 $user_role = htmlspecialchars($_SESSION['role'] ?? 'N/A');
 $fa_de_name = htmlspecialchars($_SESSION['fa_de_name'] ?? 'ไม่ระบุ');
 
-// *** เพิ่มการดึง session สำหรับ position และ dept ***
-$user_position = htmlspecialchars($_SESSION['position'] ?? ''); // ใช้ empty string เป็นค่าเริ่มต้น
-$user_dept = htmlspecialchars($_SESSION['dept'] ?? '');         // ใช้ empty string เป็นค่าเริ่มต้น
+$user_position = htmlspecialchars($_SESSION['position'] ?? ''); 
+$user_dept = htmlspecialchars($_SESSION['dept'] ?? ''); 
 
 ?>
 <!DOCTYPE html>

@@ -3,41 +3,39 @@ if (session_status() == PHP_SESSION_NONE) {
     session_start();
 }
 
+// ตรวจสอบการเข้าสู่ระบบของเจ้าหน้าที่
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
-    header("Location: ../login-page.php"); // ปรับพาธให้ถูกต้อง
+    header("Location: ../login-page.php"); 
     exit();
 }
 
-// ตรวจสอบว่า $conn ถูกกำหนดแล้วหรือไม่ ก่อนจะ include database.php
-// หากไม่มั่นใจว่า $conn ถูก include มาจากที่อื่นแน่ๆ ควรใส่ include ทุกครั้ง
-// หรือใช้ require_once เพื่อให้แน่ใจว่ามีการเชื่อมต่ออยู่เสมอ
 if (!isset($conn)) {
     include '../database/database.php';
 }
 
-$images_base_dir = 'images/'; // นี่คือ Web-relative path จาก project root
+$images_base_dir = 'images/'; // Web-relative path จาก project root
 $buildings_upload_dir = $images_base_dir . 'buildings/';
 $facilities_upload_dir = $images_base_dir . 'facilities/';
 $equipments_upload_dir = $images_base_dir . 'equipments/';
 
 $errors = [];
-// แก้ไขพาธเริ่มต้นสำหรับ redirect ในกรณีเกิดข้อผิดพลาด
+// พาธเริ่มต้นสำหรับ redirect ในกรณีเกิดข้อผิดพลาด
 $redirect_url_on_error = '../admin-data_view-page.php';
 
 function uploadImage($file_input_name, $target_dir, &$errors_ref, $old_pic_path = null) {
-    global $images_base_dir; // ใช้ global เพื่อเข้าถึง $images_base_dir
+    global $images_base_dir; 
 
-    // กำหนด Project Root ของคุณอย่างน่าเชื่อถือ
+    // กำหนด Project Root 
     $project_root = dirname(dirname(__FILE__));
 
-    // สร้าง Full Server Path สำหรับ Directory ที่จะเก็บรูปภาพ
+    // Directory ที่จะเก็บรูปภาพ
     $full_server_target_dir = $project_root . '/' . $target_dir;
 
-    // Check if the directory exists, if not, create it
     if (!is_dir($full_server_target_dir)) {
         mkdir($full_server_target_dir, 0777, true);
     }
 
+    // ตรวจสอบการอัปโหลดไฟล์
     if (isset($_FILES[$file_input_name]) && $_FILES[$file_input_name]['error'] == UPLOAD_ERR_OK) {
         $file_tmp_name = $_FILES[$file_input_name]['tmp_name'];
         $file_name = basename($_FILES[$file_input_name]['name']);
@@ -51,10 +49,10 @@ function uploadImage($file_input_name, $target_dir, &$errors_ref, $old_pic_path 
 
         $new_file_name = uniqid() . '.' . $file_ext;
 
-        // นี่คือพาธที่ใช้สำหรับ Browser และจะถูกเก็บใน Database (Web Relative Path)
+        // พาธที่ใช้สำหรับ Browser ที่ถูกเก็บใน Database (Web Relative Path)
         $web_relative_path_to_store_in_db = $target_dir . $new_file_name;
 
-        // นี่คือพาธเต็มบน Server ที่ใช้สำหรับฟังก์ชัน PHP เช่น move_uploaded_file
+        // พาธเต็มบน Server ที่ใช้สำหรับฟังก์ชัน PHP
         $full_server_upload_path = $full_server_target_dir . $new_file_name;
 
         if (move_uploaded_file($file_tmp_name, $full_server_upload_path)) {
@@ -72,38 +70,36 @@ function uploadImage($file_input_name, $target_dir, &$errors_ref, $old_pic_path 
         $errors_ref[] = "เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ " . $file_input_name . ": " . $_FILES[$file_input_name]['error'];
         return false;
     }
-    // No new file uploaded, return the old path (or null if there was no old path)
+    
+    // หากไม่มีการอัปโหลดไฟล์ใหม่ ให้คืนค่า old_pic_path เดิม
     return $old_pic_path;
 }
 
 // ฟังก์ชันสำหรับลบไฟล์รูปภาพ
 function deleteImageFile($file_path) {
-    global $images_base_dir; // ใช้ global เพื่อเข้าถึง $images_base_dir
+    global $images_base_dir;
     $project_root = dirname(dirname(__FILE__)); // Project Root
 
-    // สร้าง Full Server Path จาก Web Relative Path ที่เก็บใน DB
     $full_server_file_path = $project_root . '/' . $file_path;
 
-    // Ensure file_path is not empty, file exists, is a regular file, and is within our images_base_dir
+    // ตรวจสอบว่าไฟล์อยู่ในไดเรกทอรีที่อนุญาตและมีอยู่จริงก่อนลบ
     if ($file_path && file_exists($full_server_file_path) && is_file($full_server_file_path) && strpos($file_path, $images_base_dir) === 0) {
         return unlink($full_server_file_path);
     }
-    return true; // Return true if no file to delete or if deletion is not applicable/needed
+    return true;
 }
 
-
-// --- Logic ประมวลผล POST Request จากฟอร์ม ---
+// --- ประมวลผล POST Request จากฟอร์ม ---
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
 
     // กำหนด URL สำหรับ redirect ในกรณีเกิดข้อผิดพลาด
-    // ใช้ค่าจาก $_SERVER['HTTP_REFERER'] หากมี เพื่อให้กลับไปหน้าเดิมที่เรียกมา
     $redirect_url_on_error = isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '../admin-data_view-page.php';
 
-    // --- CREATE Logic ---
+    // --- โค๊ดการสร้าง
     if ($_POST['inject_type'] === 'building') {
         $building_id = trim($_POST['building_id'] ?? '');
         $building_name = trim($_POST['building_name'] ?? '');
-        $available = 'yes'; // Default to 'yes' for new buildings
+        $available = 'yes';
 
         $building_pic_path = uploadImage('building_pic', $buildings_upload_dir, $errors);
 
@@ -120,7 +116,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
             $stmt->close();
 
             if ($count > 0) {
-                // หากพบ building_id ซ้ำ ให้ Redirect กลับไปพร้อม error message
                 header("Location: ../admin-data_view-page.php?mode=add_building&status=error&message=" . urlencode("หมายเลขอาคาร {$building_id} มีอยู่ในระบบแล้ว กรุณาใช้หมายเลขอื่น"));
                 exit();
             }
@@ -136,8 +131,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
                     exit();
                 } else {
                     $errors[] = "เกิดข้อผิดพลาดในการบันทึกข้อมูลอาคาร: " . $stmt->error;
-                    // If DB insert failed, delete the newly uploaded image
-                    deleteImageFile($building_pic_path); // ใช้ฟังก์ชัน deleteImageFile
+                    deleteImageFile($building_pic_path); 
                 }
                 $stmt->close();
             }
@@ -147,9 +141,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
     elseif ($_POST['inject_type'] === 'facility') {
         $facility_name = trim($_POST['facility_name'] ?? '');
         $facility_des = trim($_POST['facility_des'] ?? '');
-        $building_id_for_facility = htmlspecialchars($_POST['building_id'] ?? ''); // ใช้ htmlspecialchars เพื่อป้องกัน XSS
-        // **แก้ไข: ดึงสถานะ available จากอาคารแม่**
-        $available_status_from_building = 'yes'; // Default
+        $building_id_for_facility = htmlspecialchars($_POST['building_id'] ?? '');
+        $available_status_from_building = 'yes'; 
         if (!empty($building_id_for_facility)) {
             $stmt_get_building_status = $conn->prepare("SELECT available FROM buildings WHERE building_id = ?");
             if ($stmt_get_building_status) {
@@ -179,7 +172,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
                     exit();
                 } else {
                     $errors[] = "เกิดข้อผิดพลาดในการบันทึกข้อมูลสถานที่: " . $stmt->error;
-                    deleteImageFile($facility_pic_path); // ใช้ฟังก์ชัน deleteImageFile
+                    deleteImageFile($facility_pic_path);
                 }
                 $stmt->close();
             }
@@ -191,7 +184,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
         $quantity = (int)($_POST['quantity'] ?? 0);
         $measure = trim($_POST['measure'] ?? '');
         $size = trim($_POST['size'] ?? '');
-        $available = 'yes'; // Default to 'yes' for new equipment
+        $available = 'yes';
 
         $equip_pic_path = uploadImage('equip_pic', $equipments_upload_dir, $errors);
 
@@ -208,19 +201,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
                     exit();
                 } else {
                     $errors[] = "เกิดข้อผิดพลาดในการบันทึกข้อมูลอุปกรณ์: " . $stmt->error;
-                    deleteImageFile($equip_pic_path); // ใช้ฟังก์ชัน deleteImageFile
+                    deleteImageFile($equip_pic_path);
                 }
                 $stmt->close();
             }
         }
     }
 
-    // --- UPDATE Logic ---
+    // โค๊ดการอัปเดต
     elseif ($_POST['inject_type'] === 'update_building') {
         $building_id = trim($_POST['building_id'] ?? '');
         $building_name = trim($_POST['building_name'] ?? '');
         $old_building_pic = trim($_POST['old_building_pic'] ?? '');
-        // **แก้ไข: รับค่า 'available' จาก $_POST['available'] และตั้งค่าให้ถูกต้อง**
         $new_available_status = (isset($_POST['available']) && $_POST['available'] === 'yes') ? 'yes' : 'no';
 
         $redirect_url_on_error = "../admin-data_view-page.php?mode=edit_building&building_id=" . urlencode($building_id);
@@ -229,10 +221,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
         if (empty($building_name)) { $errors[] = "กรุณากรอกชื่ออาคาร (Building Name)."; }
 
         if (empty($errors)) {
-            $final_pic_path = uploadImage('building_pic', $buildings_upload_dir, $errors, $old_building_pic); // uploadImage จะจัดการลบรูปเก่าให้
+            $final_pic_path = uploadImage('building_pic', $buildings_upload_dir, $errors, $old_building_pic);
 
             if ($final_pic_path === false && isset($_FILES['building_pic']) && $_FILES['building_pic']['error'] != UPLOAD_ERR_NO_FILE) {
-                 // Error messages already added by uploadImage
             } else {
                 // 1. อัปเดตข้อมูลอาคาร
                 $stmt_building = $conn->prepare("UPDATE buildings SET building_name = ?, building_pic = ?, available = ? WHERE building_id = ?");
@@ -240,9 +231,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
                 else {
                     $stmt_building->bind_param("ssss", $building_name, $final_pic_path, $new_available_status, $building_id);
                     if ($stmt_building->execute()) {
-                        $stmt_building->close(); // ปิด statement หลังจากใช้งาน
+                        $stmt_building->close(); 
 
-                        // **เพิ่ม: อัปเดตสถานะของสถานที่ทั้งหมดในอาคารนี้ให้ตรงกับสถานะของอาคาร**
+                        // อัปเดตสถานะของสถานที่ทั้งหมดในอาคารนี้ให้ตรงกับสถานะของอาคาร**
                         $stmt_facilities = $conn->prepare("UPDATE facilities SET available = ? WHERE building_id = ?");
                         if ($stmt_facilities) {
                             $stmt_facilities->bind_param("ss", $new_available_status, $building_id);
@@ -250,7 +241,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
                             $stmt_facilities->close();
                         } else {
                             error_log("Failed to prepare statement for updating facilities status: " . $conn->error);
-                            // หากมี error ในการเตรียม statement สำหรับ facilities ให้บันทึก log ไว้แต่ไม่ block การอัปเดต building
                         }
 
                         header("Location: ../admin-data_view-page.php?mode=building_detail&building_id={$building_id}&status=success&message=" . urlencode("แก้ไขอาคาร '{$building_name}' และสถานะสถานที่ในอาคารสำเร็จแล้ว!"));
@@ -262,7 +252,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
                             deleteImageFile($final_pic_path);
                         }
                     }
-                    // $stmt_building->close(); // ย้ายไปปิดด้านบนหลังจาก execute สำเร็จ
                 }
             }
         }
@@ -272,9 +261,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
         $facility_id = (int)($_POST['facility_id'] ?? 0);
         $facility_name = trim($_POST['facility_name'] ?? '');
         $facility_des = trim($_POST['facility_des'] ?? '');
-        $new_building_id = htmlspecialchars($_POST['building_id'] ?? ''); // อาคารใหม่ที่เลือก
+        $new_building_id = htmlspecialchars($_POST['building_id'] ?? '');
         $old_facility_pic = trim($_POST['old_facility_pic'] ?? '');
-        // **แก้ไข: รับค่า 'available' จาก $_POST['available'] และตั้งค่าให้ถูกต้อง**
         $new_available_status = (isset($_POST['available']) && $_POST['available'] === 'yes') ? 'yes' : 'no';
 
         $redirect_url_on_error = "../admin-data_view-page.php?mode=edit_facility&facility_id=" . urlencode($facility_id);
@@ -284,8 +272,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
         if (empty($new_building_id)) { $errors[] = "ไม่พบรหัสอาคารที่ถูกต้องสำหรับสถานที่นี้."; }
 
         if (empty($errors)) {
-            // **เพิ่ม: ตรวจสอบสถานะของอาคารแม่ก่อนอัปเดตสถานะสถานที่**
-            $building_available_status = 'yes'; // Default
+            $building_available_status = 'yes'; 
             $stmt_get_building_status = $conn->prepare("SELECT available FROM buildings WHERE building_id = ?");
             if ($stmt_get_building_status) {
                 $stmt_get_building_status->bind_param("s", $new_building_id);
@@ -299,8 +286,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
 
             // ถ้าอาคารแม่ไม่พร้อมใช้งาน (no) และพยายามตั้งสถานะสถานที่นี้เป็น 'yes'
             if ($building_available_status === 'no' && $new_available_status === 'yes') {
-                 $errors[] = "ไม่สามารถตั้งสถานะสถานที่นี้เป็น 'พร้อมใช้งาน' ได้ เนื่องจากอาคารแม่ 'ไม่พร้อมใช้งาน' กรุณาเปลี่ยนสถานะอาคารก่อน";
-                 // Redirect immediately with error
+                 $errors[] = "ไม่สามารถตั้งสถานะสถานที่แห่งนี้เป็น 'พร้อมใช้งาน' ได้ เนื่องจากอาคารหลัก 'ไม่พร้อมใช้งาน'";
                  $redirect_param_glue = strpos($redirect_url_on_error, '?') === false ? '?' : '&';
                  header("Location: {$redirect_url_on_error}{$redirect_param_glue}status=error&message=" . urlencode(implode(", ", $errors)));
                  exit();
@@ -309,7 +295,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
             $final_pic_path = uploadImage('facility_pic', $facilities_upload_dir, $errors, $old_facility_pic); // uploadImage จะจัดการลบรูปเก่าให้
 
             if ($final_pic_path === false && isset($_FILES['facility_pic']) && $_FILES['facility_pic']['error'] != UPLOAD_ERR_NO_FILE) {
-                 // Error messages already added by uploadImage
             } else {
                 $stmt = $conn->prepare("UPDATE facilities SET facility_name = ?, facility_des = ?, facility_pic = ?, building_id = ?, available = ? WHERE facility_id = ?");
                 if (!$stmt) { $errors[] = "เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL: " . $conn->error; }
@@ -338,7 +323,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
         $measure = trim($_POST['measure'] ?? '');
         $size = trim($_POST['size'] ?? '');
         $old_equip_pic = trim($_POST['old_equip_pic'] ?? '');
-        // **แก้ไข: รับค่า 'available' จาก $_POST['available'] และตั้งค่าให้ถูกต้อง**
         $new_available_status = (isset($_POST['available']) && $_POST['available'] === 'yes') ? 'yes' : 'no';
 
         $redirect_url_on_error = "../admin-data_view-page.php?mode=edit_equipment&equip_id=" . urlencode($equip_id);
@@ -348,10 +332,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
         if ($quantity <= 0) { $errors[] = "กรุณาระบุจำนวนอุปกรณ์ที่ถูกต้อง (ต้องมากกว่า 0)."; }
 
         if (empty($errors)) {
-            $final_pic_path = uploadImage('equip_pic', $equipments_upload_dir, $errors, $old_equip_pic); // uploadImage จะจัดการลบรูปเก่าให้
+            $final_pic_path = uploadImage('equip_pic', $equipments_upload_dir, $errors, $old_equip_pic);
 
             if ($final_pic_path === false && isset($_FILES['equip_pic']) && $_FILES['equip_pic']['error'] != UPLOAD_ERR_NO_FILE) {
-                 // Error messages already added by uploadImage
             } else {
                 $stmt = $conn->prepare("UPDATE equipments SET equip_name = ?, quantity = ?, measure = ?, size = ?, equip_pic = ?, available = ? WHERE equip_id = ?");
                 if (!$stmt) { $errors[] = "เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL: " . $conn->error; }
@@ -373,7 +356,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
         }
     }
 
-    // --- DELETE Logic ---
+    // โค๊ดการลบ
     elseif ($_POST['inject_type'] === 'delete_building') {
         $building_id = trim($_POST['delete_id'] ?? '');
         $redirect_to = "../admin-data_view-page.php?mode=buildings";
@@ -382,7 +365,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
 
         if (empty($errors)) {
             try {
-                // ดึงรูปภาพทั้งหมดของการจองที่เกี่ยวข้องกับสถานที่ในอาคารนี้ก่อน (ถ้ามี)
+                // ดึงรูปภาพทั้งหมดของการจองที่เกี่ยวข้องกับสถานที่ในอาคารนี้ก่อน
                 $stmt_get_request_pics = $conn->prepare("SELECT R.request_pic FROM requests R JOIN facilities F ON R.facility_id = F.facility_id WHERE F.building_id = ?");
                 if ($stmt_get_request_pics) {
                     $stmt_get_request_pics->bind_param("s", $building_id);
@@ -406,7 +389,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
                     error_log("Warning: Could not prepare statement to delete requests for facilities in building: " . $conn->error);
                 }
 
-
                 // ดึงรูปภาพทั้งหมดของสถานที่ในอาคารนี้ก่อน
                 $stmt_get_facility_pics = $conn->prepare("SELECT facility_pic FROM facilities WHERE building_id = ?");
                 if ($stmt_get_facility_pics) {
@@ -421,7 +403,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
                     error_log("Warning: Could not prepare statement to get facility pics in building: " . $conn->error);
                 }
 
-
                 // ลบสถานที่ทั้งหมดในอาคารนี้
                 $stmt_delete_facilities = $conn->prepare("DELETE FROM facilities WHERE building_id = ?");
                 if ($stmt_delete_facilities) {
@@ -431,7 +412,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
                 } else {
                     error_log("Warning: Could not prepare statement to delete facilities in building: " . $conn->error);
                 }
-
 
                 // ดึงรูปภาพอาคารก่อนลบ
                 $stmt_get_building_pic = $conn->prepare("SELECT building_pic FROM buildings WHERE building_id = ?");
@@ -445,7 +425,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
                     $building_pic = null;
                     error_log("Warning: Could not prepare statement to get building pic: " . $conn->error);
                 }
-
 
                 // ลบอาคาร
                 $stmt_delete_building = $conn->prepare("DELETE FROM buildings WHERE building_id = ?");
@@ -509,7 +488,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
 
                 // ลบการจองที่เกี่ยวข้องกับสถานที่นี้ (ถ้ามีตาราง booking/requests ที่อ้างอิง facility_id)
                 // ตรวจสอบว่าตาราง `requests` มีคอลัมน์ `facility_id` หรือไม่ หรือมีตาราง `facility_bookings` แยกต่างหาก
-                // สมมติว่า `requests` เป็นตารางหลักสำหรับการจอง
                 $stmt_delete_requests = $conn->prepare("DELETE FROM requests WHERE facility_id = ?"); // ปรับเปลี่ยนตามชื่อตารางจองของคุณ
                 if ($stmt_delete_requests) {
                     $stmt_delete_requests->bind_param("i", $facility_id);
@@ -517,7 +495,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
                     $stmt_delete_requests->close();
                 } else {
                      error_log("Warning: Could not prepare statement to delete related requests for facility: " . $conn->error);
-                     // ไม่ต้อง throw exception เพื่อให้การลบสถานที่ยังดำเนินต่อไปได้
                 }
 
 
@@ -581,7 +558,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
                     error_log("Warning: Could not prepare statement to get booking equipment pics: " . $conn->error);
                 }
 
-                // ลบการจองอุปกรณ์ที่เกี่ยวข้อง (ถ้ามีตาราง booking_equipments หรือ requests ที่อ้างอิง equip_id)
+                // ลบการจองอุปกรณ์ที่เกี่ยวข้อง
                 $stmt_delete_bookings = $conn->prepare("DELETE FROM booking_equipments WHERE equip_id = ?"); // ปรับเปลี่ยนตามชื่อตารางจองอุปกรณ์ของคุณ
                 if ($stmt_delete_bookings) {
                     $stmt_delete_bookings->bind_param("i", $equip_id);
@@ -589,7 +566,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
                     $stmt_delete_bookings->close();
                 } else {
                     error_log("Warning: Could not prepare statement to delete related equipment bookings: " . $conn->error);
-                    // ไม่ต้อง throw exception เพื่อให้การลบอุปกรณ์ยังดำเนินต่อไปได้
                 }
 
 
@@ -615,7 +591,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
         $redirect_url_on_error = $redirect_to; // ตั้งค่า redirect_url_on_error สำหรับการลบอุปกรณ์
     }
 
-    // หากมีข้อผิดพลาดหลังจากดำเนินการใดๆ (ยกเว้น redirect สำเร็จไปแล้ว)
+    // แจ้งผลลัพธ์หากมี error เกิดขึ้น
     if (!empty($errors)) {
         $redirect_param_glue = strpos($redirect_url_on_error, '?') === false ? '?' : '&';
         header("Location: {$redirect_url_on_error}{$redirect_param_glue}status=error&message=" . urlencode(implode(", ", $errors)));
