@@ -66,10 +66,29 @@
             $conn->close();
         }
     ?>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
-    <script src="./js/calendar.js"></script>
-    <?php if ($is_admin): ?>
-        <script src="./js/admin-modal.js"></script>
-    <?php endif; ?>
+<div class="modal fade" id="genericModal" tabindex="-1" aria-labelledby="genericModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content details-text">
+            <div class="modal-header">
+                <h5 class="modal-title" id="genericModalLabel"></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center" id="genericModalBody">
+            </div>
+            <div class="modal-footer d-flex justify-content-center" id="genericModalFooter">
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
+<script>
+    const phpCurrentMode = "<?php echo $mode; ?>";
+    const phpCurrentMainTab = "<?php echo $main_tab; ?>"; // อาจจะไม่มีใน admin-data_view-page.php แต่ไม่เป็นไร
+</script>
+<script src="./js/admin-modal.js"></script>
+<script src="./js/building_dropdown.js"></script>
+<!-- ไม่ต้องโหลด user-modal.js ที่นี่ -->
+<script src="./js/file_upload.js"></script>
 </body>
 </html>

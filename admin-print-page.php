@@ -886,12 +886,14 @@ if (empty($all_requests_to_print) && empty($errors)) {
                                 <div class="<?php echo $signature_area_class; ?> d-flex justify-content-between flex-wrap mt-5 pt-3 border-top border-dark border-dotted-custom fs-6">
                                     <div class="signature-box">
                                         <span class="label-text d-block">ลงชื่อ</span>
-                                        <span class="signature-label-text d-block"><span class="signature-line d-inline-block border-bottom border-dark pb-0" style="min-width: 150px;"></span></span>
-                                        (<span class="signature-line d-inline-block border-bottom border-dark pb-0 mb-2" style="min-width: 150px;"><?php echo $requester_name; ?></span>)
+                                        <br>
+                                        <span class="signature-line d-inline-block border-bottom border-dark pb-0 mb-2" style="min-width: 150px;"></span>
+                                        <span class="signature-label-text d-block">(<span class="signature-line d-inline-block border-bottom border-dark pb-0" style="min-width: 150px;"><?php echo $requester_name; ?></span>)</span>
                                         <span class="signature-label-text d-block mt-1">ผู้ขอใช้บริการ</span>
                                     </div>
                                     <div class="signature-box">
                                         <span class="label-text d-block">ลงชื่อ</span>
+                                        <br>
                                         <span class="signature-line d-inline-block border-bottom border-dark pb-0 mb-2" style="min-width: 150px;"></span>
                                         <span class="signature-label-text d-block">(<span class="signature-line d-inline-block border-bottom border-dark pb-0" style="min-width: 150px;"></span>)</span>
                                         <span class="signature-label-text d-block mt-1">หัวหน้าหน่วยพัฒนาและกิจกรรมนิสิต</span>
@@ -899,8 +901,9 @@ if (empty($all_requests_to_print) && empty($errors)) {
                                     <?php if ($requester_role !== 'บุคลากร'): ?>
                                         <div class="signature-box">
                                             <span class="label-text d-block">ลงชื่อ</span>
-                                            <span class="signature-line d-inline-block border-bottom border-dark pb-0 mb-2" style="min-width: 150px;"><?php echo $advisor_name; ?></span>
-                                            <span class="signature-label-text d-block">(<span class="signature-line d-inline-block border-bottom border-dark pb-0" style="min-width: 150px;"></span>)</span>
+                                            <br>
+                                            <span class="signature-line d-inline-block border-bottom border-dark pb-0 mb-2" style="min-width: 150px;"></span>
+                                            <span class="signature-label-text d-block">(<span class="signature-line d-inline-block border-bottom border-dark pb-0" style="min-width: 150px;"><?php echo $advisor_name; ?></span>)</span>
                                             <span class="signature-label-text d-block mt-1">อาจารย์ที่ปรึกษา</span>
                                         </div>
                                     <?php endif; ?>
@@ -934,12 +937,14 @@ if (empty($all_requests_to_print) && empty($errors)) {
                                     <div class="staff-signature-area d-flex justify-content-around flex-wrap mt-4 fs-6">
                                         <div class="staff-signature-box">
                                             <span class="label-text d-block">ลงชื่อ</span>
-                                            <span class="signature-line d-inline-block border-bottom border-dark pb-0 mb-2" style="min-width: 150px;"><?php echo $staff_name_approved; ?></span>
-                                            <span class="signature-label-text d-block">(<span class="signature-line d-inline-block border-bottom border-dark pb-0" style="min-width: 150px;"></span>)</span>
+                                            <br>
+                                            <span class="signature-line d-inline-block border-bottom border-dark pb-0 mb-2" style="min-width: 150px;"></span>
+                                            <span class="signature-label-text d-block">(<span class="signature-line d-inline-block border-bottom border-dark pb-0" style="min-width: 150px;"></span><?php echo $staff_name_approved; ?>)</span>
                                             <span class="signature-label-text d-block mt-1">ผู้จัดการกลุ่มอาคาร</span>
                                         </div>
                                         <div class="staff-signature-box">
                                             <span class="label-text d-block">ลงชื่อ</span>
+                                            <br>
                                             <span class="signature-line d-inline-block border-bottom border-dark pb-0 mb-2" style="min-width: 150px;"></span>
                                             <span class="signature-label-text d-block">(<span class="signature-line d-inline-block border-bottom border-dark pb-0" style="min-width: 150px;"></span>)</span>
                                             <span class="signature-label-text d-block mt-1">หัวหน้างานอาคารสถานที่และยานพาหนะ</span>
@@ -966,9 +971,10 @@ if (empty($all_requests_to_print) && empty($errors)) {
                                     <div class="staff-signature-area d-flex justify-content-around flex-wrap mt-4 fs-6">
                                         <div class="staff-signature-box">
                                             <span class="label-text d-block">ลงชื่อ</span>
-                                            <span class="signature-line d-inline-block border-bottom border-dark pb-0 mb-2" style="min-width: 150px;"><?php echo $staff_name_approved; ?></span>
-                                            <span class="signature-label-text d-block">(<span class="signature-line d-inline-block border-bottom border-dark pb-0" style="min-width: 150px;"></span>)</span>
-                                            <span class="signature-label-text d-block mt-1">หัวหน้างานอาคารสถานที่และยานพาหนะ</span>
+                                            <br>
+                                            <span class="signature-line d-inline-block border-bottom border-dark pb-0 mb-2" style="min-width: 150px;"></span>
+                                            <span class="signature-label-text d-block">(<span class="signature-line d-inline-block border-bottom border-dark pb-0" style="min-width: 150px;"><?php echo $staff_name_approved; ?></span>)</span>
+                                            <span class="signature-label-text d-block mt-1">เจ้าหน้าที่งานอาคารสถานที่และยานพาหนะ</span>
                                             <?php if ($approve_date_dt): ?>
                                             <span class="signature-label-text d-block mt-1">
                                                 วันที่ <?php echo formatThaiDatePartForPrint($approve_date_dt->format('Y-m-d'), 'day'); ?>
@@ -979,10 +985,12 @@ if (empty($all_requests_to_print) && empty($errors)) {
                                         </div>
                                         <div class="staff-signature-box">
                                             <span class="label-text d-block">ลงชื่อ</span>
+                                            <br>
                                             <span class="signature-line d-inline-block border-bottom border-dark pb-0 mb-2" style="min-width: 150px;"></span>
                                             <span class="signature-label-text d-block">(<span class="signature-line d-inline-block border-bottom border-dark pb-0" style="min-width: 150px;"></span>)</span>
                                             <span class="signature-label-text d-block mt-1"></span>
                                             <span class="signature-label-text d-block mt-1"></span>
+                                            <span class="signature-label-text d-block mt-1">หัวหน้างานอาคารสถานที่และยานพาหนะ</span>
                                         </div>
                                     </div>
                                 <?php endif; ?>

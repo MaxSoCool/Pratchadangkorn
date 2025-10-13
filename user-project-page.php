@@ -24,7 +24,7 @@ $success_message = '';
 
 include 'php/helpers.php';
 include 'php/sorting.php';
-include 'php/ajax_handler.php';
+include 'api/ajax_handler.php';
 include 'php/status_update.php';
 include 'php/user-injection.php';
 
@@ -87,10 +87,8 @@ $dashboard_data = [
 
 include 'php/user-dashboard.php';
 
-// --- Data Fetching for Lists and Details (ถ้าอยู่ใน main_tab user_requests) ---
-// (เรียกข้อมูลหลักสำหรับแสดงรายการหรือรายละเอียด)
-$data = []; // Initialize before fetching
-$detail_item = null; // Initialize before fetching
+$data = []; 
+$detail_item = null; 
 if ($main_tab == 'user_requests') {
     include 'php/user-data-list.php';
 }
@@ -576,7 +574,7 @@ $conn->close();
                         </a>
                         <div>
                             <?php
-                                $can_edit = (($detail_item['writed_status'] == 'ร่างโครงการ' || $detail_item['writed_status'] == 'ส่งโครงการ') && strtotime($detail_item['start_date']) >= strtotime(date('Y-m-d', strtotime('+7 days'))) );
+                                $can_edit = ($detail_item['writed_status'] == 'ร่างโครงการ' || ($detail_item['writed_status'] == 'ส่งโครงการ' && (strtotime($detail_item['start_date']) >= strtotime(date('Y-m-d', strtotime('+7 days'))))));
                                 $can_delete = ($detail_item['writed_status'] == 'ร่างโครงการ');
                                 $can_cancel = ($detail_item['writed_status'] == 'ส่งโครงการ');
                             ?>
@@ -1171,7 +1169,7 @@ $conn->close();
                         </a>
                         <div>
                             <?php
-                                $can_edit = (($detail_item['writed_status'] == 'ร่างคำร้องขอ' || $detail_item['writed_status'] == 'ส่งคำร้องขอ') && (strtotime($detail_item['start_date']) >= strtotime(date('Y-m-d', strtotime('+3 days'))) && ($detail_item['approve'] === null || $detail_item['approve'] === '')));
+                                $can_edit = ($detail_item['writed_status'] == 'ร่างคำร้องขอ' || ($detail_item['writed_status'] == 'ส่งคำร้องขอ' && (strtotime($detail_item['start_date']) >= strtotime(date('Y-m-d', strtotime('+3 days'))) && ($detail_item['approve'] === null || $detail_item['approve'] === ''))));
                                 $can_delete = ($detail_item['writed_status'] == 'ร่างคำร้องขอ');
                                 $can_cancel = ($detail_item['writed_status'] == 'ส่งคำร้องขอ');
                             ?>
@@ -1485,7 +1483,7 @@ $conn->close();
                             </a>
                             <div>
                             <?php
-                                $can_edit = (($detail_item['writed_status'] == 'ร่างคำร้องขอ' || $detail_item['writed_status'] == 'ส่งคำร้องขอ') && (strtotime($detail_item['start_date']) >= strtotime(date('Y-m-d', strtotime('+3 days'))) && ($detail_item['approve'] === null || $detail_item['approve'] === '')));
+                                $can_edit = ($detail_item['writed_status'] == 'ร่างคำร้องขอ' || ($detail_item['writed_status'] == 'ส่งคำร้องขอ' && (strtotime($detail_item['start_date']) >= strtotime(date('Y-m-d', strtotime('+3 days'))) && ($detail_item['approve'] === null || $detail_item['approve'] === ''))));
                                 $can_delete = ($detail_item['writed_status'] == 'ร่างคำร้องขอ');
                                 $can_cancel_request = ($detail_item['writed_status'] !== 'ร่างคำร้องขอ' && $detail_item['writed_status'] !== 'เริ่มดำเนินการ' && $detail_item['writed_status'] !== 'สิ้นสุดดำเนินการ' && $detail_item['writed_status'] !== 'ยกเลิกคำร้องขอ');
                             ?>
@@ -1582,9 +1580,10 @@ $conn->close();
 <script>
     const phpCurrentMode = "<?php echo $mode; ?>";
     const phpCurrentMainTab = "<?php echo $main_tab; ?>";
-</script>
+</script> 
 <script src="./js/admin-modal.js"></script>
 <script src="./js/building_dropdown.js"></script>
 <script src="./js/file_upload.js"></script>
+<script src="./js/user-modal.js"></script>
 </body>
 </html>

@@ -3,9 +3,8 @@ if (session_status() == PHP_SESSION_NONE) {
     session_start();
 }
 
-// ตรวจสอบการเข้าสู่ระบบของเจ้าหน้าที่
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
-    header("Location: ../login-page.php"); 
+    header("Location: ../login-page.php");
     exit();
 }
 
@@ -20,19 +19,22 @@ $equipments_upload_dir = $images_base_dir . 'equipments/';
 
 $errors = [];
 // พาธเริ่มต้นสำหรับ redirect ในกรณีเกิดข้อผิดพลาด
-$redirect_url_on_error = '../admin-data_view-page.php';
+$redirect_url_on_error = isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '../admin-data_view-page.php';
 
 function uploadImage($file_input_name, $target_dir, &$errors_ref, $old_pic_path = null) {
-    global $images_base_dir; 
+    global $images_base_dir;
 
-    // กำหนด Project Root 
+    // กำหนด Project Root
     $project_root = dirname(dirname(__FILE__));
 
     // Directory ที่จะเก็บรูปภาพ
     $full_server_target_dir = $project_root . '/' . $target_dir;
 
     if (!is_dir($full_server_target_dir)) {
-        mkdir($full_server_target_dir, 0777, true);
+        if (!mkdir($full_server_target_dir, 0777, true)) {
+            $errors_ref[] = "ไม่สามารถสร้างไดเรกทอรีสำหรับรูปภาพได้: " . $full_server_target_dir;
+            return false;
+        }
     }
 
     // ตรวจสอบการอัปโหลดไฟล์
@@ -70,7 +72,7 @@ function uploadImage($file_input_name, $target_dir, &$errors_ref, $old_pic_path 
         $errors_ref[] = "เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ " . $file_input_name . ": " . $_FILES[$file_input_name]['error'];
         return false;
     }
-    
+
     // หากไม่มีการอัปโหลดไฟล์ใหม่ ให้คืนค่า old_pic_path เดิม
     return $old_pic_path;
 }
@@ -86,13 +88,14 @@ function deleteImageFile($file_path) {
     if ($file_path && file_exists($full_server_file_path) && is_file($full_server_file_path) && strpos($file_path, $images_base_dir) === 0) {
         return unlink($full_server_file_path);
     }
-    return true;
+    return true; // คืนค่า true ถ้าไม่มีไฟล์ให้ลบ หรือ path ไม่ถูกต้อง (ถือว่าลบสำเร็จ)
 }
 
 // --- ประมวลผล POST Request จากฟอร์ม ---
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
 
     // กำหนด URL สำหรับ redirect ในกรณีเกิดข้อผิดพลาด
+    // ใช้ referer เป็นค่าเริ่มต้น แต่จะถูก override ภายในแต่ละ block ถ้ามี redirect ที่เฉพาะเจาะจงกว่า
     $redirect_url_on_error = isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '../admin-data_view-page.php';
 
     // --- โค๊ดการสร้าง
@@ -106,43 +109,48 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
         if (empty($building_id)) { $errors[] = "กรุณากรอกหมายเลขอาคาร (Building Number)."; }
         if (empty($building_name)) { $errors[] = "กรุณากรอกชื่ออาคาร (Building Name)."; }
 
+        if (!empty($errors)) {
+            goto end_process;
+        }
+
         $stmt = $conn->prepare("SELECT COUNT(*) FROM buildings WHERE building_id = ?");
-        if (!$stmt) { $errors[] = "เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL: " . $conn->error; }
-        else {
-            $stmt->bind_param("s", $building_id);
-            $stmt->execute();
-            $stmt->bind_result($count);
-            $stmt->fetch();
-            $stmt->close();
+        if (!$stmt) {
+            $errors[] = "เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL เพื่อตรวจสอบอาคาร: " . $conn->error;
+            goto end_process;
+        }
+        $stmt->bind_param("s", $building_id);
+        $stmt->execute();
+        $stmt->bind_result($count);
+        $stmt->fetch();
+        $stmt->close();
 
-            if ($count > 0) {
-                header("Location: ../admin-data_view-page.php?mode=add_building&status=error&message=" . urlencode("หมายเลขอาคาร {$building_id} มีอยู่ในระบบแล้ว กรุณาใช้หมายเลขอื่น"));
-                exit();
-            }
+        if ($count > 0) {
+            $errors[] = "หมายเลขอาคาร {$building_id} มีอยู่ในระบบแล้ว กรุณาใช้หมายเลขอื่น";
+            goto end_process;
         }
 
-        if (empty($errors)) {
-            $stmt = $conn->prepare("INSERT INTO buildings (building_id, building_name, building_pic, available) VALUES (?, ?, ?, ?)");
-            if (!$stmt) { $errors[] = "เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL: " . $conn->error; }
-            else {
-                $stmt->bind_param("ssss", $building_id, $building_name, $building_pic_path, $available);
-                if ($stmt->execute()) {
-                    header("Location: ../admin-data_view-page.php?mode=buildings&status=success&message=" . urlencode("เพิ่มอาคาร '{$building_name}' สำเร็จแล้ว!"));
-                    exit();
-                } else {
-                    $errors[] = "เกิดข้อผิดพลาดในการบันทึกข้อมูลอาคาร: " . $stmt->error;
-                    deleteImageFile($building_pic_path); 
-                }
-                $stmt->close();
-            }
+        $stmt = $conn->prepare("INSERT INTO buildings (building_id, building_name, building_pic, available) VALUES (?, ?, ?, ?)");
+        if (!$stmt) {
+            $errors[] = "เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL เพื่อบันทึกอาคาร: " . $conn->error;
+            goto end_process;
         }
+        $stmt->bind_param("ssss", $building_id, $building_name, $building_pic_path, $available);
+        if ($stmt->execute()) {
+            header("Location: ../admin-data_view-page.php?mode=buildings&status=success&message=" . urlencode("เพิ่มอาคาร '{$building_name}' สำเร็จแล้ว!"));
+            exit();
+        } else {
+            $errors[] = "เกิดข้อผิดพลาดในการบันทึกข้อมูลอาคาร: " . $stmt->error;
+            deleteImageFile($building_pic_path);
+            goto end_process;
+        }
+        $stmt->close();
     }
 
     elseif ($_POST['inject_type'] === 'facility') {
         $facility_name = trim($_POST['facility_name'] ?? '');
         $facility_des = trim($_POST['facility_des'] ?? '');
         $building_id_for_facility = htmlspecialchars($_POST['building_id'] ?? '');
-        $available_status_from_building = 'yes'; 
+        $available_status_from_building = 'yes';
         if (!empty($building_id_for_facility)) {
             $stmt_get_building_status = $conn->prepare("SELECT available FROM buildings WHERE building_id = ?");
             if ($stmt_get_building_status) {
@@ -162,21 +170,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
         if (empty($facility_name)) { $errors[] = "กรุณากรอกชื่อสถานที่ (Facility Name)."; }
         if (empty($building_id_for_facility)) { $errors[] = "ไม่พบรหัสอาคารที่ถูกต้องสำหรับสถานที่นี้."; }
 
-        if (empty($errors)) {
-            $stmt = $conn->prepare("INSERT INTO facilities (building_id, facility_name, facility_des, facility_pic, available) VALUES (?, ?, ?, ?, ?)");
-            if (!$stmt) { $errors[] = "เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL: " . $conn->error; }
-            else {
-                $stmt->bind_param("issss", $building_id_for_facility, $facility_name, $facility_des, $facility_pic_path, $available_status_from_building); // ใช้สถานะจากอาคารแม่
-                if ($stmt->execute()) {
-                    header("Location: ../admin-data_view-page.php?mode=building_detail&building_id={$building_id_for_facility}&status=success&message=" . urlencode("เพิ่มสถานที่ '{$facility_name}' สำเร็จแล้ว!"));
-                    exit();
-                } else {
-                    $errors[] = "เกิดข้อผิดพลาดในการบันทึกข้อมูลสถานที่: " . $stmt->error;
-                    deleteImageFile($facility_pic_path);
-                }
-                $stmt->close();
-            }
+        if (!empty($errors)) {
+            goto end_process;
         }
+
+        $stmt = $conn->prepare("INSERT INTO facilities (building_id, facility_name, facility_des, facility_pic, available) VALUES (?, ?, ?, ?, ?)");
+        if (!$stmt) {
+            $errors[] = "เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL เพื่อบันทึกสถานที่: " . $conn->error;
+            goto end_process;
+        }
+        $stmt->bind_param("issss", $building_id_for_facility, $facility_name, $facility_des, $facility_pic_path, $available_status_from_building); // ใช้สถานะจากอาคารแม่
+        if ($stmt->execute()) {
+            header("Location: ../admin-data_view-page.php?mode=building_detail&building_id={$building_id_for_facility}&status=success&message=" . urlencode("เพิ่มสถานที่ '{$facility_name}' สำเร็จแล้ว!"));
+            exit();
+        } else {
+            $errors[] = "เกิดข้อผิดพลาดในการบันทึกข้อมูลสถานที่: " . $stmt->error;
+            deleteImageFile($facility_pic_path);
+            goto end_process;
+        }
+        $stmt->close();
     }
 
     elseif ($_POST['inject_type'] === 'equipment') {
@@ -191,21 +203,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
         if (empty($equip_name)) { $errors[] = "กรุณากรอกชื่ออุปกรณ์ (Equipment Name)."; }
         if ($quantity <= 0) { $errors[] = "กรุณาระบุจำนวนอุปกรณ์ที่ถูกต้อง (ต้องมากกว่า 0)."; }
 
-        if (empty($errors)) {
-            $stmt = $conn->prepare("INSERT INTO equipments (equip_name, quantity, measure, size, equip_pic, available) VALUES (?, ?, ?, ?, ?, ?)");
-            if (!$stmt) { $errors[] = "เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL: " . $conn->error; }
-            else {
-                $stmt->bind_param("sissss", $equip_name, $quantity, $measure, $size, $equip_pic_path, $available);
-                if ($stmt->execute()) {
-                    header("Location: ../admin-data_view-page.php?mode=equipment&status=success&message=" . urlencode("เพิ่มอุปกรณ์ '{$equip_name}' สำเร็จแล้ว!"));
-                    exit();
-                } else {
-                    $errors[] = "เกิดข้อผิดพลาดในการบันทึกข้อมูลอุปกรณ์: " . $stmt->error;
-                    deleteImageFile($equip_pic_path);
-                }
-                $stmt->close();
-            }
+        if (!empty($errors)) {
+            goto end_process;
         }
+
+        $stmt = $conn->prepare("INSERT INTO equipments (equip_name, quantity, measure, size, equip_pic, available) VALUES (?, ?, ?, ?, ?, ?)");
+        if (!$stmt) {
+            $errors[] = "เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL เพื่อบันทึกอุปกรณ์: " . $conn->error;
+            goto end_process;
+        }
+        $stmt->bind_param("sissss", $equip_name, $quantity, $measure, $size, $equip_pic_path, $available);
+        if ($stmt->execute()) {
+            header("Location: ../admin-data_view-page.php?mode=equipment&status=success&message=" . urlencode("เพิ่มอุปกรณ์ '{$equip_name}' สำเร็จแล้ว!"));
+            exit();
+        } else {
+            $errors[] = "เกิดข้อผิดพลาดในการบันทึกข้อมูลอุปกรณ์: " . $stmt->error;
+            deleteImageFile($equip_pic_path);
+            goto end_process;
+        }
+        $stmt->close();
     }
 
     // โค๊ดการอัปเดต
@@ -220,41 +236,47 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
         if (empty($building_id)) { $errors[] = "ไม่พบรหัสอาคารที่ต้องการแก้ไข"; }
         if (empty($building_name)) { $errors[] = "กรุณากรอกชื่ออาคาร (Building Name)."; }
 
-        if (empty($errors)) {
-            $final_pic_path = uploadImage('building_pic', $buildings_upload_dir, $errors, $old_building_pic);
-
-            if ($final_pic_path === false && isset($_FILES['building_pic']) && $_FILES['building_pic']['error'] != UPLOAD_ERR_NO_FILE) {
-            } else {
-                // 1. อัปเดตข้อมูลอาคาร
-                $stmt_building = $conn->prepare("UPDATE buildings SET building_name = ?, building_pic = ?, available = ? WHERE building_id = ?");
-                if (!$stmt_building) { $errors[] = "เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL สำหรับอาคาร: " . $conn->error; }
-                else {
-                    $stmt_building->bind_param("ssss", $building_name, $final_pic_path, $new_available_status, $building_id);
-                    if ($stmt_building->execute()) {
-                        $stmt_building->close(); 
-
-                        // อัปเดตสถานะของสถานที่ทั้งหมดในอาคารนี้ให้ตรงกับสถานะของอาคาร**
-                        $stmt_facilities = $conn->prepare("UPDATE facilities SET available = ? WHERE building_id = ?");
-                        if ($stmt_facilities) {
-                            $stmt_facilities->bind_param("ss", $new_available_status, $building_id);
-                            $stmt_facilities->execute();
-                            $stmt_facilities->close();
-                        } else {
-                            error_log("Failed to prepare statement for updating facilities status: " . $conn->error);
-                        }
-
-                        header("Location: ../admin-data_view-page.php?mode=building_detail&building_id={$building_id}&status=success&message=" . urlencode("แก้ไขอาคาร '{$building_name}' และสถานะสถานที่ในอาคารสำเร็จแล้ว!"));
-                        exit();
-                    } else {
-                        $errors[] = "เกิดข้อผิดพลาดในการแก้ไขข้อมูลอาคาร: " . $stmt_building->error;
-                        // ถ้า DB update ล้มเหลว และเป็นรูปภาพใหม่ ให้ลบรูปภาพนั้นทิ้ง
-                        if ($final_pic_path && $final_pic_path !== $old_building_pic) {
-                            deleteImageFile($final_pic_path);
-                        }
-                    }
-                }
-            }
+        if (!empty($errors)) {
+            goto end_process;
         }
+
+        $final_pic_path = uploadImage('building_pic', $buildings_upload_dir, $errors, $old_building_pic);
+
+        if (!empty($errors)) { // ตรวจสอบ error จาก uploadImage
+            goto end_process;
+        }
+
+        // 1. อัปเดตข้อมูลอาคาร
+        $stmt_building = $conn->prepare("UPDATE buildings SET building_name = ?, building_pic = ?, available = ? WHERE building_id = ?");
+        if (!$stmt_building) {
+            $errors[] = "เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL สำหรับอาคาร: " . $conn->error;
+            goto end_process;
+        }
+        $stmt_building->bind_param("ssss", $building_name, $final_pic_path, $new_available_status, $building_id);
+        if ($stmt_building->execute()) {
+            $stmt_building->close();
+
+            // อัปเดตสถานะของสถานที่ทั้งหมดในอาคารนี้ให้ตรงกับสถานะของอาคาร
+            $stmt_facilities = $conn->prepare("UPDATE facilities SET available = ? WHERE building_id = ?");
+            if ($stmt_facilities) {
+                $stmt_facilities->bind_param("ss", $new_available_status, $building_id);
+                $stmt_facilities->execute();
+                $stmt_facilities->close();
+            } else {
+                error_log("Failed to prepare statement for updating facilities status: " . $conn->error);
+            }
+
+            header("Location: ../admin-data_view-page.php?mode=building_detail&building_id={$building_id}&status=success&message=" . urlencode("แก้ไขอาคาร '{$building_name}' และสถานะสถานที่ในอาคารสำเร็จแล้ว!"));
+            exit();
+        } else {
+            $errors[] = "เกิดข้อผิดพลาดในการแก้ไขข้อมูลอาคาร: " . $stmt_building->error;
+            // ถ้า DB update ล้มเหลว และเป็นรูปภาพใหม่ ให้ลบรูปภาพนั้นทิ้ง
+            if ($final_pic_path && $final_pic_path !== $old_building_pic) {
+                deleteImageFile($final_pic_path);
+            }
+            goto end_process;
+        }
+        $stmt_building->close(); // ปิด statement ถ้าไม่ได้ใช้ goto
     }
 
     elseif ($_POST['inject_type'] === 'update_facility') {
@@ -271,49 +293,51 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
         if (empty($facility_name)) { $errors[] = "กรุณากรอกชื่อสถานที่ (Facility Name)."; }
         if (empty($new_building_id)) { $errors[] = "ไม่พบรหัสอาคารที่ถูกต้องสำหรับสถานที่นี้."; }
 
-        if (empty($errors)) {
-            $building_available_status = 'yes'; 
-            $stmt_get_building_status = $conn->prepare("SELECT available FROM buildings WHERE building_id = ?");
-            if ($stmt_get_building_status) {
-                $stmt_get_building_status->bind_param("s", $new_building_id);
-                $stmt_get_building_status->execute();
-                $stmt_get_building_status->bind_result($building_available_status);
-                $stmt_get_building_status->fetch();
-                $stmt_get_building_status->close();
-            } else {
-                error_log("Failed to prepare statement for checking building status: " . $conn->error);
-            }
-
-            // ถ้าอาคารแม่ไม่พร้อมใช้งาน (no) และพยายามตั้งสถานะสถานที่นี้เป็น 'yes'
-            if ($building_available_status === 'no' && $new_available_status === 'yes') {
-                 $errors[] = "ไม่สามารถตั้งสถานะสถานที่แห่งนี้เป็น 'พร้อมใช้งาน' ได้ เนื่องจากอาคารหลัก 'ไม่พร้อมใช้งาน'";
-                 $redirect_param_glue = strpos($redirect_url_on_error, '?') === false ? '?' : '&';
-                 header("Location: {$redirect_url_on_error}{$redirect_param_glue}status=error&message=" . urlencode(implode(", ", $errors)));
-                 exit();
-            }
-
-            $final_pic_path = uploadImage('facility_pic', $facilities_upload_dir, $errors, $old_facility_pic); // uploadImage จะจัดการลบรูปเก่าให้
-
-            if ($final_pic_path === false && isset($_FILES['facility_pic']) && $_FILES['facility_pic']['error'] != UPLOAD_ERR_NO_FILE) {
-            } else {
-                $stmt = $conn->prepare("UPDATE facilities SET facility_name = ?, facility_des = ?, facility_pic = ?, building_id = ?, available = ? WHERE facility_id = ?");
-                if (!$stmt) { $errors[] = "เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL: " . $conn->error; }
-                else {
-                    $stmt->bind_param("sssiis", $facility_name, $facility_des, $final_pic_path, $new_building_id, $new_available_status, $facility_id);
-                    if ($stmt->execute()) {
-                        header("Location: ../admin-data_view-page.php?mode=building_detail&building_id={$new_building_id}&status=success&message=" . urlencode("แก้ไขสถานที่ '{$facility_name}' สำเร็จแล้ว!"));
-                        exit();
-                    } else {
-                        $errors[] = "เกิดข้อผิดพลาดในการแก้ไขข้อมูลสถานที่: " . $stmt->error;
-                        // ถ้า DB update ล้มเหลว และเป็นรูปภาพใหม่ ให้ลบรูปภาพนั้นทิ้ง
-                        if ($final_pic_path && $final_pic_path !== $old_facility_pic) {
-                            deleteImageFile($final_pic_path);
-                        }
-                    }
-                    $stmt->close();
-                }
-            }
+        if (!empty($errors)) {
+            goto end_process;
         }
+
+        $building_available_status = 'yes';
+        $stmt_get_building_status = $conn->prepare("SELECT available FROM buildings WHERE building_id = ?");
+        if ($stmt_get_building_status) {
+            $stmt_get_building_status->bind_param("s", $new_building_id);
+            $stmt_get_building_status->execute();
+            $stmt_get_building_status->bind_result($building_available_status);
+            $stmt_get_building_status->fetch();
+            $stmt_get_building_status->close();
+        } else {
+            error_log("Failed to prepare statement for checking building status: " . $conn->error);
+        }
+
+        // ถ้าอาคารแม่ไม่พร้อมใช้งาน (no) และพยายามตั้งสถานะสถานที่นี้เป็น 'yes'
+        if ($building_available_status === 'no' && $new_available_status === 'yes') {
+             $errors[] = "ไม่สามารถตั้งสถานะสถานที่แห่งนี้เป็น 'พร้อมใช้งาน' ได้ เนื่องจากอาคารหลัก 'ไม่พร้อมใช้งาน'";
+             goto end_process;
+        }
+
+        $final_pic_path = uploadImage('facility_pic', $facilities_upload_dir, $errors, $old_facility_pic); // uploadImage จะจัดการลบรูปเก่าให้
+
+        if (!empty($errors)) { 
+            goto end_process;
+        }
+
+        $stmt = $conn->prepare("UPDATE facilities SET facility_name = ?, facility_des = ?, facility_pic = ?, building_id = ?, available = ? WHERE facility_id = ?");
+        if (!$stmt) {
+            $errors[] = "เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL: " . $conn->error;
+            goto end_process;
+        }
+        $stmt->bind_param("sssiis", $facility_name, $facility_des, $final_pic_path, $new_building_id, $new_available_status, $facility_id);
+        if ($stmt->execute()) {
+            header("Location: ../admin-data_view-page.php?mode=building_detail&building_id={$new_building_id}&status=success&message=" . urlencode("แก้ไขสถานที่ '{$facility_name}' สำเร็จแล้ว!"));
+            exit();
+        } else {
+            $errors[] = "เกิดข้อผิดพลาดในการแก้ไขข้อมูลสถานที่: " . $stmt->error;
+            if ($final_pic_path && $final_pic_path !== $old_facility_pic) {
+                deleteImageFile($final_pic_path);
+            }
+            goto end_process;
+        }
+        $stmt->close();
     }
 
     elseif ($_POST['inject_type'] === 'update_equipment') {
@@ -331,271 +355,170 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['inject_type'])) {
         if (empty($equip_name)) { $errors[] = "กรุณากรอกชื่ออุปกรณ์ (Equipment Name)."; }
         if ($quantity <= 0) { $errors[] = "กรุณาระบุจำนวนอุปกรณ์ที่ถูกต้อง (ต้องมากกว่า 0)."; }
 
-        if (empty($errors)) {
-            $final_pic_path = uploadImage('equip_pic', $equipments_upload_dir, $errors, $old_equip_pic);
-
-            if ($final_pic_path === false && isset($_FILES['equip_pic']) && $_FILES['equip_pic']['error'] != UPLOAD_ERR_NO_FILE) {
-            } else {
-                $stmt = $conn->prepare("UPDATE equipments SET equip_name = ?, quantity = ?, measure = ?, size = ?, equip_pic = ?, available = ? WHERE equip_id = ?");
-                if (!$stmt) { $errors[] = "เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL: " . $conn->error; }
-                else {
-                    $stmt->bind_param("sissssi", $equip_name, $quantity, $measure, $size, $final_pic_path, $new_available_status, $equip_id);
-                    if ($stmt->execute()) {
-                        header("Location: ../admin-data_view-page.php?mode=equip_detail&equip_id={$equip_id}&status=success&message=" . urlencode("แก้ไขอุปกรณ์ '{$equip_name}' สำเร็จแล้ว!"));
-                        exit();
-                    } else {
-                        $errors[] = "เกิดข้อผิดพลาดในการแก้ไขข้อมูลอุปกรณ์: " . $stmt->error;
-                        // ถ้า DB update ล้มเหลว และเป็นรูปภาพใหม่ ให้ลบรูปภาพนั้นทิ้ง
-                        if ($final_pic_path && $final_pic_path !== $old_equip_pic) {
-                            deleteImageFile($final_pic_path);
-                        }
-                    }
-                    $stmt->close();
-                }
-            }
+        if (!empty($errors)) {
+            goto end_process;
         }
+
+        $final_pic_path = uploadImage('equip_pic', $equipments_upload_dir, $errors, $old_equip_pic);
+
+        if (!empty($errors)) { // ตรวจสอบ error จาก uploadImage
+            goto end_process;
+        }
+
+        $stmt = $conn->prepare("UPDATE equipments SET equip_name = ?, quantity = ?, measure = ?, size = ?, equip_pic = ?, available = ? WHERE equip_id = ?");
+        if (!$stmt) {
+            $errors[] = "เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL: " . $conn->error;
+            goto end_process;
+        }
+        $stmt->bind_param("sissssi", $equip_name, $quantity, $measure, $size, $final_pic_path, $new_available_status, $equip_id);
+        if ($stmt->execute()) {
+            header("Location: ../admin-data_view-page.php?mode=equip_detail&equip_id={$equip_id}&status=success&message=" . urlencode("แก้ไขอุปกรณ์ '{$equip_name}' สำเร็จแล้ว!"));
+            exit();
+        } else {
+            $errors[] = "เกิดข้อผิดพลาดในการแก้ไขข้อมูลอุปกรณ์: " . $stmt->error;
+            // ถ้า DB update ล้มเหลว และเป็นรูปภาพใหม่ ให้ลบรูปภาพนั้นทิ้ง
+            if ($final_pic_path && $final_pic_path !== $old_equip_pic) {
+                deleteImageFile($final_pic_path);
+            }
+            goto end_process;
+        }
+        $stmt->close();
     }
 
-    // โค๊ดการลบ
+    // โค๊ดการลบ (แก้ไขตามคำขอ: ลบเฉพาะตัวหลัก ไม่ลบคำร้องขอหรือข้อมูลเชื่อมโยง, และแสดงชื่อ)
     elseif ($_POST['inject_type'] === 'delete_building') {
         $building_id = trim($_POST['delete_id'] ?? '');
         $redirect_to = "../admin-data_view-page.php?mode=buildings";
-
-        if (empty($building_id)) { $errors[] = "ไม่พบรหัสอาคารที่ต้องการลบ"; }
-
-        if (empty($errors)) {
-            try {
-                // ดึงรูปภาพทั้งหมดของการจองที่เกี่ยวข้องกับสถานที่ในอาคารนี้ก่อน
-                $stmt_get_request_pics = $conn->prepare("SELECT R.request_pic FROM requests R JOIN facilities F ON R.facility_id = F.facility_id WHERE F.building_id = ?");
-                if ($stmt_get_request_pics) {
-                    $stmt_get_request_pics->bind_param("s", $building_id);
-                    $stmt_get_request_pics->execute();
-                    $result_request_pics = $stmt_get_request_pics->get_result();
-                    while ($row = $result_request_pics->fetch_assoc()) {
-                        deleteImageFile($row['request_pic']);
-                    }
-                    $stmt_get_request_pics->close();
-                } else {
-                    error_log("Warning: Could not prepare statement to get request pics for facilities in building: " . $conn->error);
-                }
-
-                // ลบการจองทั้งหมดที่เกี่ยวข้องกับสถานที่ในอาคารนี้
-                $stmt_delete_requests_for_building = $conn->prepare("DELETE R FROM requests R JOIN facilities F ON R.facility_id = F.facility_id WHERE F.building_id = ?");
-                if ($stmt_delete_requests_for_building) {
-                    $stmt_delete_requests_for_building->bind_param("s", $building_id);
-                    $stmt_delete_requests_for_building->execute();
-                    $stmt_delete_requests_for_building->close();
-                } else {
-                    error_log("Warning: Could not prepare statement to delete requests for facilities in building: " . $conn->error);
-                }
-
-                // ดึงรูปภาพทั้งหมดของสถานที่ในอาคารนี้ก่อน
-                $stmt_get_facility_pics = $conn->prepare("SELECT facility_pic FROM facilities WHERE building_id = ?");
-                if ($stmt_get_facility_pics) {
-                    $stmt_get_facility_pics->bind_param("s", $building_id);
-                    $stmt_get_facility_pics->execute();
-                    $result_facility_pics = $stmt_get_facility_pics->get_result();
-                    while ($row = $result_facility_pics->fetch_assoc()) {
-                        deleteImageFile($row['facility_pic']);
-                    }
-                    $stmt_get_facility_pics->close();
-                } else {
-                    error_log("Warning: Could not prepare statement to get facility pics in building: " . $conn->error);
-                }
-
-                // ลบสถานที่ทั้งหมดในอาคารนี้
-                $stmt_delete_facilities = $conn->prepare("DELETE FROM facilities WHERE building_id = ?");
-                if ($stmt_delete_facilities) {
-                    $stmt_delete_facilities->bind_param("s", $building_id);
-                    $stmt_delete_facilities->execute();
-                    $stmt_delete_facilities->close();
-                } else {
-                    error_log("Warning: Could not prepare statement to delete facilities in building: " . $conn->error);
-                }
-
-                // ดึงรูปภาพอาคารก่อนลบ
-                $stmt_get_building_pic = $conn->prepare("SELECT building_pic FROM buildings WHERE building_id = ?");
-                if ($stmt_get_building_pic) {
-                    $stmt_get_building_pic->bind_param("s", $building_id);
-                    $stmt_get_building_pic->execute();
-                    $stmt_get_building_pic->bind_result($building_pic);
-                    $stmt_get_building_pic->fetch();
-                    $stmt_get_building_pic->close();
-                } else {
-                    $building_pic = null;
-                    error_log("Warning: Could not prepare statement to get building pic: " . $conn->error);
-                }
-
-                // ลบอาคาร
-                $stmt_delete_building = $conn->prepare("DELETE FROM buildings WHERE building_id = ?");
-                if ($stmt_delete_building) {
-                    $stmt_delete_building->bind_param("s", $building_id);
-                    $stmt_delete_building->execute();
-                    $stmt_delete_building->close();
-                } else {
-                    error_log("Warning: Could not prepare statement to delete building: " . $conn->error);
-                    throw new mysqli_sql_exception("Failed to delete building due to SQL error.");
-                }
-
-                deleteImageFile($building_pic); // ลบรูปภาพอาคาร
-
-                header("Location: {$redirect_to}&status=success&message=" . urlencode("ลบอาคารและข้อมูลที่เกี่ยวข้องทั้งหมดสำเร็จแล้ว!"));
-                exit();
-
-            } catch (mysqli_sql_exception $e) {
-                $errors[] = "เกิดข้อผิดพลาดในการลบข้อมูลอาคารและสถานที่: " . $e->getMessage();
-            }
-        }
         $redirect_url_on_error = $redirect_to; // ตั้งค่า redirect_url_on_error สำหรับการลบอาคาร
+        $building_name_display = "ไม่ระบุ"; // Default name for display
+
+        if (empty($building_id)) { $errors[] = "ไม่พบรหัสอาคารที่ต้องการลบ"; goto end_process; }
+
+        try {
+            // ดึงชื่ออาคารและรูปภาพก่อนลบ
+            $stmt_get_building_info = $conn->prepare("SELECT building_name, building_pic FROM buildings WHERE building_id = ?");
+            if (!$stmt_get_building_info) { throw new mysqli_sql_exception("Failed to prepare statement to get building info: " . $conn->error); }
+            $stmt_get_building_info->bind_param("s", $building_id);
+            $stmt_get_building_info->execute();
+            $stmt_get_building_info->bind_result($building_name_display, $building_pic);
+            $stmt_get_building_info->fetch();
+            $stmt_get_building_info->close();
+
+            // ลบอาคาร
+            $stmt_delete_building = $conn->prepare("DELETE FROM buildings WHERE building_id = ?");
+            if (!$stmt_delete_building) { throw new mysqli_sql_exception("Failed to prepare statement to delete building: " . $conn->error); }
+            $stmt_delete_building->bind_param("s", $building_id);
+            $stmt_delete_building->execute();
+
+            if ($stmt_delete_building->affected_rows > 0) {
+                deleteImageFile($building_pic); // ลบรูปภาพอาคาร
+                header("Location: {$redirect_to}&status=success&message=" . urlencode("ลบอาคาร '{$building_name_display}' สำเร็จแล้ว!"));
+                exit();
+            } else {
+                $errors[] = "ไม่พบอาคาร '{$building_name_display}' หรือไม่สามารถลบได้.";
+                goto end_process;
+            }
+            $stmt_delete_building->close();
+
+        } catch (mysqli_sql_exception $e) {
+            $errors[] = "เกิดข้อผิดพลาดในการลบอาคาร '{$building_name_display}': " . $e->getMessage();
+            goto end_process;
+        }
     }
 
     elseif ($_POST['inject_type'] === 'delete_facility') {
         $facility_id = (int)($_POST['delete_id'] ?? 0);
         $building_id_for_redirect = htmlspecialchars($_POST['building_id_for_redirect'] ?? '');
         $redirect_to = "../admin-data_view-page.php?mode=building_detail&building_id={$building_id_for_redirect}";
-
-        if (empty($facility_id)) { $errors[] = "ไม่พบรหัสสถานที่ที่ต้องการลบ"; }
-
-        if (empty($errors)) {
-            try {
-                // ดึงรูปภาพสถานที่ก่อนลบ
-                $stmt_get_pic = $conn->prepare("SELECT facility_pic FROM facilities WHERE facility_id = ?");
-                if ($stmt_get_pic) {
-                    $stmt_get_pic->bind_param("i", $facility_id);
-                    $stmt_get_pic->execute();
-                    $stmt_get_pic->bind_result($facility_pic);
-                    $stmt_get_pic->fetch();
-                    $stmt_get_pic->close();
-                } else {
-                    $facility_pic = null;
-                    error_log("Warning: Could not prepare statement to get facility pic: " . $conn->error);
-                }
-
-
-                // ดึงรูปภาพทั้งหมดของการจองที่เกี่ยวข้องกับสถานที่นี้ก่อน (ถ้ามี)
-                $stmt_get_request_pics = $conn->prepare("SELECT request_pic FROM requests WHERE facility_id = ?");
-                if ($stmt_get_request_pics) {
-                    $stmt_get_request_pics->bind_param("i", $facility_id);
-                    $stmt_get_request_pics->execute();
-                    $result_request_pics = $stmt_get_request_pics->get_result();
-                    while ($row = $result_request_pics->fetch_assoc()) {
-                        deleteImageFile($row['request_pic']);
-                    }
-                    $stmt_get_request_pics->close();
-                } else {
-                    error_log("Warning: Could not prepare statement to get request pics for facility: " . $conn->error);
-                }
-
-                // ลบการจองที่เกี่ยวข้องกับสถานที่นี้ (ถ้ามีตาราง booking/requests ที่อ้างอิง facility_id)
-                // ตรวจสอบว่าตาราง `requests` มีคอลัมน์ `facility_id` หรือไม่ หรือมีตาราง `facility_bookings` แยกต่างหาก
-                $stmt_delete_requests = $conn->prepare("DELETE FROM requests WHERE facility_id = ?"); // ปรับเปลี่ยนตามชื่อตารางจองของคุณ
-                if ($stmt_delete_requests) {
-                    $stmt_delete_requests->bind_param("i", $facility_id);
-                    $stmt_delete_requests->execute();
-                    $stmt_delete_requests->close();
-                } else {
-                     error_log("Warning: Could not prepare statement to delete related requests for facility: " . $conn->error);
-                }
-
-
-                // ลบสถานที่
-                $stmt_delete = $conn->prepare("DELETE FROM facilities WHERE facility_id = ?");
-                if ($stmt_delete) {
-                    $stmt_delete->bind_param("i", $facility_id);
-                    $stmt_delete->execute();
-                    $stmt_delete->close();
-                } else {
-                    error_log("Warning: Could not prepare statement to delete facility: " . $conn->error);
-                    throw new mysqli_sql_exception("Failed to delete facility due to SQL error.");
-                }
-
-
-                deleteImageFile($facility_pic); // ลบรูปภาพที่เกี่ยวข้อง
-
-                header("Location: {$redirect_to}&status=success&message=" . urlencode("ลบสถานที่และข้อมูลที่เกี่ยวข้องสำเร็จแล้ว!"));
-                exit();
-
-            } catch (mysqli_sql_exception $e) {
-                $errors[] = "เกิดข้อผิดพลาดในการลบข้อมูลสถานที่: " . $e->getMessage();
-            }
-        }
         $redirect_url_on_error = $redirect_to; // ตั้งค่า redirect_url_on_error สำหรับการลบสถานที่
+        $facility_name_display = "ไม่ระบุ"; // Default name for display
+
+        if (empty($facility_id)) { $errors[] = "ไม่พบรหัสสถานที่ที่ต้องการลบ"; goto end_process; }
+
+        try {
+            // ดึงชื่อสถานที่และรูปภาพก่อนลบ
+            $stmt_get_facility_info = $conn->prepare("SELECT facility_name, facility_pic FROM facilities WHERE facility_id = ?");
+            if (!$stmt_get_facility_info) { throw new mysqli_sql_exception("Failed to prepare statement to get facility info: " . $conn->error); }
+            $stmt_get_facility_info->bind_param("i", $facility_id);
+            $stmt_get_facility_info->execute();
+            $stmt_get_facility_info->bind_result($facility_name_display, $facility_pic);
+            $stmt_get_facility_info->fetch();
+            $stmt_get_facility_info->close();
+
+            // ลบสถานที่
+            $stmt_delete = $conn->prepare("DELETE FROM facilities WHERE facility_id = ?");
+            if (!$stmt_delete) { throw new mysqli_sql_exception("Failed to prepare statement to delete facility: " . $conn->error); }
+            $stmt_delete->bind_param("i", $facility_id);
+            $stmt_delete->execute();
+
+            if ($stmt_delete->affected_rows > 0) {
+                deleteImageFile($facility_pic); // ลบรูปภาพที่เกี่ยวข้อง
+                header("Location: {$redirect_to}&status=success&message=" . urlencode("ลบสถานที่ '{$facility_name_display}' สำเร็จแล้ว!"));
+                exit();
+            } else {
+                $errors[] = "ไม่พบสถานที่ '{$facility_name_display}' หรือไม่สามารถลบได้.";
+                goto end_process;
+            }
+            $stmt_delete->close();
+
+        } catch (mysqli_sql_exception $e) {
+            $errors[] = "เกิดข้อผิดพลาดในการลบสถานที่ '{$facility_name_display}': " . $e->getMessage();
+            goto end_process;
+        }
     }
 
     elseif ($_POST['inject_type'] === 'delete_equipment') {
         $equip_id = (int)($_POST['delete_id'] ?? 0);
         $redirect_to = "../admin-data_view-page.php?mode=equipment";
-
-        if (empty($equip_id)) { $errors[] = "ไม่พบรหัสอุปกรณ์ที่ต้องการลบ"; }
-
-        if (empty($errors)) {
-            try {
-                // ดึงรูปภาพอุปกรณ์ก่อนลบ
-                $stmt_get_pic = $conn->prepare("SELECT equip_pic FROM equipments WHERE equip_id = ?");
-                if ($stmt_get_pic) {
-                    $stmt_get_pic->bind_param("i", $equip_id);
-                    $stmt_get_pic->execute();
-                    $stmt_get_pic->bind_result($equip_pic);
-                    $stmt_get_pic->fetch();
-                    $stmt_get_pic->close();
-                } else {
-                    $equip_pic = null;
-                    error_log("Warning: Could not prepare statement to get equipment pic: " . $conn->error);
-                }
-
-
-                // ดึงรูปภาพทั้งหมดของการจองอุปกรณ์ที่เกี่ยวข้องกับอุปกรณ์นี้ก่อน (ถ้ามี)
-                $stmt_get_booking_equip_pics = $conn->prepare("SELECT booking_equip_pic FROM booking_equipments WHERE equip_id = ?"); // สมมติว่ามีคอลัมน์ booking_equip_pic
-                if ($stmt_get_booking_equip_pics) {
-                    $stmt_get_booking_equip_pics->bind_param("i", $equip_id);
-                    $stmt_get_booking_equip_pics->execute();
-                    $result_booking_equip_pics = $stmt_get_booking_equip_pics->get_result();
-                    while ($row = $result_booking_equip_pics->fetch_assoc()) {
-                        deleteImageFile($row['booking_equip_pic']);
-                    }
-                    $stmt_get_booking_equip_pics->close();
-                } else {
-                    error_log("Warning: Could not prepare statement to get booking equipment pics: " . $conn->error);
-                }
-
-                // ลบการจองอุปกรณ์ที่เกี่ยวข้อง
-                $stmt_delete_bookings = $conn->prepare("DELETE FROM booking_equipments WHERE equip_id = ?"); // ปรับเปลี่ยนตามชื่อตารางจองอุปกรณ์ของคุณ
-                if ($stmt_delete_bookings) {
-                    $stmt_delete_bookings->bind_param("i", $equip_id);
-                    $stmt_delete_bookings->execute();
-                    $stmt_delete_bookings->close();
-                } else {
-                    error_log("Warning: Could not prepare statement to delete related equipment bookings: " . $conn->error);
-                }
-
-
-                // ลบอุปกรณ์
-                $stmt_delete = $conn->prepare("DELETE FROM equipments WHERE equip_id = ?");
-                if (!$stmt_delete) { $errors[] = "เกิดข้อผิดพลาดในการเตรียมคำสั่ง SQL: " . $conn->error; }
-                else {
-                    $stmt_delete->bind_param("i", $equip_id);
-                    if ($stmt_delete->execute()) {
-                        deleteImageFile($equip_pic); // ลบรูปภาพที่เกี่ยวข้อง
-                        header("Location: {$redirect_to}&status=success&message=" . urlencode("ลบอุปกรณ์และข้อมูลที่เกี่ยวข้องสำเร็จแล้ว!"));
-                        exit();
-                    } else {
-                        $errors[] = "เกิดข้อผิดพลาดในการลบข้อมูลอุปกรณ์: " . $stmt_delete->error;
-                    }
-                    $stmt_delete->close();
-                }
-
-            } catch (mysqli_sql_exception $e) {
-                $errors[] = "เกิดข้อผิดพลาดในการลบข้อมูลอุปกรณ์: " . $e->getMessage();
-            }
-        }
         $redirect_url_on_error = $redirect_to; // ตั้งค่า redirect_url_on_error สำหรับการลบอุปกรณ์
+        $equip_name_display = "ไม่ระบุ"; // Default name for display
+
+        if (empty($equip_id)) { $errors[] = "ไม่พบรหัสอุปกรณ์ที่ต้องการลบ"; goto end_process; }
+
+        try {
+            // ดึงชื่ออุปกรณ์และรูปภาพก่อนลบ
+            $stmt_get_equip_info = $conn->prepare("SELECT equip_name, equip_pic FROM equipments WHERE equip_id = ?");
+            if (!$stmt_get_equip_info) { throw new mysqli_sql_exception("Failed to prepare statement to get equipment info: " . $conn->error); }
+            $stmt_get_equip_info->bind_param("i", $equip_id);
+            $stmt_get_equip_info->execute();
+            $stmt_get_equip_info->bind_result($equip_name_display, $equip_pic);
+            $stmt_get_equip_info->fetch();
+            $stmt_get_equip_info->close();
+
+            // ลบอุปกรณ์
+            $stmt_delete = $conn->prepare("DELETE FROM equipments WHERE equip_id = ?");
+            if (!$stmt_delete) { throw new mysqli_sql_exception("Failed to prepare statement to delete equipment: " . $conn->error); }
+            $stmt_delete->bind_param("i", $equip_id);
+            $stmt_delete->execute();
+
+            if ($stmt_delete->affected_rows > 0) {
+                deleteImageFile($equip_pic); // ลบรูปภาพที่เกี่ยวข้อง
+                header("Location: {$redirect_to}&status=success&message=" . urlencode("ลบอุปกรณ์ '{$equip_name_display}' สำเร็จแล้ว!"));
+                exit();
+            } else {
+                $errors[] = "ไม่พบอุปกรณ์ '{$equip_name_display}' หรือไม่สามารถลบได้.";
+                goto end_process;
+            }
+            $stmt_delete->close();
+
+        } catch (mysqli_sql_exception $e) {
+            $errors[] = "เกิดข้อผิดพลาดในการลบอุปกรณ์ '{$equip_name_display}': " . $e->getMessage();
+            goto end_process;
+        }
+    }
+    else {
+        // หาก inject_type ไม่ตรงกับกรณีใดๆ เลย
+        $errors[] = "inject_type ที่ไม่รู้จัก: " . ($_POST['inject_type'] ?? 'ไม่ระบุ');
     }
 
-    // แจ้งผลลัพธ์หากมี error เกิดขึ้น
-    if (!empty($errors)) {
-        $redirect_param_glue = strpos($redirect_url_on_error, '?') === false ? '?' : '&';
-        header("Location: {$redirect_url_on_error}{$redirect_param_glue}status=error&message=" . urlencode(implode(", ", $errors)));
-        exit();
-    }
+}
+
+end_process:
+
+// แจ้งผลลัพธ์หากมี error เกิดขึ้น
+if (!empty($errors)) {
+    $redirect_param_glue = strpos($redirect_url_on_error, '?') === false ? '?' : '&';
+    header("Location: {$redirect_url_on_error}{$redirect_param_glue}status=error&message=" . urlencode(implode(", ", $errors)));
+    exit();
 }
 ?>

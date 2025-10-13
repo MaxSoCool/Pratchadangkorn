@@ -7,6 +7,7 @@ error_reporting(E_ALL);
 
 include '../database/database.php'; 
 
+// LDAP จาก KUCSC-API
 const API_ENDPOINT = 'https://inv.csc.ku.ac.th/cscapi/ldap/';
 const KEY_APP = '1db2648bd3d5251c02cd33fd5080f47c24383d0cc5be27159ec8ac01a133e685';
 

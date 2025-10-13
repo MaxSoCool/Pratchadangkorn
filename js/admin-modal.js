@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
 
-    // --- Generic Modal Functions ---
+    // --- Generic Modal Functions (Global for reuse) ---
     const genericModalElement = document.getElementById('genericModal');
     let genericModal;
     if (genericModalElement) {
@@ -14,7 +14,8 @@ document.addEventListener('DOMContentLoaded', function() {
         console.error("Generic modal element #genericModal not found. Please ensure it's in your HTML.");
     }
 
-    function showGenericModal(title, body, footerHtml, onHiddenCallback = null) {
+    // Make these functions global so user-modal.js can use them
+    window.showGenericModal = function(title, body, footerHtml, onHiddenCallback = null) {
         if (!genericModalElement || !genericModal) return;
 
         const modalTitle = genericModalElement.querySelector('#genericModalLabel');
@@ -42,20 +43,20 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         genericModal.show();
-    }
+    };
 
     window.showSuccessModal = function(message, onHiddenCallback = null) {
         const title = '<i class="bi bi-check-circle-fill text-success me-2"></i> สำเร็จ!';
         const body = `<p class="text-center">${message}</p>`;
         const footer = '<button type="button" class="btn btn-success" data-bs-dismiss="modal">ตกลง</button>';
-        showGenericModal(title, body, footer, onHiddenCallback);
+        window.showGenericModal(title, body, footer, onHiddenCallback);
     };
 
     window.showErrorModal = function(message, onHiddenCallback = null) {
         const title = '<i class="bi bi-x-circle-fill text-danger me-2"></i> เกิดข้อผิดพลาด!';
         const body = `<p class="text-center text-danger">${message}</p>`;
         const footer = '<button type="button" class="btn btn-danger" data-bs-dismiss="modal">ปิด</button>';
-        showGenericModal(title, body, footer, onHiddenCallback);
+        window.showGenericModal(title, body, footer, onHiddenCallback);
     };
 
     window.showConfirmModal = function(title, message, confirmCallback) {
@@ -64,7 +65,7 @@ document.addEventListener('DOMContentLoaded', function() {
             <button type="button" class="btn btn-primary" id="confirmActionButton">ยืนยัน</button>
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
         `;
-        showGenericModal(title, body, footer);
+        window.showGenericModal(title, body, footer);
 
         const confirmBtn = genericModalElement.querySelector('#confirmActionButton');
         let confirmClickHandler = function() {
@@ -87,7 +88,7 @@ document.addEventListener('DOMContentLoaded', function() {
             <button type="button" class="btn btn-warning" id="warningConfirmButton">ยืนยัน</button>
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
         `;
-        showGenericModal(title, body, footer);
+        window.showGenericModal(title, body, footer);
 
         const warningConfirmBtn = genericModalElement.querySelector('#warningConfirmButton');
         let warningConfirmClickHandler = function() {
@@ -104,7 +105,9 @@ document.addEventListener('DOMContentLoaded', function() {
         genericModalElement.addEventListener('hidden.bs.modal', handleModalHidden);
     };
 
+
     // --- Handle URL parameters for status messages (from PHP redirects) ---
+    // This part should remain in admin-modal.js as it's a general notification system
     const urlParams = new URLSearchParams(window.location.search);
     const status = urlParams.get('status');
     const message = urlParams.get('message');
@@ -120,90 +123,14 @@ document.addEventListener('DOMContentLoaded', function() {
         };
 
         if (status === 'success') {
-            showSuccessModal(decodedMessage, onHiddenCallback);
+            window.showSuccessModal(decodedMessage, onHiddenCallback);
         } else if (status === 'error') {
-            showErrorModal(decodedMessage, onHiddenCallback);
+            window.showErrorModal(decodedMessage, onHiddenCallback);
         }
     }
 
-    // --- Logic for Add/Edit Form Confirmation Modals ---
-    function setupFormConfirmation(formId, submitBtnId, actionType, itemType, nameElementId, additionalNameData = {}) {
-        const form = document.getElementById(formId);
-        const submitBtn = document.getElementById(submitBtnId);
 
-        if (!form || !submitBtn) return;
-
-        submitBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-
-            // Perform client-side validation first
-            if (!form.checkValidity()) {
-                form.reportValidity();
-                return;
-            }
-
-            let itemName = '';
-            const nameElement = document.getElementById(nameElementId);
-
-            if (nameElement && nameElement.tagName === 'SELECT') {
-                itemName = nameElement.options[nameElement.selectedIndex].text;
-            } else if (nameElement) {
-                itemName = nameElement.value;
-            } else {
-                const h2Element = form.closest('.form-section')?.querySelector('h2');
-                if (h2Element) {
-                    itemName = h2Element.textContent.split(': ')[1] || h2Element.textContent;
-                }
-            }
-            
-            // For requests, prepend the project name if it's available and relevant
-            if (itemType.includes('คำร้องขอ') && nameElementId === 'project_id' && nameElement) {
-                 const selectedProjectText = nameElement.options[nameElement.selectedIndex].text;
-                 itemName = `โครงการ "${selectedProjectText}"`;
-                 if (itemType === 'คำร้องขอสถานที่') {
-                    const facilitySelect = document.getElementById('facility_id');
-                    if (facilitySelect && facilitySelect.selectedIndex > 0) {
-                        itemName += ` สำหรับสถานที่ "${facilitySelect.options[facilitySelect.selectedIndex].text}"`;
-                    }
-                 } else if (itemType === 'คำร้องขออุปกรณ์') {
-                    const equipSelect = document.getElementById('equip_id');
-                    if (equipSelect && equipSelect.selectedIndex > 0) {
-                        itemName += ` สำหรับอุปกรณ์ "${equipSelect.options[equipSelect.selectedIndex].text}"`;
-                    }
-                 }
-            }
-
-
-            const title = `<i class="bi bi-question-circle-fill text-info me-2"></i> ยืนยันการ${actionType}${itemType}`;
-            const message = `คุณแน่ใจหรือไม่ที่จะ${actionType}${itemType} <strong>${itemName}</strong> นี้?`;
-
-            window.showConfirmModal(title, message, function(confirmed) {
-                if (confirmed) {
-                    // Create a temporary hidden input to ensure the 'action' value is sent
-                    const hiddenActionInput = document.createElement('input');
-                    hiddenActionInput.type = 'hidden';
-                    hiddenActionInput.name = 'action'; // PHP will look for $_POST['action']
-                    hiddenActionInput.value = submitBtn.value; // The value from the button
-                    form.appendChild(hiddenActionInput);
-
-                    form.submit(); // Programmatically submit the form
-                }
-            });
-        });
-    }
-
-    // Initialize add/edit form confirmations for user-project-page.php
-    setupFormConfirmation('createProjectForm', 'submitCreateProject', 'สร้าง', 'โครงการ', 'project_name');
-    setupFormConfirmation('editProjectForm', 'submitEditProject', 'แก้ไข', 'โครงการ', 'project_name');
-
-    setupFormConfirmation('createBuildingForm', 'submitCreateBuilding', 'สร้าง', 'คำร้องขอสถานที่', 'project_id');
-    setupFormConfirmation('editBuildingForm', 'submitEditBuilding', 'แก้ไข', 'คำร้องขอสถานที่', 'project_id');
-
-    setupFormConfirmation('createEquipmentForm', 'submitCreateEquipment', 'สร้าง', 'คำร้องขออุปกรณ์', 'project_id');
-    setupFormConfirmation('editEquipmentForm', 'submitEditEquipment', 'แก้ไข', 'คำร้องขออุปกรณ์', 'project_id');
-
-
-    // --- Status Change Warning for Admin Data View (from original) ---
+    // --- Status Change Warning for Admin Data View (Admin-specific) ---
     function setupStatusToggleWarning(formId, toggleCheckboxId) {
         const form = document.getElementById(formId);
         const toggleCheckbox = document.getElementById(toggleCheckboxId);
@@ -247,75 +174,45 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Initialize status toggle warnings (for admin data view only, if present)
-    setupStatusToggleWarning('editBuildingForm', 'status_building'); // Assumes these forms and elements exist
+    // Initialize status toggle warnings (for admin data view only)
+    setupStatusToggleWarning('editBuildingForm', 'status_building');
     setupStatusToggleWarning('editFacilityForm', 'available_facility');
     setupStatusToggleWarning('editEquipmentForm', 'available_equip');
 
 
-    // --- Delete/Cancel Confirmation Modals Logic (for user-project-page.php) ---
-    function setupActionModal(modalId, formId, itemIdInputId, actionInputId, action, nameDataAttribute, typeDataAttribute) {
-        const modalElement = document.getElementById(modalId);
-        if (!modalElement) return;
-
-        modalElement.addEventListener('show.bs.modal', function (event) {
+    // --- Admin-specific Delete Confirmation Modal Logic ---
+    const deleteConfirmationModalElement = document.getElementById('deleteConfirmationModal');
+    if (deleteConfirmationModalElement) {
+        deleteConfirmationModalElement.addEventListener('show.bs.modal', function(event) {
             const button = event.relatedTarget;
-            const itemId = button.getAttribute('data-id');
-            const itemName = button.getAttribute(nameDataAttribute);
-            const itemType = button.getAttribute(typeDataAttribute);
+            const id = button.getAttribute('data-id');
+            const name = button.getAttribute('data-name');
+            const type = button.getAttribute('data-type');
+            const redirectBuildingId = button.getAttribute('data-redirect-building-id'); // For facility deletion
 
-            const form = document.getElementById(formId);
-            const itemIdInput = form.querySelector(`#${itemIdInputId}`);
-            const actionInput = form.querySelector(`#${actionInputId}`);
+            const deleteForm = document.getElementById('deleteForm');
+            const deleteItemTypeInput = document.getElementById('deleteItemType');
+            const deleteItemIdInput = document.getElementById('deleteItemId');
+            const deleteModalMessage = document.getElementById('deleteModalMessage');
+            const redirectBuildingIdInput = document.getElementById('redirectBuildingId');
 
-            if (itemIdInput) itemIdInput.value = itemId;
-            if (actionInput) actionInput.value = action;
+            if (deleteItemTypeInput) deleteItemTypeInput.value = 'delete_' + type; // e.g., 'delete_building'
+            if (deleteItemIdInput) deleteItemIdInput.value = id;
+            if (redirectBuildingIdInput) redirectBuildingIdInput.value = redirectBuildingId; // This might be empty for building/equipment
 
-            const modalTitleElement = modalElement.querySelector('.modal-title');
-            const modalBodyElement = modalElement.querySelector('.modal-body');
+            // Update modal message based on item type
+            let message = `คุณแน่ใจหรือไม่ที่ต้องการลบ ${type} <strong>${name}</strong> นี้? การดำเนินการนี้ไม่สามารถย้อนกลับได้`;
+            if (type === 'building') {
+                message += " และจะลบสถานที่ทั้งหมดที่เกี่ยวข้องกับอาคารนี้ด้วย.";
+            }
+            if (deleteModalMessage) deleteModalMessage.innerHTML = `<p class="details-text">${message}</p>`;
 
-            if (modalTitleElement && modalBodyElement) {
-                if (action.includes('delete')) {
-                    modalTitleElement.innerHTML = `<h5 class="modal-title text-danger"><i class="bi bi-exclamation-triangle-fill"></i> ยืนยันการลบ${itemType}</h5>`;
-                    let bodyText = `คุณแน่ใจหรือไม่ว่าต้องการลบ${itemType} <strong>${itemName}</strong> นี้? การดำเนินการนี้ไม่สามารถย้อนกลับได้.`;
-                    if (itemType === 'โครงการ') {
-                        bodyText += " และจะลบคำร้องขอที่เกี่ยวข้องทั้งหมดด้วย.";
-                    }
-                    modalBodyElement.innerHTML = `<p class="details-text">${bodyText}</p>`;
-                } else if (action.includes('cancel')) {
-                    modalTitleElement.innerHTML = `<h5 class="modal-title text-dark"><i class="bi bi-x-circle"></i> ยืนยันการยกเลิก${itemType}</h5>`;
-                    let bodyText = `คุณแน่ใจหรือไม่ว่าต้องการยกเลิก${itemType} <strong>${itemName}</strong> นี้? การดำเนินการนี้จะเปลี่ยนสถานะ${itemType}เป็น "ยกเลิก".`;
-                    if (itemType === 'โครงการ') {
-                        bodyText += " และจะยกเลิกคำร้องขอที่เกี่ยวข้องทั้งหมดด้วย.";
-                    }
-                    modalBodyElement.innerHTML = `<p class="details-text">${bodyText}</p>`;
-                }
+            // Update modal title
+            const modalTitle = deleteConfirmationModalElement.querySelector('.modal-title');
+            if (modalTitle) {
+                modalTitle.innerHTML = `<h5 class="modal-title text-danger"><i class="bi bi-exclamation-triangle-fill"></i> ยืนยันการลบ${type}</h5>`;
             }
         });
     }
-
-    // Project Delete Modal
-    setupActionModal('deleteProjectModal', 'deleteProjectForm', 'delete_project_id', 'delete_action_project', 'delete_project', 'data-project-name', 'data-type');
-    // Project Cancel Modal
-    setupActionModal('cancelProjectModal', 'cancelProjectForm', 'cancel_project_id', 'cancel_action_project', 'cancel_project', 'data-project-name', 'data-type');
-
-    // Building Request Delete Modal
-    setupActionModal('deleteBuildingRequestModal', 'deleteBuildingRequestForm', 'delete_fr_id', 'delete_action_fr', 'delete_building_request', 'data-facility-name', 'data-type');
-    // Building Request Cancel Modal
-    setupActionModal('cancelBuildingRequestModal', 'cancelBuildingRequestForm', 'cancel_fr_id', 'cancel_action_fr', 'cancel_building_request', 'data-facility-name', 'data-type');
-
-    // Equipment Request Delete Modal
-    setupActionModal('deleteEquipmentRequestModal', 'deleteEquipmentRequestForm', 'delete_er_id', 'delete_action_er', 'delete_equipment_request', 'data-equip-name', 'data-type');
-    // Equipment Request Cancel Modal
-    setupActionModal('cancelEquipmentRequestModal', 'cancelEquipmentRequestForm', 'cancel_er_id', 'cancel_action_er', 'cancel_equipment_request', 'data-equip-name', 'data-type');
-
-
-    // Logic for handling file removal in edit project form
-    document.querySelectorAll('.remove-existing-file').forEach(button => {
-        button.addEventListener('click', function() {
-            this.closest('.input-group').remove();
-            // The hidden input that stores retained files will automatically exclude this one
-        });
-    });
 
 });

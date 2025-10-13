@@ -1,7 +1,6 @@
 <?php
 $project_root = dirname(dirname(__FILE__));
 
-
 // โหมดต่าง ๆ ของ admin
 $is_admin_form_mode = in_array($mode, ['add_building', 'add_facility', 'add_equipment', 'edit_building', 'edit_facility', 'edit_equipment']);
 
@@ -605,7 +604,7 @@ if ($mode == 'buildings' || $mode == 'building_detail') {
     </div>
 
     <!-- Modal ยืนยันการลบอาคารสถานที่และอุปกรณ์ -->
-    <div class="modal fade" id="deleteConfirmationModal" tabindex="-1" aria-labelledby="deleteConfirmationModalLabel" aria-hidden="true">
+<div class="modal fade" id="deleteConfirmationModal" tabindex="-1" aria-labelledby="deleteConfirmationModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content list-text">
                 <form id="deleteForm" action="php/admin-bfe-injection.php" method="POST">
@@ -617,6 +616,7 @@ if ($mode == 'buildings' || $mode == 'building_detail') {
                         <p>คุณแน่ใจหรือไม่ที่ต้องการลบข้อมูลนี้? การดำเนินการนี้ไม่สามารถย้อนกลับได้</p>
                     </div>
                     <div class="modal-footer d-flex justify-content-center">
+                        <!-- *** ตรวจสอบให้แน่ใจว่ามี input type="hidden" name="inject_type" แค่อันเดียวในฟอร์มนี้ และมันคืออันนี้ *** -->
                         <input type="hidden" name="inject_type" id="deleteItemType">
                         <input type="hidden" name="delete_id" id="deleteItemId">
                         <input type="hidden" name="building_id_for_redirect" id="redirectBuildingId">

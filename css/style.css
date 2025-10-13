@@ -7,6 +7,7 @@ html {
     height: 100%;
     overflow: hidden; /* Prevents scrollbar on the HTML element */
 }
+
 body {
     height: 100%; 
     margin: 0;
@@ -26,11 +27,6 @@ body {
 
 /* Responsive Navbar adjustments */
 @media (max-width: 768px) {
-    .navbar .d-flex.flex-wrap {
-        flex-direction: column !important;
-        align-items: stretch !important;
-        gap: 0.5rem !important;
-    }
     .navbar-brand {
         text-align: left !important;
     }
@@ -68,30 +64,86 @@ body {
 }
 
 @media (max-width: 767.98px) {
-    .navigator .navbar-brand.fs-5 {
-        font-size: 1rem !important;
+    .navigator .container-fluid {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
     }
-    .navigator .navbar-brand.fs-6 {
-        font-size: 0.8rem !important;
+
+    /* left block: logo + title -> full width first row */
+    .navigator .container-fluid > .d-flex.align-items-center.gap-3 {
+        order: 1;
+        flex: 1 1 100%;
+        justify-content: flex-start;
+        gap: 0.5rem;
     }
-}
-@media (max-width: 575.98px) {
-    .navigator .navbar-brand.fs-5 {
-        font-size: 0.9rem !important;
-    }
-    .navigator .navbar-brand.fs-6 {
-        font-size: 0.75rem !important;
-    }
-    .navigator .logo {
+    .navigator .container-fluid > .d-flex.align-items-center.gap-3 .logo {
         width: 40px;
         height: 40px;
     }
-    .navigator .img-fluid.logo[style*="width:40px"] {
-        width: 30px !important;
-        height: 30px !important;
+    .navigator .container-fluid > .d-flex.align-items-center.gap-3 .navbar-brand {
+        font-size: 0.95rem;
+        line-height: 1;
     }
-    .navbar-brand.mx-auto {
-        font-size: 0.9rem !important;
+
+    /* center links -> center on its own row and wrap */
+    .navigator .container-fluid > .d-flex.mx-auto {
+        order: 2;
+        flex: 1 1 100%;
+        justify-content: center;
+        gap: 0.6rem;
+        flex-wrap: wrap;
+        margin: 0.25rem 0;
+    }
+    .navigator .container-fluid > .d-flex.mx-auto .navbar-brand {
+        font-size: 0.95rem;
+        padding: 0.15rem 0.4rem;
+    }
+
+    /* right user block -> align right but on its own row */
+    .navigator .container-fluid > .d-flex.ms-auto {
+        order: 3;
+        flex: 1 1 100%;
+        justify-content: flex-end;
+        gap: 0.5rem;
+        align-items: center;
+    }
+    .navigator .container-fluid > .d-flex.ms-auto .navbar-brand {
+        font-size: 0.9rem;
+        text-align: right;
+    }
+    .navigator .container-fluid > .d-flex.ms-auto img.logo {
+        width: 36px;
+        height: 36px;
+    }
+
+    /* Reduce spacing so items don't collide */
+    .navigator .navbar-brand.mb-0.fs-5,
+    .navigator .navbar-brand.mb-0.fs-6 {
+        margin-bottom: 0;
+    }
+
+    /* Prevent center links pushing others when very narrow */
+    .navigator .container-fluid .navbar-brand {
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        overflow: hidden;
+        max-width: 140px;
+    }
+}
+
+/* Optional: small refinement for very narrow phones */
+@media (max-width: 420px) {
+    .navigator .container-fluid > .d-flex.mx-auto .navbar-brand {
+        font-size: 0.88rem;
+        padding: 0.1rem 0.25rem;
+        max-width: 120px;
+    }
+    .navigator .container-fluid .navbar-brand {
+        max-width: 110px;
     }
 }
 
