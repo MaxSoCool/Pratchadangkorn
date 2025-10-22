@@ -1,0 +1,18 @@
+{
+    "name": "pratchadangkorn/ku_ftd",
+    "description": "4th year final project for facility and equipemt request system",
+    "autoload": {
+        "psr-4": {
+            "Pratchadangkorn\\KuFtd\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "MaxSoCool",
+            "email": "maxkeawmaneechoot@gmail.com"
+        }
+    ],
+    "require": {
+        "vlucas/phpdotenv": "^5.6"
+    }
+}

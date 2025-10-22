@@ -56,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                 // อนุญาตให้ดำเนินการได้ถ้าสถานะเป็น 'ส่งคำร้องขอ' และยังไม่เคยถูกอนุมัติ/ไม่อนุมัติ/ยกเลิก
                 if ($current_request && $current_request['writed_status'] === 'ส่งคำร้องขอ' && ($current_request['approve'] === null || $current_request['approve'] === '')) {
                     $stmt = $conn->prepare("UPDATE {$tableName} SET approve = ?, approve_date = ?, approve_detail = ?, staff_id = ? WHERE {$idColumn} = ?");
-                    $stmt->bind_param("sssi", $approveStatus, $approveDate, $approveDetail, $staffIdToUse, $requestId);
+                    $stmt->bind_param("ssssi", $approveStatus, $approveDate, $approveDetail, $staffIdToUse, $requestId);
                     if ($stmt->execute()) {
                         $success_message = "ดำเนินการ {$approveStatus} คำร้องขอสำเร็จแล้ว!";
                         // Redirect เพื่อป้องกันการ submit ซ้ำ

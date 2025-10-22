@@ -1,0 +1,4 @@
+/vendor/
+
+.env
+api/ldap_login.php

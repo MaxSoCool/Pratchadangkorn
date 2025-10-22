@@ -59,7 +59,6 @@ $user_dept = htmlspecialchars($_SESSION['dept'] ?? '');
                         <p><strong>นามสกุล (ไทย):</strong> <?php echo $user_sur; ?></p>
                         <p><strong>ประเภทผู้ใช้:</strong> <?php echo $user_role; ?></p>
                         
-                        <!-- *** เพิ่มเงื่อนไขการแสดงผลสำหรับ ตำแหน่ง และ แผนก *** -->
                         <?php if (!empty($user_position)): ?>
                             <p><strong>ตำแหน่ง:</strong> <?php echo $user_position; ?></p>
                         <?php endif; ?>

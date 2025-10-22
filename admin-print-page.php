@@ -77,7 +77,7 @@ if ($print_all_project_requests && $project_id > 0) {
                             'equipment' AS request_type_label
                         FROM equipments_requests er
                         JOIN equipments e ON er.equip_id = e.equip_id
-                        LEFT JOIN facilities f ON er.facility_id = f.facility_id
+                        JOIN facilities f ON er.facility_id = f.facility_id
                         LEFT JOIN staff s ON er.staff_id = s.staff_id
                         WHERE er.project_id = ? AND er.writed_status != 'ร่างคำร้องขอ'
                         ORDER BY er.request_date ASC";
@@ -147,7 +147,7 @@ if ($print_all_project_requests && $project_id > 0) {
                     FROM equipments_requests er
                     JOIN equipments e ON er.equip_id = e.equip_id
                     JOIN project p ON er.project_id = p.project_id
-                    LEFT JOIN facilities f ON er.facility_id = f.facility_id
+                    JOIN facilities f ON er.facility_id = f.facility_id
                     JOIN activity_type at ON p.activity_type_id = at.activity_type_id
                     JOIN user u ON p.nontri_id = u.nontri_id
                     JOIN user_type ut ON u.user_type_id = ut.user_type_id
