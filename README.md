@@ -35,7 +35,7 @@
 
 1.  **โคลนโปรเจค** 📂
     ```bash
-    git clone [https://github.com/MaxSoCool/Pratchadangkorn-Kaewmaneechot.git](https://github.com/MaxSoCool/Pratchadangkorn-Kaewmaneechot.git)
+    git clone https://github.com/MaxSoCool/Pratchadangkorn-Kaewmaneechot.git
     cd Pratchadangkorn-Kaewmaneechot
     ```
 
