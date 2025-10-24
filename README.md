@@ -35,8 +35,8 @@
 
 1.  **โคลนโปรเจค** 📂
     ```bash
-    git clone https://github.com/MaxSoCool/Pratchadangkorn-Kaewmaneechot.git
-    cd Pratchadangkorn-Kaewmaneechot
+    git clone https://github.com/MaxSoCool/Pratchadangkorn.git
+    cd Pratchadangkorn
     ```
 
 2.  **ติดตั้ง Composer** 📦
@@ -68,7 +68,7 @@
 1.  **เปิด XAMPP Control Panel** (หากไม่มี [ติดตั้ง Xampp ที่นี่](https://www.apachefriends.org/download.html))
 2.  กด **Start** ที่ `Apache` และ `MySQL`
 3.  เปิดเบราว์เซอร์ของคุณและไปที่:
-    [http://localhost/Pratchadangkorn-Kaewmaneechot](http://localhost/Pratchadangkorn-Kaewmaneechot)
+    [http://localhost/Pratchadangkorn-Kaewmaneechot](http://localhost/Pratchadangkorn)
 
 ## 🎥 คลิปวิดีโอแนะนำระบบ (Demo Video)
 
